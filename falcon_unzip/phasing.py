@@ -33,30 +33,30 @@ def make_het_call(self):
     except OSError:
         pass
 
-    vmap = open(vmap_fn, "w")
-    vpos = open(vpos_fn, "w")
-
-    q_id_map = make_het_call_map(p.stdout, vmap, vpos, ref_seq)
-
+    vmap_f = open(vmap_fn, "w")
+    vpos_f = open(vpos_fn, "w")
     q_id_map_f = open(q_id_map_fn, "w")
-    for q_id, q_name in q_id_map.items():
-        print >> q_id_map_f, q_id, q_name
+
+    make_het_call_map(ref_seq, p.stdout, vmap_f, vpos_f, q_id_map_f)
 
 
-def make_het_call_map(samtools_view_bam_ctg, vmap, vpos, ref_seq):
+def make_het_call_map(ref_seq, samtools_view_bam_ctg_f, vmap_f, vpos_f, q_id_map_f):
     """Given lines of samtools-view, lines of variant_map and variant_pos files, and a reference sequence,
-    write into vmap and vpos,
-    and return a map of q_id->QNAME,
+    write into q_id_map, vmap, and vpos,
+
+    q_id_map is
+        q_id QNAME
+        ...
     where q_id is 0, 1, 2, ...
     and QNAME is the first field of each line from samtools-view.
     """
-    q_id_map = {} # to be returned
+    q_id_map = {}
+    q_name_to_id = {} # reverse of q_id_map
     pileup = {}
     q_max_id = 0
     q_id = 0
-    q_name_to_id = {}
 
-    for l in samtools_view_bam_ctg:
+    for l in samtools_view_bam_ctg_f:
         l = l.strip().split()
         if l[0][0] == "@":
             continue
@@ -138,13 +138,15 @@ def make_het_call_map(samtools_view_bam_ctg, vmap, vpos, ref_seq):
                     b0 = base_count[0][1]
                     b1 = base_count[1][1]
                     ref_base = ref_seq[pos]
-                    print >> vpos, pos+1, ref_base, total_count, " ".join(["%s %d" % (x[1], x[0]) for x in base_count])
+                    print >> vpos_f, pos+1, ref_base, total_count, " ".join(["%s %d" % (x[1], x[0]) for x in base_count])
                     for q_id_ in pileup[pos][b0]:
-                        print >> vmap, pos+1, ref_base, b0, q_id_
+                        print >> vmap_f, pos+1, ref_base, b0, q_id_
                     for q_id_ in pileup[pos][b1]:
-                        print >> vmap, pos+1, ref_base, b1, q_id_
+                        print >> vmap_f, pos+1, ref_base, b1, q_id_
                 del pileup[pos]
-    return q_id_map
+
+    for q_id, q_name in q_id_map.items():
+        print >> q_id_map_f, q_id, q_name
 
 
 def generate_association_table(self):
