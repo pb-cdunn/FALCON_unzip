@@ -12,7 +12,6 @@ import sys
 cigar_re = r"(\d+)([MIDNSHP=X])"
 
 def make_het_call(self):
-
     bam_fn = fn(self.bam_file)
     ctg_id = self.parameters["ctg_id"]
     ref_seq = self.parameters["ref_seq"]
@@ -25,11 +24,6 @@ def make_het_call(self):
 
     # maybe we should check if the samtools path is valid
     p = subprocess.Popen(shlex.split("%s view %s %s" % (samtools, bam_fn, ctg_id) ), stdout=subprocess.PIPE)
-    pileup = {}
-    q_id_map = {}
-    q_max_id = 0
-    q_id = 0
-    q_name_to_id = {}
 
     try:
         os.makedirs("%s/%s" % (base_dir, ctg_id))
@@ -39,7 +33,21 @@ def make_het_call(self):
     vmap = open(vmap_fn, "w")
     vpos = open(vpos_fn, "w")
 
-    for l in p.stdout:
+    q_id_map = make_het_call_map(p.stdout, vmap, vpos, ref_seq)
+
+    q_id_map_f = open(q_id_map_fn, "w")
+    for q_id, q_name in q_id_map.items():
+        print >> q_id_map_f, q_id, q_name
+
+
+def make_het_call_map(samtools_view_bam_ctg, vmap, vpos, ref_seq):
+    q_id_map = {} # to be returned
+    pileup = {}
+    q_max_id = 0
+    q_id = 0
+    q_name_to_id = {}
+
+    for l in samtools_view_bam_ctg:
         l = l.strip().split()
         if l[0][0] == "@":
             continue
@@ -127,15 +135,10 @@ def make_het_call(self):
                     for q_id_ in pileup[pos][b1]:
                         print >> vmap, pos+1, ref_base, b1, q_id_
                 del pileup[pos]
-
-
-    q_id_map_f = open(q_id_map_fn, "w")
-    for q_id, q_name in q_id_map.items():
-        print >> q_id_map_f, q_id, q_name
+    return q_id_map
 
 
 def generate_association_table(self):
-
     vmap_fn = fn(self.vmap_file)
     atable_fn = fn(self.atable_file)
     ctg_id = self.parameters["ctg_id"]
@@ -421,7 +424,6 @@ def get_phased_blocks(self):
                 print >>out_f, "V", pid, p, "%d_%s_%s" % (p,rb,b1), "%d_%s_%s" % (p,rb,b2), left_extent[p], right_extent[p], left_score[p], right_score[p]
 
 def get_phased_reads(self):
-
     q_id_map_fn = fn(self.q_id_map_file)
     vmap_fn = fn(self.vmap_file)
     p_variant_fn = fn(self.phased_variant_file)
@@ -529,8 +531,6 @@ def phasing(args):
     wf.addTasks([generate_association_table_task])
 
 
-
-
     phased_variant_file = makePypeLocalFile( os.path.join(base_dir, ctg_id, 'get_phased_blocks', "phased_variants") )
     get_phased_blocks_task = PypeTask( inputs = { "vmap_file": vmap_file, "atable_file": atable_file },
                                       outputs = { "phased_variant_file": phased_variant_file },
@@ -564,7 +564,6 @@ def parse_args(argv):
     parser.add_argument('--ctg_id', type=str, help='contig identifier in the bam file', required=True)
     parser.add_argument('--base_dir', type=str, default="./", help='the output base_dir, default to current working directory')
     parser.add_argument('--samtools', type=str, default="samtools", help='path to samtools')
-
 
     args = parser.parse_args(argv[1:])
     return args
