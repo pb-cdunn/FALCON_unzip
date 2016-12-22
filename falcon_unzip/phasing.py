@@ -14,24 +14,27 @@ cigar_re = r"(\d+)([MIDNSHP=X])"
 
 def make_het_call(self):
     bam_fn = fn(self.bam_file)
+    fasta_fn = fn(self.fasta)
     ctg_id = self.parameters["ctg_id"]
-    ref_seq = self.parameters["ref_seq"]
     base_dir = self.parameters["base_dir"]
     samtools = self.parameters["samtools"]
     vmap_fn = fn(self.vmap_file)
     vpos_fn = fn(self.vpos_file)
     q_id_map_fn = fn(self.q_id_map_file)
 
+    LOG.info('Getting ref_seq for {!r} in {!r}'.format(ctg_id, fasta_fn))
+    for r in FastaReader(fasta_fn):
+        rid = r.name.split()[0]
+        if rid != ctg_id:
+            continue
+        ref_seq = r.sequence.upper()
+        break
+    else:
+        ref_seq = ""
 
-    # maybe we should check if the samtools path is valid
     cmd = "%s view %s %s" % (samtools, bam_fn, ctg_id)
     LOG.info(cmd)
     p = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE)
-
-    try:
-        os.makedirs("%s/%s" % (base_dir, ctg_id))
-    except OSError:
-        pass
 
     vmap_f = open(vmap_fn, "w")
     vpos_f = open(vpos_fn, "w")
@@ -493,42 +496,37 @@ def get_phased_reads(self):
                     print >> out_f, r, ctg_id, p, 1, vl.get( (p,0), 0), vl.get( (p,1), 0), rid_map[r]
 
 def phasing(args):
+    LOG.debug('IN PHASING')
     bam_fn = args.bam
     fasta_fn = args.fasta
     ctg_id = args.ctg_id
     base_dir = args.base_dir
     samtools = args.samtools
 
-    ref_seq = ""
-    for r in FastaReader(fasta_fn):
-        rid = r.name.split()[0]
-        if rid != ctg_id:
-            continue
-        ref_seq = r.sequence.upper()
-
     wf = PypeProcWatcherWorkflow(
             max_jobs=1,
     )
 
     bam_file = makePypeLocalFile(bam_fn)
+    fasta_file = makePypeLocalFile(fasta_fn)
     vmap_file = makePypeLocalFile( os.path.join(base_dir, ctg_id, 'het_call', "variant_map") )
     vpos_file = makePypeLocalFile( os.path.join(base_dir, ctg_id, 'het_call', "variant_pos") )
     q_id_map_file = makePypeLocalFile( os.path.join(base_dir, ctg_id, 'het_call', "q_id_map") )
     parameters = {}
     parameters["ctg_id"] = ctg_id
-    parameters["ref_seq"] = ref_seq
     parameters["base_dir"] = base_dir
     parameters["samtools"] = samtools
 
-    make_het_call_task = PypeTask( inputs = { "bam_file": bam_file },
+    make_het_call_task = PypeTask(
+                         inputs = {
+                             "bam_file": bam_file,
+                             "fasta": fasta_file,
+                         },
                          outputs = { "vmap_file": vmap_file, "vpos_file": vpos_file, "q_id_map_file": q_id_map_file },
                          parameters = parameters,
     ) (make_het_call)
 
     wf.addTasks([make_het_call_task])
-
-
-
 
     atable_file = makePypeLocalFile( os.path.join(base_dir, ctg_id, 'g_atable', "atable") )
     parameters = {}
@@ -581,5 +579,6 @@ def parse_args(argv):
 
 def main(argv=sys.argv):
     logging.basicConfig()
+    logging.getLogger().setLevel(logging.INFO)
     args = parse_args(argv)
     phasing(args)
