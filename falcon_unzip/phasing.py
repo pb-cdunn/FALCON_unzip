@@ -8,6 +8,7 @@ import re
 import shlex
 import subprocess
 import sys
+LOG = logging.getLogger(__name__)
 
 cigar_re = r"(\d+)([MIDNSHP=X])"
 
@@ -23,7 +24,9 @@ def make_het_call(self):
 
 
     # maybe we should check if the samtools path is valid
-    p = subprocess.Popen(shlex.split("%s view %s %s" % (samtools, bam_fn, ctg_id) ), stdout=subprocess.PIPE)
+    cmd = "%s view %s %s" % (samtools, bam_fn, ctg_id)
+    LOG.info(cmd)
+    p = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE)
 
     try:
         os.makedirs("%s/%s" % (base_dir, ctg_id))
@@ -41,6 +44,12 @@ def make_het_call(self):
 
 
 def make_het_call_map(samtools_view_bam_ctg, vmap, vpos, ref_seq):
+    """Given lines of samtools-view, lines of variant_map and variant_pos files, and a reference sequence,
+    write into vmap and vpos,
+    and return a map of q_id->QNAME,
+    where q_id is 0, 1, 2, ...
+    and QNAME is the first field of each line from samtools-view.
+    """
     q_id_map = {} # to be returned
     pileup = {}
     q_max_id = 0
