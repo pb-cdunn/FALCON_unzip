@@ -10,8 +10,6 @@ import subprocess
 import sys
 LOG = logging.getLogger(__name__)
 
-cigar_re = r"(\d+)([MIDNSHP=X])"
-
 def make_het_call(self):
     bam_fn = fn(self.bam_file)
     fasta_fn = fn(self.fasta)
@@ -31,9 +29,10 @@ def make_het_call(self):
         break
     else:
         ref_seq = ""
+    LOG.info(' Length of ref_seq: {}'.format(len(ref_seq)))
 
     cmd = "%s view %s %s" % (samtools, bam_fn, ctg_id)
-    LOG.info(cmd)
+    LOG.info('Capture `{}`'.format(cmd))
     p = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE)
 
     vmap_f = open(vmap_fn, "w")
@@ -58,6 +57,8 @@ def make_het_call_map(ref_seq, samtools_view_bam_ctg_f, vmap_f, vpos_f, q_id_map
     pileup = {}
     q_max_id = 0
     q_id = 0
+    cigar_re = re.compile(r"(\d+)([MIDNSHP=X])")
+
 
     for l in samtools_view_bam_ctg_f:
         l = l.strip().split()
@@ -82,19 +83,19 @@ def make_het_call_map(ref_seq, samtools_view_bam_ctg_f, vmap_f, vpos_f, q_id_map
 
         skip_base = 0
         total_aln_pos = 0
-        for m in re.finditer(cigar_re, CIGAR):
+        for m in cigar_re.finditer(CIGAR):
             adv = int(m.group(1))
             total_aln_pos += adv
 
             if m.group(2)  == "S":
                 skip_base += adv
 
-        if 1.0 - 1.0 * skip_base / total_aln_pos < 0.1:
-            continue
         if total_aln_pos < 2000:
             continue
+        if 1.0 - 1.0 * skip_base / total_aln_pos < 0.1:
+            continue
 
-        for m in re.finditer(cigar_re, CIGAR):
+        for m in cigar_re.finditer(CIGAR):
             adv = int(m.group(1))
             if m.group(2) == "S":
                 qp += adv
