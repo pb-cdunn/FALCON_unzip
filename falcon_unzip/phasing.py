@@ -97,9 +97,10 @@ def make_het_call_map(ref_seq, samtools_view_bam_ctg_f, vmap_f, vpos_f, q_id_map
 
         for m in cigar_re.finditer(CIGAR):
             adv = int(m.group(1))
-            if m.group(2) == "S":
+            cigar_tag = m.group(2)
+            if cigar_tag == "S":
                 qp += adv
-            if m.group(2) in ("M", "=", "X"):
+            elif cigar_tag in ("M", "=", "X"):
                 matches = []
                 for i in range(adv):
                     matches.append( (rp, SEQ[qp]) )
@@ -109,10 +110,10 @@ def make_het_call_map(ref_seq, samtools_view_bam_ctg_f, vmap_f, vpos_f, q_id_map
                     pileup.setdefault(pos, {})
                     pileup[pos].setdefault(b, [])
                     pileup[pos][b].append(q_id)
-            elif m.group(2) == "I":
+            elif cigar_tag == "I":
                 for i in range(adv):
                     qp += 1
-            elif m.group(2) == "D":
+            elif cigar_tag == "D":
                 for i in range(adv):
                     rp += 1
 
@@ -120,34 +121,34 @@ def make_het_call_map(ref_seq, samtools_view_bam_ctg_f, vmap_f, vpos_f, q_id_map
         pos_k.sort()
         th = 0.25
         for pos in pos_k:
-            if pos < POS:
-                if len(pileup[pos]) < 2:
-                    del pileup[pos]
-                    continue
-                base_count = []
-                total_count = 0
-                for b in ["A", "C", "G", "T"]:
-                    count = len(pileup[pos].get(b,[]))
-                    base_count.append( (count, b) )
-                    total_count += count
-                if total_count < 10:
-                    del pileup[pos]
-                    continue
+            if pos >= POS:
+                break
+            pupmap = pileup[pos]
+            del pileup[pos]
+            if len(pupmap) < 2:
+                continue
+            base_count = []
+            total_count = 0
+            for b in ["A", "C", "G", "T"]:
+                count = len(pupmap.get(b,[]))
+                base_count.append( (count, b) )
+                total_count += count
+            if total_count < 10:
+                continue
 
-                base_count.sort()
-                base_count.reverse()
-                p0 = 1.0 *  base_count[0][0] / total_count
-                p1 = 1.0 *  base_count[1][0] / total_count
-                if p0 < 1.0 - th and p1 > th:
-                    b0 = base_count[0][1]
-                    b1 = base_count[1][1]
-                    ref_base = ref_seq[pos]
-                    print >> vpos_f, pos+1, ref_base, total_count, " ".join(["%s %d" % (x[1], x[0]) for x in base_count])
-                    for q_id_ in pileup[pos][b0]:
-                        print >> vmap_f, pos+1, ref_base, b0, q_id_
-                    for q_id_ in pileup[pos][b1]:
-                        print >> vmap_f, pos+1, ref_base, b1, q_id_
-                del pileup[pos]
+            base_count.sort()
+            base_count.reverse()
+            p0 = 1.0 *  base_count[0][0] / total_count
+            p1 = 1.0 *  base_count[1][0] / total_count
+            if p0 < 1.0 - th and p1 > th:
+                b0 = base_count[0][1]
+                b1 = base_count[1][1]
+                ref_base = ref_seq[pos]
+                print >> vpos_f, pos+1, ref_base, total_count, " ".join(["%s %d" % (x[1], x[0]) for x in base_count])
+                for q_id_ in pupmap[b0]:
+                    print >> vmap_f, pos+1, ref_base, b0, q_id_
+                for q_id_ in pupmap[b1]:
+                    print >> vmap_f, pos+1, ref_base, b1, q_id_
 
     for q_id, q_name in q_id_map.items():
         print >> q_id_map_f, q_id, q_name
