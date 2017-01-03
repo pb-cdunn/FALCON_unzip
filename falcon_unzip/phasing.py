@@ -8,38 +8,59 @@ import re
 import shlex
 import subprocess
 import sys
-
-cigar_re = r"(\d+)([MIDNSHP=X])"
+LOG = logging.getLogger(__name__)
 
 def make_het_call(self):
-
     bam_fn = fn(self.bam_file)
+    fasta_fn = fn(self.fasta)
     ctg_id = self.parameters["ctg_id"]
-    ref_seq = self.parameters["ref_seq"]
     base_dir = self.parameters["base_dir"]
     samtools = self.parameters["samtools"]
     vmap_fn = fn(self.vmap_file)
     vpos_fn = fn(self.vpos_file)
     q_id_map_fn = fn(self.q_id_map_file)
 
+    LOG.info('Getting ref_seq for {!r} in {!r}'.format(ctg_id, fasta_fn))
+    for r in FastaReader(fasta_fn):
+        rid = r.name.split()[0]
+        if rid != ctg_id:
+            continue
+        ref_seq = r.sequence.upper()
+        break
+    else:
+        ref_seq = ""
+    LOG.info(' Length of ref_seq: {}'.format(len(ref_seq)))
 
-    # maybe we should check if the samtools path is valid
-    p = subprocess.Popen(shlex.split("%s view %s %s" % (samtools, bam_fn, ctg_id) ), stdout=subprocess.PIPE)
-    pileup = {}
+    cmd = "%s view %s %s" % (samtools, bam_fn, ctg_id)
+    LOG.info('Capture `{}`'.format(cmd))
+    p = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE)
+
+    vmap_f = open(vmap_fn, "w")
+    vpos_f = open(vpos_fn, "w")
+    q_id_map_f = open(q_id_map_fn, "w")
+
+    make_het_call_map(ref_seq, p.stdout, vmap_f, vpos_f, q_id_map_f)
+
+
+def make_het_call_map(ref_seq, samtools_view_bam_ctg_f, vmap_f, vpos_f, q_id_map_f):
+    """Given lines of samtools-view, lines of variant_map and variant_pos files, and a reference sequence,
+    write into q_id_map, vmap, and vpos,
+
+    q_id_map is
+        q_id QNAME
+        ...
+    where q_id is 0, 1, 2, ...
+    and QNAME is the first field of each line from samtools-view.
+    """
     q_id_map = {}
+    q_name_to_id = {} # reverse of q_id_map
+    pileup = {}
     q_max_id = 0
     q_id = 0
-    q_name_to_id = {}
+    cigar_re = re.compile(r"(\d+)([MIDNSHP=X])")
 
-    try:
-        os.makedirs("%s/%s" % (base_dir, ctg_id))
-    except OSError:
-        pass
 
-    vmap = open(vmap_fn, "w")
-    vpos = open(vpos_fn, "w")
-
-    for l in p.stdout:
+    for l in samtools_view_bam_ctg_f:
         l = l.strip().split()
         if l[0][0] == "@":
             continue
@@ -62,23 +83,24 @@ def make_het_call(self):
 
         skip_base = 0
         total_aln_pos = 0
-        for m in re.finditer(cigar_re, CIGAR):
+        for m in cigar_re.finditer(CIGAR):
             adv = int(m.group(1))
             total_aln_pos += adv
 
             if m.group(2)  == "S":
                 skip_base += adv
 
-        if 1.0 - 1.0 * skip_base / total_aln_pos < 0.1:
-            continue
         if total_aln_pos < 2000:
             continue
+        if 1.0 - 1.0 * skip_base / total_aln_pos < 0.1:
+            continue
 
-        for m in re.finditer(cigar_re, CIGAR):
+        for m in cigar_re.finditer(CIGAR):
             adv = int(m.group(1))
-            if m.group(2) == "S":
+            cigar_tag = m.group(2)
+            if cigar_tag == "S":
                 qp += adv
-            if m.group(2) in ("M", "=", "X"):
+            elif cigar_tag in ("M", "=", "X"):
                 matches = []
                 for i in range(adv):
                     matches.append( (rp, SEQ[qp]) )
@@ -88,10 +110,10 @@ def make_het_call(self):
                     pileup.setdefault(pos, {})
                     pileup[pos].setdefault(b, [])
                     pileup[pos][b].append(q_id)
-            elif m.group(2) == "I":
+            elif cigar_tag == "I":
                 for i in range(adv):
                     qp += 1
-            elif m.group(2) == "D":
+            elif cigar_tag == "D":
                 for i in range(adv):
                     rp += 1
 
@@ -99,43 +121,40 @@ def make_het_call(self):
         pos_k.sort()
         th = 0.25
         for pos in pos_k:
-            if pos < POS:
-                if len(pileup[pos]) < 2:
-                    del pileup[pos]
-                    continue
-                base_count = []
-                total_count = 0
-                for b in ["A", "C", "G", "T"]:
-                    count = len(pileup[pos].get(b,[]))
-                    base_count.append( (count, b) )
-                    total_count += count
-                if total_count < 10:
-                    del pileup[pos]
-                    continue
+            if pos >= POS:
+                break
+            pupmap = pileup[pos]
+            del pileup[pos]
+            if len(pupmap) < 2:
+                continue
+            base_count = []
+            total_count = 0
+            for b in ["A", "C", "G", "T"]:
+                count = len(pupmap.get(b,[]))
+                base_count.append( (count, b) )
+                total_count += count
+            if total_count < 10:
+                continue
 
-                base_count.sort()
-                base_count.reverse()
-                p0 = 1.0 *  base_count[0][0] / total_count
-                p1 = 1.0 *  base_count[1][0] / total_count
-                if p0 < 1.0 - th and p1 > th:
-                    b0 = base_count[0][1]
-                    b1 = base_count[1][1]
-                    ref_base = ref_seq[pos]
-                    print >> vpos, pos+1, ref_base, total_count, " ".join(["%s %d" % (x[1], x[0]) for x in base_count])
-                    for q_id_ in pileup[pos][b0]:
-                        print >> vmap, pos+1, ref_base, b0, q_id_
-                    for q_id_ in pileup[pos][b1]:
-                        print >> vmap, pos+1, ref_base, b1, q_id_
-                del pileup[pos]
+            base_count.sort()
+            base_count.reverse()
+            p0 = 1.0 *  base_count[0][0] / total_count
+            p1 = 1.0 *  base_count[1][0] / total_count
+            if p0 < 1.0 - th and p1 > th:
+                b0 = base_count[0][1]
+                b1 = base_count[1][1]
+                ref_base = ref_seq[pos]
+                print >> vpos_f, pos+1, ref_base, total_count, " ".join(["%s %d" % (x[1], x[0]) for x in base_count])
+                for q_id_ in pupmap[b0]:
+                    print >> vmap_f, pos+1, ref_base, b0, q_id_
+                for q_id_ in pupmap[b1]:
+                    print >> vmap_f, pos+1, ref_base, b1, q_id_
 
-
-    q_id_map_f = open(q_id_map_fn, "w")
     for q_id, q_name in q_id_map.items():
         print >> q_id_map_f, q_id, q_name
 
 
 def generate_association_table(self):
-
     vmap_fn = fn(self.vmap_file)
     atable_fn = fn(self.atable_file)
     ctg_id = self.parameters["ctg_id"]
@@ -421,7 +440,6 @@ def get_phased_blocks(self):
                 print >>out_f, "V", pid, p, "%d_%s_%s" % (p,rb,b1), "%d_%s_%s" % (p,rb,b2), left_extent[p], right_extent[p], left_score[p], right_score[p]
 
 def get_phased_reads(self):
-
     q_id_map_fn = fn(self.q_id_map_file)
     vmap_fn = fn(self.vmap_file)
     p_variant_fn = fn(self.phased_variant_file)
@@ -480,42 +498,37 @@ def get_phased_reads(self):
                     print >> out_f, r, ctg_id, p, 1, vl.get( (p,0), 0), vl.get( (p,1), 0), rid_map[r]
 
 def phasing(args):
+    LOG.debug('IN PHASING')
     bam_fn = args.bam
     fasta_fn = args.fasta
     ctg_id = args.ctg_id
     base_dir = args.base_dir
     samtools = args.samtools
 
-    ref_seq = ""
-    for r in FastaReader(fasta_fn):
-        rid = r.name.split()[0]
-        if rid != ctg_id:
-            continue
-        ref_seq = r.sequence.upper()
-
     wf = PypeProcWatcherWorkflow(
             max_jobs=1,
     )
 
     bam_file = makePypeLocalFile(bam_fn)
+    fasta_file = makePypeLocalFile(fasta_fn)
     vmap_file = makePypeLocalFile( os.path.join(base_dir, ctg_id, 'het_call', "variant_map") )
     vpos_file = makePypeLocalFile( os.path.join(base_dir, ctg_id, 'het_call', "variant_pos") )
     q_id_map_file = makePypeLocalFile( os.path.join(base_dir, ctg_id, 'het_call', "q_id_map") )
     parameters = {}
     parameters["ctg_id"] = ctg_id
-    parameters["ref_seq"] = ref_seq
     parameters["base_dir"] = base_dir
     parameters["samtools"] = samtools
 
-    make_het_call_task = PypeTask( inputs = { "bam_file": bam_file },
+    make_het_call_task = PypeTask(
+                         inputs = {
+                             "bam_file": bam_file,
+                             "fasta": fasta_file,
+                         },
                          outputs = { "vmap_file": vmap_file, "vpos_file": vpos_file, "q_id_map_file": q_id_map_file },
                          parameters = parameters,
     ) (make_het_call)
 
     wf.addTasks([make_het_call_task])
-
-
-
 
     atable_file = makePypeLocalFile( os.path.join(base_dir, ctg_id, 'g_atable', "atable") )
     parameters = {}
@@ -527,8 +540,6 @@ def phasing(args):
     ) (generate_association_table)
 
     wf.addTasks([generate_association_table_task])
-
-
 
 
     phased_variant_file = makePypeLocalFile( os.path.join(base_dir, ctg_id, 'get_phased_blocks', "phased_variants") )
@@ -565,11 +576,11 @@ def parse_args(argv):
     parser.add_argument('--base_dir', type=str, default="./", help='the output base_dir, default to current working directory')
     parser.add_argument('--samtools', type=str, default="samtools", help='path to samtools')
 
-
     args = parser.parse_args(argv[1:])
     return args
 
 def main(argv=sys.argv):
     logging.basicConfig()
+    logging.getLogger().setLevel(logging.INFO)
     args = parse_args(argv)
     phasing(args)
