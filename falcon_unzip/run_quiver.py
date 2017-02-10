@@ -190,6 +190,8 @@ def task_scatter_quiver(self):
         #cns_fasta = makePypeLocalFile(os.path.join(wd, 'cns-{ctg_id}.fasta.gz'.format(ctg_id = ctg_id)))
         #cns_fastq = makePypeLocalFile(os.path.join(wd, 'cns-{ctg_id}.fastq.gz'.format(ctg_id = ctg_id)))
         #job_done = makePypeLocalFile(os.path.join(wd, '{ctg_id}_quiver_done'.format(ctg_id = ctg_id)))
+        ctg_types2 = {}
+        ctg_types2[ctg_id] = ctg_types[ctg_id]
 
         if os.path.exists(read_bam):
             # *.sam are created in task_track_reads, fc_select_reads_from_bam.py
@@ -203,7 +205,7 @@ def task_scatter_quiver(self):
                     print >>f, sequence
             new_job = {}
             new_job['ctg_id'] = ctg_id
-            new_job['ctg_types'] = ctg_types
+            new_job['ctg_types'] = ctg_types2
             new_job['smrt_bin'] = config['smrt_bin']
             new_job['sge_option'] = config['sge_quiver']
             new_job['ref_fasta'] = ref_fasta
