@@ -33,7 +33,7 @@ def mkdir(d):
     if not os.path.isdir(d):
         os.makedirs(d)
 
-def task_track_reads(self):
+def task_track_reads_h(self):
     input_bam_fofn = fn(self.input_bam_fofn)
     job_done = fn(self.job_done)
     work_dir = os.getcwd()
@@ -194,7 +194,7 @@ def task_scatter_quiver(self):
         ctg_types2[ctg_id] = ctg_types[ctg_id]
 
         if os.path.exists(read_bam):
-            # *.sam are created in task_track_reads, fc_select_reads_from_bam.py
+            # *.sam are created in task_track_reads_h, fc_select_reads_from_bam.py
             # Network latency should not matter because we have already waited for the 'done' file.
             mkdir(wd)
             if not os.path.exists(ref_fasta):
@@ -353,7 +353,7 @@ def main(argv=sys.argv):
                                      outputs = {'job_done': track_reads_h_done_plf},
                                      parameters = parameters,
     )
-    track_reads_task = make_track_reads_task(task_track_reads)
+    track_reads_task = make_track_reads_task(task_track_reads_h)
 
     wf.addTask(track_reads_task)
 
