@@ -309,14 +309,12 @@ def get_rid_to_phase_all(self):
     for fname in inputs_fn:
         output.extend(open(fname).read())
 
-    out = open(rid_to_phase_all_fn, 'w')
-    out.write(''.join(output))
-    out.close()
+    with open(rid_to_phase_all_fn, 'w') as out:
+        out.write(''.join(output))
 
 def main(argv=sys.argv):
     global LOG
     LOG = support.setup_logger(None)
-
 
     if len(argv) < 2 or argv[1].startswith('-'):
         print 'you need to provide a configuration file to specific a couple cluster running environment'

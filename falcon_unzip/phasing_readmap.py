@@ -6,7 +6,6 @@ import sys
 
 
 def get_phasing_readmap(args):
-
     phased_reads = args.phased_reads
     read_map_dir = args.read_map_dir
     the_ctg_id = args.ctg_id

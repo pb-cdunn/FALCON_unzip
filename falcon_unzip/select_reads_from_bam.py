@@ -41,12 +41,11 @@ def select_reads_from_bam(input_bam_fofn_fn, rawread_to_contigs_fn, rawread_ids_
             return os.path.join(fofn_basedir, maybe_rel_fn)
     for row in open(input_bam_fofn_fn):
         fn = abs_fn(row.strip())
-        samfile = pysam.AlignmentFile(fn, 'rb', check_sq = False)
-        if header == None:
-            header = samfile.header
-        else:
-            header['RG'].extend(samfile.header['RG'])
-        samfile.close()
+        with pysam.AlignmentFile(fn, 'rb', check_sq = False) as samfile:
+            if header == None:
+                header = samfile.header
+            else:
+                header['RG'].extend(samfile.header['RG'])
     try:
         PG = header.pop('PG') #remove PG line as there might be a bug that generates no readable chrs
     except KeyError:
@@ -70,8 +69,8 @@ def select_reads_from_bam(input_bam_fofn_fn, rawread_to_contigs_fn, rawread_ids_
 
     for row in open(input_bam_fofn_fn):
         fn = abs_fn(row.strip())
-        samfile = pysam.AlignmentFile(fn, 'rb', check_sq = False)
-        for r in samfile.fetch( until_eof = True ):
+        with pysam.AlignmentFile(fn, 'rb', check_sq = False) as samfile:
+          for r in samfile.fetch( until_eof = True ):
             if r.query_name not in read_to_ctgs:
                 #print "Missing:", r.query_name
                 continue
@@ -86,7 +85,6 @@ def select_reads_from_bam(input_bam_fofn_fn, rawread_to_contigs_fn, rawread_ids_
                 print >>sys.stderr, 'samfile_fn:{!r}'.format(samfile_fn)
                 outfile[ctg] = pysam.AlignmentFile(samfile_fn, 'wb', header=header)
             outfile[ctg].write(r)
-        samfile.close()
 
     for ctg in outfile:
         outfile[ctg].close()

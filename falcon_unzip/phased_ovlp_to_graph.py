@@ -82,7 +82,6 @@ class StringGraph(object):
             edge.attr[k] = v
 
     def remove_cross_phase_edges(self):
-
         to_remove = {}
 
         for k,e in self.edges.items():
@@ -125,7 +124,6 @@ class StringGraph(object):
 
 
     def mark_chimer_edges(self):
-
         multi_in_nodes = {}
         multi_out_nodes = {}
         for n_name in self.nodes:
@@ -192,7 +190,6 @@ class StringGraph(object):
         return chimer_nodes, chimer_edges
 
     def mark_spur_edge(self):
-
         removed_edges = set()
         for  v in self.nodes:
             if len(self.nodes[v].out_edges) > 1:
@@ -321,8 +318,6 @@ class StringGraph(object):
         return removed_edges
 
     def resolve_repeat_edges(self):
-
-
         edges_to_reduce = []
         nodes_to_test = set()
         for v_n, v in self.nodes.items():
@@ -481,7 +476,6 @@ def reverse_path( p ):
 
 
 def find_bundle(ug, u_edge_data, start_node, depth_cutoff, width_cutoff, length_cutoff):
-
     tips = set()
     bundle_edges = set()
     bundle_nodes = set()
@@ -515,7 +509,6 @@ def find_bundle(ug, u_edge_data, start_node, depth_cutoff, width_cutoff, length_
     depth = 1
     width = 1.0
     converage = False
-
 
     while 1:
         if DEBUG_LOG_LEVEL > 1:
@@ -662,18 +655,15 @@ def find_bundle(ug, u_edge_data, start_node, depth_cutoff, width_cutoff, length_
         for v in list(tips):
             bundle_nodes.add(v)
 
-
-
     data = start_node, end_node, bundle_edges, length_to_node[end_node], score_to_node[end_node], depth
-
     data_r = None
 
     if DEBUG_LOG_LEVEL > 1:
         print converage, data, data_r
     return converage, data, data_r
 
-def generate_string_graph(args):
 
+def generate_string_graph(args):
     overlap_file = args.overlap_file
 
     contained_reads = set()
@@ -904,10 +894,10 @@ def generate_string_graph(args):
         print sum( [1 for c in sg.e_reduce.values() if c == False] )
 
     #max_score = max([ sg.edges[ e ].attr["score"] for e in sg.edges if sg.e_reduce[e] != True ])
-    out_f = open("sg_edges_list", "w")
     nxsg = nx.DiGraph()
     edge_data = {}
-    for v, w in sg.edges:
+    with = open("sg_edges_list", "w") as out_f:
+      for v, w in sg.edges:
         e = sg.edges[ (v, w) ]
         rid, sp, tp = e.attr["label"]
         score = e.attr["score"]
@@ -941,15 +931,12 @@ def generate_string_graph(args):
         print >>out_f, v, w, rid, sp, tp, score, identity, "CP"
 
 
-    out_f.close()
     nxsg_r = nxsg.reverse()
 
     return nxsg, nxsg_r, edge_data
 
 
-
 def construct_compound_paths(ug, u_edge_data):
-
     source_nodes = set()
     sink_nodes = set()
     simple_nodes = set()
@@ -1327,11 +1314,10 @@ def main(argv=sys.argv):
 
     #phase 2, finding all "consistent" compound paths
     compound_paths = construct_compound_paths(ug2, u_edge_data)
-    compound_path_file = open("c_path","w")
-
     ug2_edges = set(ug2.edges(keys = True))
     edges_to_remove  = set()
-    for s, v, t in compound_paths:
+    with open("c_path","w") as compound_path_file:
+      for s, v, t in compound_paths:
         width, length, score, bundle_edges =  compound_paths[ (s, v, t) ]
         print >> compound_path_file, s,v,t, width, length, score, "|".join( [e[0]+"~"+e[2]+"~"+e[1] for e in bundle_edges] )
         for ss, tt, vv in bundle_edges:
@@ -1339,14 +1325,13 @@ def main(argv=sys.argv):
                 edges_to_remove.add( (ss, tt, vv) )
 
 
-    for s, t, v in edges_to_remove:
+      for s, t, v in edges_to_remove:
         ug2.remove_edge( s, t ,v )
         length, score, edges, type_ = u_edge_data[ (s, t, v) ]
         if type_ != "spur":
             u_edge_data[ (s, t, v) ] = length, score, edges, "contained"
 
-
-    for s, v, t in compound_paths:
+      for s, v, t in compound_paths:
         width, length, score, bundle_edges =  compound_paths[ (s, v, t) ]
         u_edge_data[ (s, t, v) ] = (length, score, bundle_edges, "compound")
         ug2.add_edge( s, t, key = v, via = v, type_="compound", length = length, score = score)
@@ -1357,8 +1342,6 @@ def main(argv=sys.argv):
         assert (rs, v, rt) in compound_paths
         dual_path[ (s, v, t) ] = (rs, v, rt)
         dual_path[ (rs, v, rt) ] = (s, v, t)
-
-    compound_path_file.close()
 
 
     # remove short utg using local flow consistent rule
@@ -1480,21 +1463,14 @@ def main(argv=sys.argv):
     if DEBUG_LOG_LEVEL > 1:
         print "left over edges:", len(free_edges)
 
-
-
     free_edges = set()
     for s, t, v in ug.edges(keys=True):
         free_edges.add( (s, t, v) )
 
-
     ctg_id = 0
-
-    ctg_paths = open("ctg_paths","w")
-
-    c_path.sort( key=lambda x: -x[3] )
-
-
-    for path_start, path_key, path_end, p_len, p_score, path, n_edges in c_path:
+    c_path.sort(key=lambda x: -x[3])
+    with open("ctg_paths","w") as ctg_paths:
+      for path_start, path_key, path_end, p_len, p_score, path, n_edges in c_path:
         length = 0
         score = 0
         length_r = 0
@@ -1535,11 +1511,7 @@ def main(argv=sys.argv):
             if e in free_edges:
                 free_edges.remove(e)
 
-
-
-    for s, t, v in list(circular_path):
+      for s, t, v in list(circular_path):
         length, score, path, type_ = u_edge_data[ (s, t, v) ]
         print >> ctg_paths, "%6d" % ctg_id, "ctg_circular", s+"~"+v+"~"+t, t, length, score, s+"~"+v+"~"+t
         ctg_id += 1
-
-    ctg_paths.close()

@@ -33,7 +33,6 @@ def tr_stage1(readlines, min_len, bestn, rid_to_ctg, rid_to_phase):
     for each read in the b-read column inside the LAS files, we
     keep top `bestn` hits with a priority queue through all overlaps
     """
-
     rtn = {}
     for l in readlines():
         l = l.strip().split()
@@ -111,7 +110,6 @@ def run_track_reads(exe_pool, phased_read_file_fn, read_to_contig_map_fn, rawrea
     """
     with open(rawread_to_contigs_fn, 'w') as out_f:
         for bread in bread_to_areads:
-
             ctg_score = {}
             for s, rid in bread_to_areads[bread]:
                 if rid not in rid_to_ctg: continue

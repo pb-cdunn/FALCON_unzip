@@ -384,11 +384,11 @@ def generate_haplotigs_for_ctg(input_):
 
 
     #output the updated primary contig
-    p_tig_path = open(os.path.join(out_dir, "p_ctg_path.%s" % ctg_id),"w")
-    p_tig_fa = open(os.path.join(out_dir, "p_ctg.%s.fa" % ctg_id),"w")
     edges_to_remove1 = set()
     edges_to_remove2 = set()
-    with open(os.path.join(out_dir, "p_ctg_edges.%s" % ctg_id), "w") as f:
+    with open(os.path.join(out_dir, "p_ctg_path.%s" % ctg_id),"w") as p_tig_path, \
+         open(os.path.join(out_dir, "p_ctg.%s.fa" % ctg_id),"w") as p_tig_fa, \
+         open(os.path.join(out_dir, "p_ctg_edges.%s" % ctg_id), "w") as f:
         seq = []
         for v, w in s_path_edges:
             sg[v][w]["h_edge"] = 1
@@ -417,10 +417,6 @@ def generate_haplotigs_for_ctg(input_):
 
         print >> p_tig_fa, ">%s" % ctg_id
         print >> p_tig_fa, "".join(seq)
-
-    p_tig_fa.close()
-    p_tig_path.close()
-
 
 
     sg2 = sg.copy()
@@ -467,12 +463,11 @@ def generate_haplotigs_for_ctg(input_):
             sg2.remove_node(rv)
 
 
-    h_tig_path = open(os.path.join(out_dir, "h_ctg_path.%s" % ctg_id),"w")
-    h_tig_fa = open(os.path.join(out_dir, "h_ctg_all.%s.fa" % ctg_id),"w")
     edges_to_remove = set()
-
     labelled_node = set()
-    with open(os.path.join(out_dir, "h_ctg_edges.%s" % ctg_id),"w") as f:
+    with open(os.path.join(out_dir, "h_ctg_path.%s" % ctg_id),"w") as h_tig_path, \
+         open(os.path.join(out_dir, "h_ctg_all.%s.fa" % ctg_id),"w") as h_tig_fa, \
+         open(os.path.join(out_dir, "h_ctg_edges.%s" % ctg_id),"w") as f:
         h_tig_id = 1
         h_paths = {}
         #print "number of components:", len([tmp for tmp in nx.weakly_connected_component_subgraphs(sg2)])
@@ -518,7 +513,6 @@ def generate_haplotigs_for_ctg(input_):
                     for path, t in s_path[1:]:
                         eliminated_sinks.add(t)
                         #print "elimated t", t
-
 
                 if len(longest) == 0:
                     break
@@ -571,9 +565,6 @@ def generate_haplotigs_for_ctg(input_):
             print >> h_tig_fa, "".join(seq)
             h_tig_id += 1
 
-
-    h_tig_fa.close()
-    h_tig_path.close()
 
     dump_graph = False  # the code segement below is useful for showing the graph
     if dump_graph == True:
