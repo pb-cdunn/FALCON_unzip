@@ -16,7 +16,8 @@ def yield_bam_fn(input_bam_fofn_fn):
         yield abs_fn(row.strip())
 
 
-def select_reads_from_bam(input_bam_fofn_fn, rawread_to_contigs_fn, rawread_ids_fn, sam_dir):
+def select_reads_from_bam(input_bam_fofn_fn, rawread_to_contigs_fn, rawread_ids_fn, sam_dir,
+        max_n_open_files):
     """Write ctg.sam files into cwd,
     for each 'ctg' read in input BAMs.
     """
@@ -69,10 +70,11 @@ def select_reads_from_bam(input_bam_fofn_fn, rawread_to_contigs_fn, rawread_ids_
         if len(picked_reads) > 20:
             selected_ctgs.add(ctg)
 
-    merge_and_split_alignments(input_bam_fofn_fn, read_to_ctgs, selected_ctgs, header, sam_dir)
+    merge_and_split_alignments(input_bam_fofn_fn, read_to_ctgs, selected_ctgs, header, sam_dir,
+            max_n_open_samfiles = max(1, max_n_open_files - 1))
 
 
-def merge_and_split_alignments(input_bam_fofn_fn, read_to_ctgs, selected_ctgs, header, sam_dir):
+def merge_and_split_alignments(input_bam_fofn_fn, read_to_ctgs, selected_ctgs, header, sam_dir, max_n_open_samfiles):
     """
     For each AlignmentFile in input_bam_fofn_fn,
       for each record in that file,
@@ -81,6 +83,8 @@ def merge_and_split_alignments(input_bam_fofn_fn, read_to_ctgs, selected_ctgs, h
         and append the record to a new samfile (in sam_dir) based on the ctg name.
 
     That is the logic. In reality, to avoid too many open samfiles, we may use extra passes.
+    When max_n_open_samfiles==1, this is O(n*m), for n ctgs and m BAM alignment records; we scan
+    each BAM input n/max_n_open_samfiles times.
     """
     def yield_record_and_ctg():
       """yield (r, ctg)"""
@@ -98,17 +102,34 @@ def merge_and_split_alignments(input_bam_fofn_fn, read_to_ctgs, selected_ctgs, h
                 continue
             yield r, ctg
 
-    outfile = {}
+    outfilenames = {}
+    ctgs = list()
 
     for (r, ctg) in yield_record_and_ctg():
-            if ctg not in outfile:
+            if ctg not in outfilenames:
                 samfile_fn = os.path.join(sam_dir, '%s.bam' % ctg)
                 print >>sys.stderr, 'samfile_fn:{!r}'.format(samfile_fn)
-                outfile[ctg] = pysam.AlignmentFile(samfile_fn, 'wb', header=header)
-            outfile[ctg].write(r)
+                outfilenames[ctg] = samfile_fn
+                ctgs.append(ctg)
+    ctgs.sort(reverse=True) # Order does not matter, but for debugging we might as well sort.
 
-    for ctg in outfile:
-        outfile[ctg].close()
+    while ctgs:
+        ctg_openset = set()
+        while ctgs and len(ctg_openset) < max_n_open_samfiles:
+            ctg_openset.add(ctgs.pop())
+        print >>sys.stderr, 'ctg_openset:', ctg_openset
+        outfile = {}
+        for (r, ctg) in yield_record_and_ctg():
+            if ctg not in ctg_openset:
+                continue
+            samfile_fn = outfilenames[ctg]
+            if ctg not in outfile:
+                print >>sys.stderr, 'Opening samfile_fn:{!r}'.format(samfile_fn)
+                outfile[ctg] = pysam.AlignmentFile(samfile_fn, 'wb', header=header)
+            #print >>sys.stderr, 'Writing to samfile_fn:{!r}'.format(samfile_fn)
+            outfile[ctg].write(r)
+        for ctg in outfile:
+            outfile[ctg].close()
 
 
 def parse_args(argv):
@@ -117,6 +138,7 @@ def parse_args(argv):
     parser.add_argument('--rawread-to-contigs', type=str, default='./2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs', help='rawread_to_contigs file (from where?)')
     parser.add_argument('--rawread-ids', type=str, default='./2-asm-falcon/read_maps/dump_rawread_ids/rawread_ids', help='rawread_ids file (from where?)')
     parser.add_argument('--sam-dir', type=str, default='./4-quiver/reads', help='Output directory for ctg.sam files')
+    parser.add_argument('--max-n-open-files', type=int, default='50', help='We write sam files several at-a-time, limited by this.')
     parser.add_argument('input_bam_fofn', type=str, help='File of BAM filenames. Paths are relative to dir of FOFN, not CWD.')
     args = parser.parse_args(argv[1:])
     return args
@@ -124,4 +146,5 @@ def parse_args(argv):
 def main(argv=sys.argv):
     args = parse_args(argv)
 
-    select_reads_from_bam(args.input_bam_fofn, args.rawread_to_contigs, args.rawread_ids, args.sam_dir)
+    select_reads_from_bam(args.input_bam_fofn, args.rawread_to_contigs, args.rawread_ids, args.sam_dir,
+            args.max_n_open_files)
