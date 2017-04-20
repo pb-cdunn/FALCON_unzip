@@ -36,6 +36,7 @@ def mkdir(d):
 def task_track_reads_h(self):
     input_bam_fofn = fn(self.input_bam_fofn)
     job_done = fn(self.job_done)
+    max_n_open_files = self.parameters['max_n_open_files']
     work_dir = os.getcwd()
     basedir = '../..' # assuming we are in ./4-quiver/reads/
     script_fn = 'track_reads_h.sh'
@@ -49,7 +50,7 @@ date
 cd {basedir}
 fc_get_read_hctg_map.py
 fc_rr_hctg_track.py
-fc_select_reads_from_bam.py {input_bam_fofn}
+fc_select_reads_from_bam.py --max-n-open-files={max_n_open_files} {input_bam_fofn}
 date
 cd {work_dir}
 touch {job_done}
@@ -294,6 +295,10 @@ def main(argv=sys.argv):
     if config.has_option('General', 'pwatcher_type'):
         pwatcher_type = config.get('General', 'pwatcher_type')
 
+    max_n_open_files = 100
+    if config.has_option('General', 'max_n_open_files'):
+        max_n_open_files = config.getint('General', 'max_n_open_files')
+
     sge_track_reads = ' -pe smp 12 -q bigmem'
     if config.has_option('Unzip', 'sge_track_reads'):
         sge_track_reads = config.get('Unzip', 'sge_track_reads')
@@ -322,6 +327,7 @@ def main(argv=sys.argv):
               'sge_quiver': sge_quiver,
               'sge_track_reads': sge_track_reads,
               'input_bam_fofn': input_bam_fofn,
+              'max_n_open_files': max_n_open_files,
               'pwatcher_type': pwatcher_type,
               'smrt_bin': smrt_bin}
     LOG.info('config={}'.format(pprint.pformat(config)))
@@ -342,6 +348,7 @@ def main(argv=sys.argv):
     abscwd = os.path.abspath('.')
     parameters = {
             'sge_option': config['sge_track_reads'],
+            'max_n_open_files': config['max_n_open_files'],
     }
     input_bam_fofn_fn = config['input_bam_fofn']
     input_bam_fofn_plf = makePypeLocalFile(input_bam_fofn_fn)
