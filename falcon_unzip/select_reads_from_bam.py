@@ -5,6 +5,17 @@ import glob
 import os
 import sys
 
+def yield_bam_fn(input_bam_fofn_fn):
+    fofn_basedir = os.path.normpath(os.path.dirname(input_bam_fofn_fn))
+    def abs_fn(maybe_rel_fn):
+        if os.path.isabs(maybe_rel_fn):
+            return maybe_rel_fn
+        else:
+            return os.path.join(fofn_basedir, maybe_rel_fn)
+    for row in open(input_bam_fofn_fn):
+        yield abs_fn(row.strip())
+
+
 def select_reads_from_bam(input_bam_fofn_fn, rawread_to_contigs_fn, rawread_ids_fn, sam_dir):
     """Write ctg.sam files into cwd,
     for each 'ctg' read in input BAMs.
@@ -33,14 +44,7 @@ def select_reads_from_bam(input_bam_fofn_fn, rawread_to_contigs_fn, rawread_ids_
     print "num read_to_ctgs:", len(read_to_ctgs)
 
     header = None
-    fofn_basedir = os.path.normpath(os.path.dirname(input_bam_fofn_fn))
-    def abs_fn(maybe_rel_fn):
-        if os.path.isabs(maybe_rel_fn):
-            return maybe_rel_fn
-        else:
-            return os.path.join(fofn_basedir, maybe_rel_fn)
-    for row in open(input_bam_fofn_fn):
-        fn = abs_fn(row.strip())
+    for fn in yield_bam_fn(input_bam_fofn_fn):
         with pysam.AlignmentFile(fn, 'rb', check_sq = False) as samfile:
             if header == None:
                 header = samfile.header
@@ -65,10 +69,22 @@ def select_reads_from_bam(input_bam_fofn_fn, rawread_to_contigs_fn, rawread_ids_
         if len(picked_reads) > 20:
             selected_ctgs.add(ctg)
 
-    outfile = {}
+    merge_and_split_alignments(input_bam_fofn_fn, read_to_ctgs, selected_ctgs, header, sam_dir)
 
-    for row in open(input_bam_fofn_fn):
-        fn = abs_fn(row.strip())
+
+def merge_and_split_alignments(input_bam_fofn_fn, read_to_ctgs, selected_ctgs, header, sam_dir):
+    """
+    For each AlignmentFile in input_bam_fofn_fn,
+      for each record in that file,
+        find the ctgs from the query_name (based on read_to_ctgs and selected_ctgs),
+        choose the first ctg (lexigraphically),
+        and append the record to a new samfile (in sam_dir) based on the ctg name.
+
+    That is the logic. In reality, to avoid too many open samfiles, we may use extra passes.
+    """
+    def yield_record_and_ctg():
+      """yield (r, ctg)"""
+      for fn in yield_bam_fn(input_bam_fofn_fn):
         with pysam.AlignmentFile(fn, 'rb', check_sq = False) as samfile:
           for r in samfile.fetch( until_eof = True ):
             if r.query_name not in read_to_ctgs:
@@ -80,6 +96,11 @@ def select_reads_from_bam(input_bam_fofn_fn, rawread_to_contigs_fn, rawread_ids_
             if ctg not in selected_ctgs:
                 #print "Not selected:", ctg
                 continue
+            yield r, ctg
+
+    outfile = {}
+
+    for (r, ctg) in yield_record_and_ctg():
             if ctg not in outfile:
                 samfile_fn = os.path.join(sam_dir, '%s.bam' % ctg)
                 print >>sys.stderr, 'samfile_fn:{!r}'.format(samfile_fn)
@@ -88,6 +109,7 @@ def select_reads_from_bam(input_bam_fofn_fn, rawread_to_contigs_fn, rawread_ids_
 
     for ctg in outfile:
         outfile[ctg].close()
+
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(description='Write ctg.sam files, based on BAM subreads.',
