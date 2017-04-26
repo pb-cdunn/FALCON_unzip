@@ -896,7 +896,7 @@ def generate_string_graph(args):
     #max_score = max([ sg.edges[ e ].attr["score"] for e in sg.edges if sg.e_reduce[e] != True ])
     nxsg = nx.DiGraph()
     edge_data = {}
-    with = open("sg_edges_list", "w") as out_f:
+    with open("sg_edges_list", "w") as out_f:
       for v, w in sg.edges:
         e = sg.edges[ (v, w) ]
         rid, sp, tp = e.attr["label"]
