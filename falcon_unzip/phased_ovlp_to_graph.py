@@ -921,7 +921,7 @@ def generate_string_graph(args):
 
         print >>out_f, v, w, rid, sp, tp, score, identity, type_
 
-    for k,e in cp_edges.items():
+      for k,e in cp_edges.items():
         v = k[0]
         w = k[1]
         rid, sp, tp = e.attr["label"]
