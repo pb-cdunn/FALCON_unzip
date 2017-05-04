@@ -1128,7 +1128,7 @@ def main(argv=sys.argv):
         for v,w in free_edges:
             if (reverse_end(w), reverse_end(v) ) not in free_edges:
                 print "bug", v,w
-                print oreverse_end(w), reverse_end(v)
+                print reverse_end(w), reverse_end(v)
 
     while len(free_edges) != 0:
         if len(s_nodes) != 0:
@@ -1352,7 +1352,7 @@ def main(argv=sys.argv):
       <____/         \_____<
     """
     ug_edge_to_remove = set()
-    for s, t, v in ug.edges(keys=True):
+    for s, t, v in ug.edges(keys=True): # pylint: disable=unexpected-keyword-arg, fixme, line-too-long
         if ug2.in_degree(s) == 1 and ug2.out_degree(s) == 2 and \
            ug2.in_degree(t) == 2 and ug2.out_degree(t) == 1:
             length, score, path_or_edges, type_ = u_edge_data[ (s, t, v) ]

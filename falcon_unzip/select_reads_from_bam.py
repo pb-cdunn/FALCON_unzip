@@ -1,9 +1,14 @@
-import pysam
-
 import argparse
 import glob
 import os
 import sys
+
+try:
+    # pylint: disable=no-name-in-module, import-error, fixme, line-too-long
+    from pysam.calignmentfile import AlignmentFile
+except ImportError:
+    # pylint: disable=no-name-in-module, import-error, fixme, line-too-long
+    from pysam.libcalignmentfile import AlignmentFile
 
 def yield_bam_fn(input_bam_fofn_fn):
     fofn_basedir = os.path.normpath(os.path.dirname(input_bam_fofn_fn))
@@ -46,7 +51,7 @@ def select_reads_from_bam(input_bam_fofn_fn, rawread_to_contigs_fn, rawread_ids_
 
     header = None
     for fn in yield_bam_fn(input_bam_fofn_fn):
-        with pysam.AlignmentFile(fn, 'rb', check_sq = False) as samfile:
+        with AlignmentFile(fn, 'rb', check_sq = False) as samfile:
             if header == None:
                 header = samfile.header
             else:
@@ -58,7 +63,7 @@ def select_reads_from_bam(input_bam_fofn_fn, rawread_to_contigs_fn, rawread_ids_
     #print PG
 
     #base_dir = os.getcwd()
-    #outfile = pysam.AlignmentFile( os.path.join(base_dir, 'header.sam' ), 'wh', header=header )
+    #outfile = AlignmentFile( os.path.join(base_dir, 'header.sam' ), 'wh', header=header )
     #outfile.close()
 
     ctgs = read_partition.keys()
@@ -89,7 +94,7 @@ def merge_and_split_alignments(input_bam_fofn_fn, read_to_ctgs, selected_ctgs, h
     def yield_record_and_ctg():
       """yield (r, ctg)"""
       for fn in yield_bam_fn(input_bam_fofn_fn):
-        with pysam.AlignmentFile(fn, 'rb', check_sq = False) as samfile:
+        with AlignmentFile(fn, 'rb', check_sq = False) as samfile:
           for r in samfile.fetch( until_eof = True ):
             if r.query_name not in read_to_ctgs:
                 #print "Missing:", r.query_name
@@ -125,7 +130,7 @@ def merge_and_split_alignments(input_bam_fofn_fn, read_to_ctgs, selected_ctgs, h
             samfile_fn = outfilenames[ctg]
             if ctg not in outfile:
                 print >>sys.stderr, 'Opening samfile_fn:{!r}'.format(samfile_fn)
-                outfile[ctg] = pysam.AlignmentFile(samfile_fn, 'wb', header=header)
+                outfile[ctg] = AlignmentFile(samfile_fn, 'wb', header=header)
             #print >>sys.stderr, 'Writing to samfile_fn:{!r}'.format(samfile_fn)
             outfile[ctg].write(r)
         for ctg in outfile:
