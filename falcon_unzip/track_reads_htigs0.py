@@ -293,107 +293,107 @@ def dump_pread_to_ctg(self):
                 rank += 1
 
 
+def main(argv=sys.argv):
+    rawread_dir = os.path.abspath( "./0-rawreads" )
+    pread_dir = os.path.abspath( "./1-preads_ovl" )
+    asm_dir = os.path.abspath( os.path.join("./3-unzip/") )
 
-rawread_dir = os.path.abspath( "./0-rawreads" )
-pread_dir = os.path.abspath( "./1-preads_ovl" )
-asm_dir = os.path.abspath( os.path.join("./3-unzip/") )
+    read_map_dir = os.path.abspath(os.path.join(asm_dir, "read_maps"))
+    make_dirs(read_map_dir)
 
-read_map_dir = os.path.abspath(os.path.join(asm_dir, "read_maps"))
-make_dirs(read_map_dir)
+    wf = PypeProcWatcherWorkflow(
+            max_jobs=12,
+    )
 
-wf = PypeProcWatcherWorkflow(
-        max_jobs=12,
-)
+    rawread_db = makePypeLocalFile( os.path.join( rawread_dir, "raw_reads.db" ) )
+    rawread_id_file = makePypeLocalFile( os.path.join( rawread_dir, "raw_read_ids" ) )
 
-rawread_db = makePypeLocalFile( os.path.join( rawread_dir, "raw_reads.db" ) )
-rawread_id_file = makePypeLocalFile( os.path.join( rawread_dir, "raw_read_ids" ) )
+    pt = PypeTask(inputs = {"rawread_db": rawread_db}, 
+            outputs =  {"rawread_id_file": rawread_id_file},
+            TaskType = PypeThreadTaskBase,
+            URL = "task://localhost/dump_rawread_ids")(dump_rawread_ids)
+    wf.addTask(pt)
 
-pt = PypeTask(inputs = {"rawread_db": rawread_db}, 
-           outputs =  {"rawread_id_file": rawread_id_file},
-           TaskType = PypeThreadTaskBase,
-           URL = "task://localhost/dump_rawread_ids")(dump_rawread_ids)
-wf.addTask(pt)
+    pread_db = makePypeLocalFile( os.path.join( pread_dir, "preads.db" ) )
+    pread_id_file = makePypeLocalFile( os.path.join( pread_dir, "pread_ids" ) )
 
-pread_db = makePypeLocalFile( os.path.join( pread_dir, "preads.db" ) )
-pread_id_file = makePypeLocalFile( os.path.join( pread_dir, "pread_ids" ) )
+    pt = PypeTask( inputs = {"pread_db": pread_db}, 
+            outputs =  {"pread_id_file": pread_id_file},
+            TaskType = PypeThreadTaskBase,
+            URL = "task://localhost/dump_pread_ids" )(dump_pread_ids)
+    wf.addTask(pt)
+    wf.refreshTargets() # block
 
-pt = PypeTask( inputs = {"pread_db": pread_db}, 
-           outputs =  {"pread_id_file": pread_id_file},
-           TaskType = PypeThreadTaskBase,
-           URL = "task://localhost/dump_pread_ids" )(dump_pread_ids)
-wf.addTask(pt)
-wf.refreshTargets() # block
+    all_raw_las_files = {}
+    for las_fn in glob.glob( os.path.join( rawread_dir, "m*/raw_reads.*.las") ):
+        idx = las_fn.split("/")[-1] # well, we will use regex someday to parse to get the number
+        idx = int(idx.split(".")[1]) 
+        las_file = makePypeLocalFile( las_fn )
+        all_raw_las_files["r_las_%s" % idx] = las_file 
 
-all_raw_las_files = {}
-for las_fn in glob.glob( os.path.join( rawread_dir, "m*/raw_reads.*.las") ):
-    idx = las_fn.split("/")[-1] # well, we will use regex someday to parse to get the number
-    idx = int(idx.split(".")[1]) 
-    las_file = makePypeLocalFile( las_fn )
-    all_raw_las_files["r_las_%s" % idx] = las_file 
-
-all_pread_las_files = {}
-for las_fn in glob.glob( os.path.join( pread_dir, "m*/preads.*.las") ):
-    idx = las_fn.split("/")[-1] # well, we will use regex someday to parse to get the number
-    idx = int(idx.split(".")[1]) 
-    las_file = makePypeLocalFile( las_fn )
-    all_pread_las_files["p_las_%s" % idx] = las_file 
-
-
-
-h_ctg_edges = makePypeLocalFile( os.path.join(asm_dir, "all_h_ctg_edges") )
-p_ctg_edges = makePypeLocalFile( os.path.join(asm_dir, "all_p_ctg_edges") )
-h_ctg_ids = makePypeLocalFile( os.path.join(asm_dir, "all_h_ctg_ids") )
-
-inputs = { "rawread_id_file": rawread_id_file,
-           "pread_id_file": pread_id_file,
-           "h_ctg_edges": h_ctg_edges,
-           "p_ctg_edges": p_ctg_edges,
-           "h_ctg_ids": h_ctg_ids}
-
-read_to_contig_map = makePypeLocalFile( os.path.join(read_map_dir, "read_to_contig_map") )
-
-pt = PypeTask(inputs = inputs, 
-           outputs = {"read_to_contig_map": read_to_contig_map}, 
-           TaskType = PypeThreadTaskBase, 
-           URL = "task://localhost/get_ctg_read_map")(generate_read_to_ctg_map)
-wf.addTask(pt)
+    all_pread_las_files = {}
+    for las_fn in glob.glob( os.path.join( pread_dir, "m*/preads.*.las") ):
+        idx = las_fn.split("/")[-1] # well, we will use regex someday to parse to get the number
+        idx = int(idx.split(".")[1]) 
+        las_file = makePypeLocalFile( las_fn )
+        all_pread_las_files["p_las_%s" % idx] = las_file 
 
 
-phased_reads =  makePypeLocalFile(os.path.join(asm_dir, "all_phased_reads"))
+
+    h_ctg_edges = makePypeLocalFile( os.path.join(asm_dir, "all_h_ctg_edges") )
+    p_ctg_edges = makePypeLocalFile( os.path.join(asm_dir, "all_p_ctg_edges") )
+    h_ctg_ids = makePypeLocalFile( os.path.join(asm_dir, "all_h_ctg_ids") )
+
+    inputs = { "rawread_id_file": rawread_id_file,
+            "pread_id_file": pread_id_file,
+            "h_ctg_edges": h_ctg_edges,
+            "p_ctg_edges": p_ctg_edges,
+            "h_ctg_ids": h_ctg_ids}
+
+    read_to_contig_map = makePypeLocalFile( os.path.join(read_map_dir, "read_to_contig_map") )
+
+    pt = PypeTask(inputs = inputs, 
+            outputs = {"read_to_contig_map": read_to_contig_map}, 
+            TaskType = PypeThreadTaskBase, 
+            URL = "task://localhost/get_ctg_read_map")(generate_read_to_ctg_map)
+    wf.addTask(pt)
 
 
-for las_key, las_file in all_raw_las_files.items():
-    las_fn = fn(las_file)
-    idx = las_fn.split("/")[-1] # well, we will use regex someday to parse to get the number
-    idx = int(idx.split(".")[1]) 
-    rawread_to_contig_file = makePypeLocalFile(os.path.join(read_map_dir, "rawread_to_contigs.%s" % idx))
-    make_dump_rawread_to_ctg = PypeTask( inputs = { "las_file": las_file, 
-                                                    "rawread_db": rawread_db, 
+    phased_reads =  makePypeLocalFile(os.path.join(asm_dir, "all_phased_reads"))
+
+
+    for las_key, las_file in all_raw_las_files.items():
+        las_fn = fn(las_file)
+        idx = las_fn.split("/")[-1] # well, we will use regex someday to parse to get the number
+        idx = int(idx.split(".")[1]) 
+        rawread_to_contig_file = makePypeLocalFile(os.path.join(read_map_dir, "rawread_to_contigs.%s" % idx))
+        make_dump_rawread_to_ctg = PypeTask( inputs = { "las_file": las_file, 
+                                                        "rawread_db": rawread_db, 
+                                                        "read_to_contig_map": read_to_contig_map, 
+                                                        "rawread_id_file": rawread_id_file,
+                                                        "pread_id_file": pread_id_file,
+                                                        "phased_reads" : phased_reads},
+                                        outputs = { "rawread_to_contig_file": rawread_to_contig_file },
+                                        TaskType = PypeThreadTaskBase,
+                                        URL = "task://localhost/r_read_to_contigs.%s" % idx )
+        dump_rawread_to_ctg_task = make_dump_rawread_to_ctg(dump_rawread_to_ctg)                           
+        wf.addTask( dump_rawread_to_ctg_task )
+
+    for las_key, las_file in all_pread_las_files.items():
+        las_fn = fn(las_file)
+        idx = las_fn.split("/")[-1] # well, we will use regex someday to parse to get the number
+        idx = int(idx.split(".")[1]) 
+        pread_to_contig_file = makePypeLocalFile(os.path.join(read_map_dir, "pread_to_contigs.%s" % idx))
+        make_dump_pread_to_ctg = PypeTask( inputs = { "las_file": las_file, 
+                                                    "pread_db": pread_db, 
                                                     "read_to_contig_map": read_to_contig_map, 
                                                     "rawread_id_file": rawread_id_file,
                                                     "pread_id_file": pread_id_file,
-                                                    "phased_reads" : phased_reads},
-                                      outputs = { "rawread_to_contig_file": rawread_to_contig_file },
-                                      TaskType = PypeThreadTaskBase,
-                                      URL = "task://localhost/r_read_to_contigs.%s" % idx )
-    dump_rawread_to_ctg_task = make_dump_rawread_to_ctg(dump_rawread_to_ctg)                           
-    wf.addTask( dump_rawread_to_ctg_task )
+                                                    "phased_reads": phased_reads},
+                                        outputs = { "pread_to_contig_file": pread_to_contig_file },
+                                        TaskType = PypeThreadTaskBase,
+                                        URL = "task://localhost/pread_to_contigs.%s" % idx )
+        dump_pread_to_ctg_task = make_dump_pread_to_ctg(dump_pread_to_ctg)                           
+        wf.addTask( dump_pread_to_ctg_task )
 
-for las_key, las_file in all_pread_las_files.items():
-    las_fn = fn(las_file)
-    idx = las_fn.split("/")[-1] # well, we will use regex someday to parse to get the number
-    idx = int(idx.split(".")[1]) 
-    pread_to_contig_file = makePypeLocalFile(os.path.join(read_map_dir, "pread_to_contigs.%s" % idx))
-    make_dump_pread_to_ctg = PypeTask( inputs = { "las_file": las_file, 
-                                                  "pread_db": pread_db, 
-                                                  "read_to_contig_map": read_to_contig_map, 
-                                                  "rawread_id_file": rawread_id_file,
-                                                  "pread_id_file": pread_id_file,
-                                                  "phased_reads": phased_reads},
-                                      outputs = { "pread_to_contig_file": pread_to_contig_file },
-                                      TaskType = PypeThreadTaskBase,
-                                      URL = "task://localhost/pread_to_contigs.%s" % idx )
-    dump_pread_to_ctg_task = make_dump_pread_to_ctg(dump_pread_to_ctg)                           
-    wf.addTask( dump_pread_to_ctg_task )
-
-wf.refreshTargets() # block
+    wf.refreshTargets() # block
