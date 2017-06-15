@@ -673,11 +673,11 @@ def generate_string_graph(args):
 
     seqs = set()
 
-    G=nx.Graph()
-    edges =set()
+    #G=nx.Graph()
+    #edges =set()
     overlap_data = []
-    contained_reads = set()
-    overlap_count = {}
+    #contained_reads = set()
+    #overlap_count = {}
 
 
     # loop through the overlapping data to load the data in the a python array
@@ -756,8 +756,8 @@ def generate_string_graph(args):
                                   g_strain, g_start, g_end, g_len,
                                   phase1, phase2) )
 
-            overlap_count[f_id] = overlap_count.get(f_id,0)+1
-            overlap_count[g_id] = overlap_count.get(g_id,0)+1
+            #overlap_count[f_id] = overlap_count.get(f_id,0)+1
+            #overlap_count[g_id] = overlap_count.get(g_id,0)+1
 
     overlap_set = set()
     sg = StringGraph()
