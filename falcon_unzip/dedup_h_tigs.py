@@ -2,9 +2,8 @@ import os
 import sys
 from falcon_kit.FastaReader import FastaReader
 
-def main(args):
-
-    ctg_id = sys.argv[1]
+def main(argv=sys.argv):
+    ctg_id = argv[1]
 
     if os.path.exists("h_ctg_all.{ctg_id}.fa".format(ctg_id = ctg_id)):
         os.system("nucmer -mum p_ctg.{ctg_id}.fa h_ctg_all.{ctg_id}.fa -p hp_aln".format(ctg_id = ctg_id))
