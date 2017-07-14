@@ -75,7 +75,6 @@ def task_run_quiver(self):
     smrt_bin = self.parameters['smrt_bin']
     samtools = os.path.join(smrt_bin, 'samtools')
     pbalign = os.path.join(smrt_bin, 'pbalign')
-    makePbi = os.path.join(smrt_bin, 'makePbi')
     variantCaller = os.path.join(smrt_bin, 'variantCaller')
 
     script_fn = 'cns_%s.sh' % (ctg_id)
