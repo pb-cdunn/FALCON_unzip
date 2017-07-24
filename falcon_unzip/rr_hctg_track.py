@@ -11,9 +11,10 @@ from heapq import heappush, heappop, heappushpop
 
 Reader = io.CapturedProcessReaderContext
 
+#GLOBALS rid_to_ctg, rid_to_phase
 
 def get_rid_to_ctg(fn):
-    rid_to_ctg = {}
+    rid_to_ctg = {} # local
     with open(fn) as f:
         for row in f:
             row = row.strip().split()
@@ -22,13 +23,13 @@ def get_rid_to_ctg(fn):
             rid_to_ctg[ rid ].add(ctg)
     return rid_to_ctg
 
-def run_tr_stage1(db_fn, fn, min_len, bestn, rid_to_ctg, rid_to_phase):
+def run_tr_stage1(db_fn, fn, min_len, bestn):
     cmd = 'LA4Falcon -m %s %s' % (db_fn, fn)
     reader = Reader(cmd)
     with reader:
-        return fn, tr_stage1(reader.readlines, min_len, bestn, rid_to_ctg, rid_to_phase)
+        return fn, tr_stage1(reader.readlines, min_len, bestn)
 
-def tr_stage1(readlines, min_len, bestn, rid_to_ctg, rid_to_phase):
+def tr_stage1(readlines, min_len, bestn):
     """
     for each read in the b-read column inside the LAS files, we
     keep top `bestn` hits with a priority queue through all overlaps
@@ -63,8 +64,9 @@ def tr_stage1(readlines, min_len, bestn, rid_to_ctg, rid_to_phase):
 
     return rtn
 
-def run_track_reads(exe_pool, phased_read_file_fn, read_to_contig_map_fn, rawread_ids_fn, file_list, min_len, bestn, db_fn, rawread_to_contigs_fn):
-    io.LOG('preparing tr_stage1')
+def define_global_constants(phased_read_file_fn, read_to_contig_map_fn, rawread_ids_fn):
+    global rid_to_ctg, rid_to_phase
+    io.LOG('defining constants for track_reads')
     io.logstats()
     rid_to_ctg = get_rid_to_ctg(read_to_contig_map_fn)
 
@@ -83,10 +85,12 @@ def run_track_reads(exe_pool, phased_read_file_fn, read_to_contig_map_fn, rawrea
     for rid, oid in enumerate(rid_to_oid):
         rid_to_phase[rid] = oid_to_phase.get( oid, None )
 
-
+def run_track_reads(exe_pool, file_list, min_len, bestn, db_fn, rawread_to_contigs_fn):
+    io.LOG('running track_reads (tr_stage1)')
+    io.logstats()
     inputs = []
     for fn in file_list:
-        inputs.append( (run_tr_stage1, db_fn, fn, min_len, bestn, rid_to_ctg, rid_to_phase) )
+        inputs.append( (run_tr_stage1, db_fn, fn, min_len, bestn) )
     """
     Aggregate hits from each individual LAS and keep the best n hit.
     Note that this does not guarantee that the final results is globally the best n hits espcially
@@ -148,9 +152,17 @@ def try_run_track_reads(n_core, phased_read_file, read_to_contig_map, rawread_id
 
     db_fn = os.path.join(rawread_dir, 'raw_reads.db') # TODO: Another input
     n_core = min(n_core, len(file_list))
+
+    define_global_constants(phased_read_file, read_to_contig_map, rawread_ids)
+    io.LOG('defined global constants')
+    io.logstats()
+
+    # We create the Pools *after* we have globals, so we do not need to pass them.
+    # (Not much memory saved, but simpler.)
     exe_pool = Pool(n_core)
+
     try:
-        run_track_reads(exe_pool, phased_read_file, read_to_contig_map, rawread_ids, file_list, min_len, bestn, db_fn, output)
+        run_track_reads(exe_pool, file_list, min_len, bestn, db_fn, output)
         io.LOG('finished track_reads')
     except:
         io.LOG('terminating track_reads workers...')
