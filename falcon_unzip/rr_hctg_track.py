@@ -6,12 +6,19 @@ import falcon_kit.util.io as io
 import argparse
 import sys
 import glob
+import json # for serdes
 import os
 from heapq import heappush, heappop, heappushpop
 
 Reader = io.CapturedProcessReaderContext
 
 #GLOBALS rid_to_ctg, rid_to_phase
+
+def serialized(rtn):
+    return json.dumps(rtn)
+
+def deserialized(rtn_string):
+    return json.loads(rtn_string)
 
 def get_rid_to_ctg(fn):
     rid_to_ctg = {} # local
@@ -27,7 +34,12 @@ def run_tr_stage1(db_fn, fn, min_len, bestn):
     cmd = 'LA4Falcon -m %s %s' % (db_fn, fn)
     reader = Reader(cmd)
     with reader:
-        return fn, tr_stage1(reader.readlines, min_len, bestn)
+        rtn = tr_stage1(reader.readlines, min_len, bestn)
+    fn_rtn = '{}.rr_hctg_track.partial.serial'.format(fn)
+    io.LOG('Ser {!r}'.format(fn_rtn))
+    with open(fn_rtn, 'w') as writer:
+        writer.write(serialized(rtn))
+    return fn_rtn
 
 def tr_stage1(readlines, min_len, bestn):
     """
@@ -69,6 +81,7 @@ def define_global_constants(phased_read_file_fn, read_to_contig_map_fn, rawread_
     io.LOG('defining constants for track_reads')
     io.logstats()
     rid_to_ctg = get_rid_to_ctg(read_to_contig_map_fn)
+    # return here if rid_to_phase not needed
 
     oid_to_phase = {}
     with open(phased_read_file_fn) as f:
@@ -91,6 +104,9 @@ def run_track_reads(exe_pool, file_list, min_len, bestn, db_fn, rawread_to_conti
     inputs = []
     for fn in file_list:
         inputs.append( (run_tr_stage1, db_fn, fn, min_len, bestn) )
+    # For each .las input, store the returned dict in a file.
+    fn_rtns = [f for f in exe_pool.imap(io.run_func, inputs)]
+    #fn_rtns = ['{}.rr_hctg_track.partial.serial'.format(fn) for fn in file_list] # if the files already exist
     """
     Aggregate hits from each individual LAS and keep the best n hit.
     Note that this does not guarantee that the final results is globally the best n hits espcially
@@ -98,7 +114,12 @@ def run_track_reads(exe_pool, file_list, min_len, bestn, db_fn, rawread_to_conti
     file, then we will miss some good  hits.
     """
     bread_to_areads = {}
-    for fn, res in exe_pool.imap(io.run_func, inputs):
+    for fn_rtn in fn_rtns:
+        io.LOG('Deser {!r}'.format(fn_rtn))
+        with open(fn_rtn) as reader:
+            rtn_string = reader.read()
+        res = deserialized(rtn_string)
+        del rtn_string
         for k in res:
             bread_to_areads.setdefault(k, [])
             for item in res[k]:
@@ -106,7 +127,9 @@ def run_track_reads(exe_pool, file_list, min_len, bestn, db_fn, rawread_to_conti
                     heappush( bread_to_areads[k], item )
                 else:
                     heappushpop( bread_to_areads[k], item )
+        del res
 
+    # rid_to_oid can be helpful for debugging, but otherwise we do not need it.
     #rid_to_oid = open(os.path.join(rawread_dir, 'dump_rawread_ids', 'rawread_ids')).read().split('\n')
 
     """
