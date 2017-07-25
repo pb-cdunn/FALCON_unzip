@@ -50,6 +50,7 @@ date
 cd {basedir}
 fc_get_read_hctg_map.py
 fc_rr_hctg_track.py
+fc_rr_hctg_track2.py
 fc_select_reads_from_bam.py --max-n-open-files={max_n_open_files} {input_bam_fofn}
 date
 cd {work_dir}

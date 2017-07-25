@@ -98,15 +98,23 @@ def define_global_constants(phased_read_file_fn, read_to_contig_map_fn, rawread_
     for rid, oid in enumerate(rid_to_oid):
         rid_to_phase[rid] = oid_to_phase.get( oid, None )
 
-def run_track_reads(exe_pool, file_list, min_len, bestn, db_fn, rawread_to_contigs_fn):
-    io.LOG('running track_reads (tr_stage1)')
+def run_track_reads(exe_pool, file_list, min_len, bestn, db_fn):
+    io.LOG('running run_track_reads (tr_stage1)')
     io.logstats()
     inputs = []
     for fn in file_list:
         inputs.append( (run_tr_stage1, db_fn, fn, min_len, bestn) )
-    # For each .las input, store the returned dict in a file.
+    # For each .las input, store the returned dict in a file, named by convention.
+    # (See finish_track_reads().)
     fn_rtns = [f for f in exe_pool.imap(io.run_func, inputs)]
-    #fn_rtns = ['{}.rr_hctg_track.partial.serial'.format(fn) for fn in file_list] # if the files already exist
+    io.LOG('Wrote {} partial.serial files (e.g. {!r}).'.format(len(fn_rtns), fn_rtns[0]))
+
+def finish_track_reads(read_to_contig_map_fn, file_list, bestn, db_fn, rawread_to_contigs_fn):
+    io.LOG('running finish_track_reads()')
+    rid_to_ctg = get_rid_to_ctg(read_to_contig_map_fn)
+    io.LOG('Got rid_to_ctg.')
+    # Assume the files already exist, with this naming convention.
+    fn_rtns = ['{}.rr_hctg_track.partial.serial'.format(fn) for fn in file_list]
     """
     Aggregate hits from each individual LAS and keep the best n hit.
     Note that this does not guarantee that the final results is globally the best n hits espcially
@@ -162,19 +170,31 @@ def run_track_reads(exe_pool, file_list, min_len, bestn, db_fn, rawread_to_conti
                 print(bread, ctg, count, rank, score, in_ctg, file=out_f)
                 rank += 1
 
-
-
-def try_run_track_reads(n_core, phased_read_file, read_to_contig_map, rawread_ids, min_len, bestn, output):
-    io.LOG('starting track_reads')
-
+class TrackReads(object):
+  def __init__(self):
+    """Scan for 0-rawreads/m*/raw_reads.*.las
+    """
+    io.LOG('TrackReads.init')
     rawread_dir = os.path.abspath('0-rawreads')
-
+    self.db_fn = os.path.join(rawread_dir, 'raw_reads.db') # TODO: Another input
+    io.LOG('db_fn: {!r}, exists: {!r}'.format(self.db_fn, os.path.isfile(self.db_fn)))
     # better logic for finding the las files path or move the logic to extern (taking the --fofn option?)
-    file_list = glob.glob( os.path.join(rawread_dir, 'm*/raw_reads.*.las')) # TODO: More inputs
-    io.LOG('file list: %r' % file_list)
+    self.file_list = glob.glob(os.path.join(rawread_dir, 'm*/raw_reads.*.las')) # TODO: More input
+    self.file_list.sort()
+    io.LOG('file list: {!r}'.format(self.file_list))
 
-    db_fn = os.path.join(rawread_dir, 'raw_reads.db') # TODO: Another input
-    n_core = min(n_core, len(file_list))
+  def try_finish_track_reads(self, read_to_contig_map, bestn, output):
+    io.LOG('starting try_finish_track_reads')
+    try:
+        finish_track_reads(read_to_contig_map, self.file_list, bestn, self.db_fn, output)
+        io.LOG('finished finish_track_reads')
+    except:
+        io.LOG('Exception in finish_track_reads')
+
+  def try_run_track_reads(self, n_core, phased_read_file, read_to_contig_map, rawread_ids, min_len, bestn):
+    io.LOG('starting try_run_track_reads')
+
+    n_core = min(n_core, len(self.file_list))
 
     define_global_constants(phased_read_file, read_to_contig_map, rawread_ids)
     io.LOG('defined global constants')
@@ -185,14 +205,15 @@ def try_run_track_reads(n_core, phased_read_file, read_to_contig_map, rawread_id
     exe_pool = Pool(n_core)
 
     try:
-        run_track_reads(exe_pool, file_list, min_len, bestn, db_fn, output)
+        run_track_reads(exe_pool, self.file_list, min_len, bestn, self.db_fn)
         io.LOG('finished track_reads')
     except:
         io.LOG('terminating track_reads workers...')
         exe_pool.terminate()
         raise
 
-def track_reads(n_core, phased_read_file, read_to_contig_map, rawread_ids, min_len, bestn, debug, silent, stream, output):
+def track_reads(stage, n_core, phased_read_file, read_to_contig_map, rawread_ids, min_len, bestn, debug, silent, stream, output):
+    assert stage in (1, 2)
     if debug:
         n_core = 0
         silent = False
@@ -202,7 +223,10 @@ def track_reads(n_core, phased_read_file, read_to_contig_map, rawread_ids, min_l
         global Reader
         Reader = io.StreamedProcessReaderContext
 
-    try_run_track_reads(n_core, phased_read_file, read_to_contig_map, rawread_ids, min_len, bestn, output)
+    if stage == 2:
+        TrackReads().try_finish_track_reads(read_to_contig_map, bestn, output)
+    else:
+        TrackReads().try_run_track_reads(n_core, phased_read_file, read_to_contig_map, rawread_ids, min_len, bestn)
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(description='scan the raw read overlap information to identify the best hit from the reads \
@@ -227,7 +251,14 @@ to the contigs with read_to_contig_map generated by `fc_get_read_hctg_map`. Writ
 
 def main(argv=sys.argv):
     args = parse_args(argv)
-    track_reads(**vars(args))
+    track_reads(1, **vars(args))
+
+def main2(argv=sys.argv):
+    """This is now stage2 -- was part of main().
+    Same cmdline args, for simplicity.
+    """
+    args = parse_args(argv)
+    track_reads(2, **vars(args))
 
 if __name__ == '__main__':
     main()
