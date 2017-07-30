@@ -29,8 +29,8 @@ def select_reads_from_bam(input_bam_fofn_fn, rawread_to_contigs_fn, rawread_ids_
     read_partition = {}
     read_to_ctgs = {}
 
-    print "rawread_ids_fn:", repr(rawread_ids_fn)
-    print "rawread_to_contigs_fn:", repr(rawread_to_contigs_fn)
+    print >>sys.stderr, "rawread_ids_fn:", repr(rawread_ids_fn)
+    print >>sys.stderr, "rawread_to_contigs_fn:", repr(rawread_to_contigs_fn)
     rid_to_oid = open(rawread_ids_fn).read().split('\n')
     with open(rawread_to_contigs_fn) as f:
         for row in f:
@@ -46,8 +46,8 @@ def select_reads_from_bam(input_bam_fofn_fn, rawread_to_contigs_fn, rawread_ids_
             read_partition[ ctg_id ].add(o_id)
             read_to_ctgs.setdefault(o_id, [])
             read_to_ctgs[ o_id ].append( (int(row[4]) ,ctg_id) )
-    print "num read_partitions:", len(read_partition)
-    print "num read_to_ctgs:", len(read_to_ctgs)
+    print >>sys.stderr, "num read_partitions:", len(read_partition)
+    print >>sys.stderr, "num read_to_ctgs:", len(read_to_ctgs)
 
     header = None
     for fn in yield_bam_fn(input_bam_fofn_fn):
@@ -71,7 +71,7 @@ def select_reads_from_bam(input_bam_fofn_fn, rawread_to_contigs_fn, rawread_ids_
     selected_ctgs = set()
     for ctg in ctgs:
         picked_reads = read_partition[ ctg ]
-        print "ctg, len:", ctg, len(picked_reads) # TODO: Is this for debugging?
+        #print "ctg, len:", ctg, len(picked_reads)
         if len(picked_reads) > 20:
             selected_ctgs.add(ctg)
 
