@@ -156,7 +156,7 @@ def finish_track_reads(read_to_contig_map_fn, file_list, bestn, db_fn, rawread_t
                     ctg_score[ctg][1] += 1
 
             #oid = rid_to_oid[int(bread)]
-            ctg_score = ctg_score.items()
+            ctg_score = list(ctg_score.items())
             ctg_score.sort( key = lambda k: k[1][0] )
             rank = 0
 
@@ -177,7 +177,11 @@ class TrackReads(object):
     io.LOG('TrackReads.init')
     rawread_dir = os.path.abspath('0-rawreads')
     self.db_fn = os.path.join(rawread_dir, 'raw_reads.db') # TODO: Another input
-    io.LOG('db_fn: {!r}, exists: {!r}'.format(self.db_fn, os.path.isfile(self.db_fn)))
+    if not os.path.isfile(self.db_fn):
+        # It would crash eventually. Actually, it would *not* crash if there are no .las files, but
+        # we still want it to crash in that case.
+        msg = 'DAZZLER DB {!r} does not exist.'.format(self.db_fn)
+        raise Exception(msg)
     # better logic for finding the las files path or move the logic to extern (taking the --fofn option?)
     self.file_list = glob.glob(os.path.join(rawread_dir, 'm*/raw_reads.*.las')) # TODO: More input
     self.file_list.sort()
