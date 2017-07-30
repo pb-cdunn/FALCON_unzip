@@ -6,7 +6,7 @@ from distutils.core import Extension
 
 import glob
 
-install_requires=[ "networkx >= 1.7", "pysam >= 0.8.4" ]
+install_requires=[ "networkx >= 1.7", "pysam >= 0.8.4", "msgpack-python" ]
 
 #scripts = glob.glob("src/py_scripts/*.py")
 

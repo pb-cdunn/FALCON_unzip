@@ -6,7 +6,7 @@ import falcon_kit.util.io as io
 import argparse
 import sys
 import glob
-import json # for serdes
+import msgpack # for serdes
 import os
 from heapq import heappush, heappop, heappushpop
 
@@ -15,10 +15,10 @@ Reader = io.CapturedProcessReaderContext
 #GLOBALS rid_to_ctg, rid_to_phase
 
 def serialized(rtn):
-    return json.dumps(rtn)
+    return msgpack.dumps(rtn)
 
 def deserialized(rtn_string):
-    return json.loads(rtn_string)
+    return msgpack.loads(rtn_string)
 
 def get_rid_to_ctg(fn):
     rid_to_ctg = {} # local
@@ -35,7 +35,7 @@ def run_tr_stage1(db_fn, fn, min_len, bestn):
     reader = Reader(cmd)
     with reader:
         rtn = tr_stage1(reader.readlines, min_len, bestn)
-    fn_rtn = '{}.rr_hctg_track.partial.serial'.format(fn)
+    fn_rtn = '{}.rr_hctg_track.partial.msgpack'.format(fn)
     io.LOG('Ser {!r}'.format(fn_rtn))
     with open(fn_rtn, 'w') as writer:
         writer.write(serialized(rtn))
@@ -114,7 +114,7 @@ def finish_track_reads(read_to_contig_map_fn, file_list, bestn, db_fn, rawread_t
     rid_to_ctg = get_rid_to_ctg(read_to_contig_map_fn)
     io.LOG('Got rid_to_ctg.')
     # Assume the files already exist, with this naming convention.
-    fn_rtns = ['{}.rr_hctg_track.partial.serial'.format(fn) for fn in file_list]
+    fn_rtns = ['{}.rr_hctg_track.partial.msgpack'.format(fn) for fn in file_list]
     """
     Aggregate hits from each individual LAS and keep the best n hit.
     Note that this does not guarantee that the final results is globally the best n hits espcially
