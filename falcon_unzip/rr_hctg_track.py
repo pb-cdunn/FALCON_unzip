@@ -157,7 +157,7 @@ def finish_track_reads(read_to_contig_map_fn, file_list, bestn, db_fn, rawread_t
 
             #oid = rid_to_oid[int(bread)]
             ctg_score = list(ctg_score.items())
-            ctg_score.sort( key = lambda k: k[1][0] )
+            ctg_score.sort( key = lambda k: (k[1][0],k[0]) )
             rank = 0
 
             for ctg, score_count in ctg_score:
