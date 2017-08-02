@@ -52,7 +52,7 @@ fc_get_read_hctg_map.py
 
 rm -f ./2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs
 
-fc_rr_hctg_track.py
+fc_rr_hctg_track.py --stream
 
 #fc_rr_hctg_track2.exe
 
