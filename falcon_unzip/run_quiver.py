@@ -59,26 +59,20 @@ cd {basedir}
 fc_get_read_hctg_map.py
 # generated ./4-quiver/read_maps/read_to_contig_map
 
-rm -f ./2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs
+#rm -f ./2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs
 
-fc_rr_hctg_track.py --stream
-
-#fc_rr_hctg_track2.exe
-
-# Begin paranoia
-if hash fc_rr_hctg_track2.exe 2>/dev/null; then
-    fc_rr_hctg_track2.exe
-elif hash fc_rr_hctg_track2.py 2>/dev/null; then
-    fc_rr_hctg_track2.py
-else
-    echo "Cannot find fc_rr_hctg_track2.[exe|py]. Assuming it is not needed."
+# For now, run only if rawread_to_contigs does not exist.
+# This will let Sarah avoid extra computing.
+#
+if [ ! -e "./2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs" ]; then
+  fc_rr_hctg_track.py --stream
+  fc_rr_hctg_track2.exe
 fi
 
 if [ ! -e "./2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs" ]; then
     echo "Missing $(pwd)/2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs"
     exit 1
 fi
-# End paranoia
 
 date
 cd {work_dir}
