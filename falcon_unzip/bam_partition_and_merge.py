@@ -160,9 +160,9 @@ def get_ctg2samfn(filenames, ctg_sets):
         fn = filenames[i]
         for ctg in ctg_sets[i]:
             ctg2samfn[ctg] = fn
-    import pprint
-    with open('/scratch/cdunn/ctg2samfn.py', 'w') as ofs:
-        ofs.write(pprint.pformat(ctg2samfn))
+    #import pprint
+    #with open('/scratch/cdunn/ctg2samfn.py', 'w') as ofs:
+    #    ofs.write(pprint.pformat(ctg2samfn))
     return ctg2samfn
 
 def write_read2ctg_subsets(read2ctg, ctg2samfn):
