@@ -179,6 +179,14 @@ find 1-hasm -name "p_ctg_edges.*" | sort | xargs cat >> all_p_ctg_edges
 find 1-hasm -name "h_ctg_edges.*" | sort | xargs cat >> all_h_ctg_edges
 find 1-hasm -name "p_ctg.*.fa" | sort | xargs cat >> all_p_ctg.fa
 find 1-hasm -name "h_ctg.*.fa" | sort | xargs cat >> all_h_ctg.fa
+
+# Generate a GFA for only primary contigs and haplotigs.
+time python -m falcon_unzip.unzip_gen_gfa_v1 --unzip-root $WD/.. --p-ctg-fasta $WD/../all_p_ctg.fa --h-ctg-fasta $WD/../all_h_ctg.fa --preads-fasta $WD/preads4falcon.fasta --tiling >| $WD/../asm.gfa
+
+# Generate a GFA of all assembly graph edges. This GFA can contain
+# edges and nodes which are not part of primary contigs and haplotigs
+time python -m falcon_unzip.unzip_gen_gfa_v1 --unzip-root $WD/.. --p-ctg-fasta $WD/../all_p_ctg.fa --h-ctg-fasta $WD/../all_h_ctg.fa --preads-fasta $WD/preads4falcon.fasta >| $WD/../sg.gfa
+
 cd ../
 date
 touch {job_done}
