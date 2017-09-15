@@ -190,7 +190,7 @@ date
           --minAnchorSize=12 --maxDivergence=30 --concordant --algorithm=blasr\
           --algorithmOptions=--useQuality --maxHits=1 --hitPolicy=random --seed=1\
             {read_bam} {ref_fasta} aln-{ctg_id}.bam
-python -c 'import ConsensusCore2 as cc2; print cc2' # So quiver likely works.
+#python -c 'import ConsensusCore2 as cc2; print cc2' # So quiver likely works.
 ({variantCaller} --algorithm=arrow -x 5 -X 120 -q 20 -j 24 -r {ref_fasta} aln-{ctg_id}.bam\
             -o {cns_fasta} -o {cns_fastq}) || echo WARNING quiver failed. Maybe no reads for this block.
 date
