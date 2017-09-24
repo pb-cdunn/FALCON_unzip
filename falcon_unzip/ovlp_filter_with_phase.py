@@ -3,10 +3,27 @@ from multiprocessing import Pool
 import subprocess as sp
 import shlex
 import argparse
+import os
 import re
 import sys
 
 arid2phase = {}
+
+# TODO: Kill all threads gracefully if one encounters an error.
+"""This whole program can hang with something like this:
+
+Exception in thread Thread-3:
+Traceback (most recent call last):
+  File "/mnt/software/p/python/2.7.13-UCS4/centos-6/lib/python2.7/threading.py", line 801, in __bootstrap_inner
+    self.run()
+  File "/mnt/software/p/python/2.7.13-UCS4/centos-6/lib/python2.7/threading.py", line 754, in run
+    self.__target(*self.__args, **self.__kwargs)
+  File "/mnt/software/p/python/2.7.13-UCS4/centos-6/lib/python2.7/multiprocessing/pool.py", line 389, in _handle_results
+    task = get()
+TypeError: ('__init__() takes at least 3 arguments (1 given)', <class 'subprocess.CalledProcessError'>, ())
+
+But the most typical cause of error is a missing input, so just check that early.
+"""
 
 def filter_stage1(input_):
     db_fn, fn, max_diff, max_ovlp, min_ovlp, min_len = input_
@@ -268,6 +285,11 @@ def parse_args(argv):
 
     return args
 
+def assert_exists(fn):
+    if not os.path.exists(fn):
+        msg = 'File does not exist: {!r}'.format(fn)
+        raise Exception(msg)
+
 def main(argv=sys.argv):
     args = parse_args(argv)
 
@@ -277,6 +299,8 @@ def main(argv=sys.argv):
     min_len = args.min_len
     bestn = args.bestn
     db_fn = args.db
+
+    assert_exists(db_fn)
 
     with open(args.rid_phase_map) as f:
         for row in f:
@@ -288,8 +312,9 @@ def main(argv=sys.argv):
     file_list = open(args.fofn).read().split("\n")
     inputs = []
     for fn in file_list:
-        if len(fn) != 0:
-            inputs.append( (db_fn, fn, max_diff, max_cov, min_cov, min_len) )
+        if not fn: continue
+        assert_exists(fn)
+        inputs.append( (db_fn, fn, max_diff, max_cov, min_cov, min_len) )
 
     ignore_all = []
     for res in exe_pool.imap(filter_stage1, inputs):
