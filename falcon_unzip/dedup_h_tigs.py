@@ -1,3 +1,4 @@
+from . import io
 import os
 import sys
 from falcon_kit.FastaReader import FastaReader
@@ -6,13 +7,15 @@ def main(argv=sys.argv):
     ctg_id = argv[1]
 
     if os.path.exists("h_ctg_all.{ctg_id}.fa".format(ctg_id = ctg_id)):
-        os.system("nucmer -mum p_ctg.{ctg_id}.fa h_ctg_all.{ctg_id}.fa -p hp_aln".format(ctg_id = ctg_id))
-        os.system("show-coords -T -H -l -c hp_aln.delta > hp_aln.coor")
+        io.syscall("nucmer -mum p_ctg.{ctg_id}.fa h_ctg_all.{ctg_id}.fa -p hp_aln".format(ctg_id = ctg_id))
+        io.syscall("show-coords -T -H -l -c hp_aln.delta > hp_aln.coor")
     else:
-        sys.exit(0) #it is ok if there is no h_ctg_all.{ctg_id}.fa, don't want to interupt the workflow
+        print>>sys.stderr, 'No h_ctg_all.{ctg_id}.fa, but that is ok. Continue workflow.\n'
+        return 0 #it is ok if there is no h_ctg_all.{ctg_id}.fa, don't want to interupt the workflow
 
     if not os.path.exists("hp_aln.coor"):
-        return
+        print>>sys.stderr, 'No "hp_aln.coor". Continuing.\n'
+        return 0
 
     filter_out = set()
     with open("hp_aln.coor") as f:

@@ -14,22 +14,6 @@ import ConfigParser
 
 LOG = logging.getLogger(__name__)
 
-def system(call, check=False):
-    LOG.debug('$(%s)' %repr(call))
-    rc = os.system(call)
-    msg = 'Call %r returned %d.' % (call, rc)
-    if rc:
-        LOG.warning(msg)
-        if check:
-            raise Exception(msg)
-    else:
-        LOG.debug(msg)
-    return rc
-
-def mkdir(d):
-    if not os.path.isdir(d):
-        os.makedirs(d)
-
 def task_track_reads(self):
     job_done = fn(self.job_done)
     wd = self.parameters['wd']
@@ -243,7 +227,7 @@ def unzip_all(config):
 
         # outputs
         wd = os.path.join(os.getcwd(), './3-unzip/0-phasing/{ctg_id}/'.format(ctg_id = ctg_id))
-        #mkdir(wd)
+        #io.mkdir(wd)
         blasr_dir = os.path.join(wd, 'blasr')
         ctg_aln_out = makePypeLocalFile(os.path.join(blasr_dir, '{ctg_id}_sorted.bam'.format(ctg_id = ctg_id)))
         job_done = makePypeLocalFile(os.path.join(blasr_dir, 'aln_{ctg_id}_done'.format(ctg_id = ctg_id)))
@@ -289,7 +273,7 @@ def unzip_all(config):
     wf.refreshTargets()
 
     hasm_wd = os.path.abspath('./3-unzip/1-hasm/')
-    #mkdir(hasm_wd)
+    #io.mkdir(hasm_wd)
     rid_to_phase_all = makePypeLocalFile(os.path.join(hasm_wd, 'rid-to-phase-all', 'rid_to_phase.all'))
     task = PypeTask(inputs = all_ctg_out, outputs = {'rid_to_phase_all': rid_to_phase_all},
     ) (get_rid_to_phase_all)
@@ -310,10 +294,13 @@ def unzip_all(config):
 
 def get_rid_to_phase_all(self):
     # Tasks must be at module scope now.
+    # TODO: Make this a script.
     rid_to_phase_all_fn = fn(self.rid_to_phase_all)
     inputs_fn = [ fn(f) for f in self.inputs.values() ]
     inputs_fn.sort()
     output = []
+    LOG.info('Generate {!r} from {!r}'.format(
+        rid_to_phase_all_fn, inputs_fn))
     for fname in inputs_fn:
         output.extend(open(fname).read())
 

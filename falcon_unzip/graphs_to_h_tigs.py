@@ -25,7 +25,6 @@ def reverse_end( node_id ):
 
 
 def load_sg_seq(all_read_ids, fasta_fn):
-
     seqs = {}
     # load all p-read name into memory
     f = FastaReader(fasta_fn)
@@ -33,10 +32,10 @@ def load_sg_seq(all_read_ids, fasta_fn):
         if r.name not in all_read_ids:
             continue
         seqs[r.name] = r.sequence.upper()
+    assert seqs, 'No sg_seqs. Maybe empty fasta input? {!r}'.format(fasta_fn)
     return seqs
 
 def generate_haplotigs_for_ctg(input_):
-
     ctg_id, out_dir = input_
     global p_asm_G
     global h_asm_G
@@ -617,14 +616,15 @@ def main(argv=sys.argv):
     p_asm_G = AsmGraph(os.path.join(fc_asm_path, "sg_edges_list"),
                        os.path.join(fc_asm_path, "utg_data"),
                        os.path.join(fc_asm_path, "ctg_paths") )
-
     h_asm_G = AsmGraph( os.path.join(fc_hasm_path, "sg_edges_list"),
                         os.path.join(fc_hasm_path, "utg_data"),
                         os.path.join(fc_hasm_path, "ctg_paths") )
-
-
+    assert p_asm_G, 'Empty AsmGraph. Maybe empty inputs?\n{!r}\n{!r}\n{!r}'.format(
+            os.path.join(fc_asm_path, "sg_edges_list"),
+            os.path.join(fc_asm_path, "utg_data"),
+            os.path.join(fc_asm_path, "ctg_paths"),
+    )
     all_rid_to_phase = {}
-
     all_read_ids = set()
     with open(args.rid_phase_map) as f:
         for row in f:
@@ -632,7 +632,8 @@ def main(argv=sys.argv):
             all_rid_to_phase.setdefault( row[1], {} )
             all_rid_to_phase[row[1]][row[0]] = (int(row[2]), int(row[3]))
             all_read_ids.add(row[0])
-
+    assert all_read_ids, 'Empty all_read_ids and all_rid_to_phase. Maybe empty rid_phase_map file? {!r}'.format(
+            args.rid_phase_map)
     for v, w in p_asm_G.sg_edges:
         if p_asm_G.sg_edges[ (v, w) ][-1] != "G":
             continue
@@ -665,5 +666,5 @@ def main(argv=sys.argv):
         exe_list.append( (ctg_id, os.path.join(".", ctg_id)) )
 
     exec_pool = Pool(4)  #TODO, make this configurable
-    exec_pool.map( generate_haplotigs_for_ctg, exe_list)
+    exec_pool.map(generate_haplotigs_for_ctg, exe_list)
     #map( generate_haplotigs_for_ctg, exe_list)

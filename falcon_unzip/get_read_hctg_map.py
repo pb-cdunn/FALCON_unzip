@@ -50,6 +50,8 @@ def generate_read_to_hctg_map(
                 pread_to_contigs.setdefault( k2, set() )
                 pread_to_contigs[ k2 ].add( ctg )
 
+    assert pread_to_contigs, 'Empty p/h_ctg_edges: {!r} {!r}'.format(
+            p_ctg_edges_fn, h_ctg_edges_fn)
     with open(read_to_contig_map_fn, 'w') as f:
         for k in pread_to_contigs:
             pid, rid, oid = k

@@ -93,3 +93,23 @@ def yield_abspath_from_fofn(fofn_fn):
         if not os.path.isabs(fn):
             fn = os.path.abspath(os.path.join(basedir, fn))
         yield fn
+
+def syscall(call, nocheck=False):
+    """Raise Exception in error, unless nocheck==True
+    """
+    LOG.debug('$(%s)' %repr(call))
+    rc = os.system(call)
+    msg = 'Call %r returned %d.' % (call, rc)
+    if rc:
+        LOG.warning(msg)
+        if not nocheck:
+            raise Exception(msg)
+    else:
+        LOG.debug(msg)
+    return rc
+
+def rm(f):
+    syscall('rm -f {}'.format(f))
+
+def touch(f):
+    syscall('touch {}'.format(f))

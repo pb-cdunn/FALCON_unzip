@@ -18,22 +18,6 @@ import ConfigParser
 
 LOG = logging.getLogger(__name__)
 
-def system(call, check=False):
-    LOG.debug('$(%s)' %repr(call))
-    rc = os.system(call)
-    msg = 'Call %r returned %d.' % (call, rc)
-    if rc:
-        LOG.warning(msg)
-        if check:
-            raise Exception(msg)
-    else:
-        LOG.debug(msg)
-    return rc
-
-def mkdir(d):
-    if not os.path.isdir(d):
-        os.makedirs(d)
-
 def task_track_reads_h(self):
     input_bam_fofn = fn(self.input_bam_fofn)
     job_done = fn(self.job_done)
@@ -43,9 +27,7 @@ def task_track_reads_h(self):
 
     # For now, in/outputs are in various directories, by convention, including '0-rawreads/m_*/*.msgpack'
     output_fn = './2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs'
-    if not os.path.exists(os.path.join(basedir, output_fn)):
-        # To avoid re-running, for now. #TODO: Drop this check.
-        script = """\
+    script = """\
 set -vex
 trap 'touch {job_done}.exit' EXIT
 hostname
@@ -59,15 +41,10 @@ cd {basedir}
 fc_get_read_hctg_map.py
 # generated ./4-quiver/read_maps/read_to_contig_map
 
-#rm -f ./2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs
+rm -f ./2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs
 
-# For now, run only if rawread_to_contigs does not exist.
-# This will let Sarah avoid extra computing.
-#
-if [ ! -e "./2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs" ]; then
-  fc_rr_hctg_track.py --stream
-  fc_rr_hctg_track2.exe
-fi
+fc_rr_hctg_track.py --stream
+fc_rr_hctg_track2.exe
 
 if [ ! -e "./2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs" ]; then
     echo "Missing $(pwd)/2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs"
@@ -78,25 +55,6 @@ date
 cd {work_dir}
 ls -l output
 ls -lhH output
-touch {job_done}
-""".format(**locals())
-    else:
-        script = """\
-set -vex
-trap 'touch {job_done}.exit' EXIT
-hostname
-date
-
-rm -f output
-ln -s {basedir}/./2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs output
-# for convenience and transparency
-
-echo "Use existing $(pwd)/2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs"
-ls -l output
-ls -lhH output
-
-date
-cd {work_dir}
 touch {job_done}
 """.format(**locals())
 
@@ -201,10 +159,6 @@ touch {job_done}
         script_file.write(script)
     self.generated_script_fn = script_fn
 
-def rm(f):
-    system('rm -f {}'.format(f))
-def touch(f):
-    system('touch {}'.format(f))
 def task_cns_zcat(self):
     gathered_p_ctg_fn = fn(self.gathered_p_ctg)
     gathered_h_ctg_fn = fn(self.gathered_h_ctg)
@@ -215,41 +169,41 @@ def task_cns_zcat(self):
     cns_h_ctg_fastq_fn = fn(self.cns_h_ctg_fastq)
     job_done_fn = fn(self.job_done)
 
-    rm(cns_p_ctg_fasta_fn)
-    touch(cns_p_ctg_fasta_fn)
-    rm(cns_p_ctg_fastq_fn)
-    touch(cns_p_ctg_fastq_fn)
+    io.rm(cns_p_ctg_fasta_fn)
+    io.touch(cns_p_ctg_fasta_fn)
+    io.rm(cns_p_ctg_fastq_fn)
+    io.touch(cns_p_ctg_fastq_fn)
     with open(gathered_p_ctg_fn) as ifs:
         for line in ifs:
             cns_fasta_fn, cns_fastq_fn = line.split()
-            system('zcat {cns_fasta_fn} >> {cns_p_ctg_fasta_fn}'.format(**locals()))
-            system('zcat {cns_fastq_fn} >> {cns_p_ctg_fastq_fn}'.format(**locals()))
+            io.syscall('zcat {cns_fasta_fn} >> {cns_p_ctg_fasta_fn}'.format(**locals()))
+            io.syscall('zcat {cns_fastq_fn} >> {cns_p_ctg_fastq_fn}'.format(**locals()))
 
     # comment out this for now for recovering purpose
     #with open(gathered_p_ctg_fn) as ifs:
     #    for line in ifs:
     #        cns_fasta_fn, cns_fastq_fn = line.split()
-    #        rm(cns_fasta_fn)
-    #        rm(cns_fasta_fn)
+    #        io.rm(cns_fasta_fn)
+    #        io.rm(cns_fasta_fn)
 
-    rm(cns_h_ctg_fasta_fn)
-    touch(cns_h_ctg_fasta_fn)
-    rm(cns_h_ctg_fastq_fn)
-    touch(cns_h_ctg_fastq_fn)
+    io.rm(cns_h_ctg_fasta_fn)
+    io.touch(cns_h_ctg_fasta_fn)
+    io.rm(cns_h_ctg_fastq_fn)
+    io.touch(cns_h_ctg_fastq_fn)
     with open(gathered_h_ctg_fn) as ifs:
         for line in ifs:
             cns_fasta_fn, cns_fastq_fn = line.split()
-            system('zcat {cns_fasta_fn} >> {cns_h_ctg_fasta_fn}'.format(**locals()))
-            system('zcat {cns_fastq_fn} >> {cns_h_ctg_fastq_fn}'.format(**locals()))
+            io.syscall('zcat {cns_fasta_fn} >> {cns_h_ctg_fasta_fn}'.format(**locals()))
+            io.syscall('zcat {cns_fastq_fn} >> {cns_h_ctg_fastq_fn}'.format(**locals()))
 
     # comment out this for now for recovering purpose
     #with open(gathered_h_ctg_fn) as ifs:
     #    for line in ifs:
     #        cns_fasta_fn, cns_fastq_fn = line.split()
-    #        rm(cns_fasta_fn)
-    #        rm(cns_fasta_fn)
+    #        io.rm(cns_fasta_fn)
+    #        io.rm(cns_fasta_fn)
 
-    touch(job_done_fn)
+    io.touch(job_done_fn)
 
 def task_scatter_quiver(self):
     p_ctg_fn = fn(self.p_ctg_fa)
@@ -299,7 +253,7 @@ def task_scatter_quiver(self):
             read_bam = ctg2bamfn[ctg_id]
             # The segregated *.sam are created in task_segregate.
             # Network latency should not matter because we have already waited for the 'done' file.
-            mkdir(wd)
+            io.mkdirs(wd)
             if not os.path.exists(ref_fasta):
                 # TODO(CD): Up to 50MB of seq data. Should do this on remote host.
                 #   See https://github.com/PacificBiosciences/FALCON_unzip/issues/59
@@ -366,7 +320,7 @@ def task_gather_quiver(self):
     """We wrote the "gathered" files during task construction.
     """
     job_done_fn = fn(self.job_done)
-    touch(job_done_fn)
+    io.touch(job_done_fn)
 
 
 def task_segregate_scatter(self):
@@ -618,7 +572,7 @@ def main(argv=sys.argv):
     gathered_p_ctg_plf = makePypeLocalFile('4-quiver/cns_gather/p_ctg.txt')
     gathered_h_ctg_plf = makePypeLocalFile('4-quiver/cns_gather/h_ctg.txt')
     gather_done_plf = makePypeLocalFile('4-quiver/cns_gather/job_done')
-    mkdir('4-quiver/cns_gather')
+    io.mkdirs('4-quiver/cns_gather')
     with open(fn(gathered_p_ctg_plf), 'w') as ifs:
         for cns_fasta_fn, cns_fastq_fn in sorted(p_ctg_out):
             ifs.write('{} {}\n'.format(cns_fasta_fn, cns_fastq_fn))

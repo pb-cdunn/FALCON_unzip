@@ -82,6 +82,7 @@ def define_global_constants(phased_read_file_fn, read_to_contig_map_fn, rawread_
     io.LOG('defining constants for track_reads')
     io.logstats()
     rid_to_ctg = get_rid_to_ctg(read_to_contig_map_fn)
+    assert rid_to_ctg, 'Empty rid_to_ctg, from {!r}'.format(read_to_contig_map_fn)
     # return here if rid_to_phase not needed
 
     oid_to_phase = {}
@@ -103,6 +104,7 @@ def run_track_reads(exe_pool, file_list, min_len, bestn, db_fn):
     io.LOG('running run_track_reads (tr_stage1)')
     io.logstats()
     inputs = []
+    io.LOG('num files:{}'.format(len(file_list)))
     for fn in file_list:
         inputs.append( (run_tr_stage1, db_fn, fn, min_len, bestn) )
     # For each .las input, store the returned dict in a file, named by convention.

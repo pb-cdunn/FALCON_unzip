@@ -306,7 +306,7 @@ def main(argv=sys.argv):
         for row in f:
             row = row.strip().split()
             arid2phase[row[0]] = (row[1], row[2], row[3]) #ctg_id, phase_blk_id, phase_id
-
+    assert arid2phase, 'Empty rid_phase_map: {!r}'.format(args.rid_phase_map)
     exe_pool = Pool(args.n_core)
 
     file_list = open(args.fofn).read().split("\n")

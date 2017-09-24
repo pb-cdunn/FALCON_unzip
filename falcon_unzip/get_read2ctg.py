@@ -31,8 +31,10 @@ def get_read2ctg(rawread_ids_fn, rawread_to_contigs_fn):
             read_partition[ ctg_id ].add(o_id) # TODO: See if these are non-unique.
             read2scoredctgs.setdefault(o_id, [])
             read2scoredctgs[ o_id ].append( (int(row[4]) ,ctg_id) )
-    log("num ctgs in read_partitions:", len(read_partition))
+    log("num ctgs in read_partition:", len(read_partition))
     log("num reads in read2scoredctgs:", len(read2scoredctgs))
+    assert read2scoredctgs, 'Empty read2scoredctgs, from {!r}'.format(rawread_to_contigs_fn)
+    assert read_partition, 'Empty read_partition, from {!r}'.format(rawread_to_contigs_fn)
     del rid2oid # Release some memory.
 
     selected_ctgs = set()
