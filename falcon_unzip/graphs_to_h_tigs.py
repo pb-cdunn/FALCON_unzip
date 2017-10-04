@@ -665,6 +665,6 @@ def main(argv=sys.argv):
             continue
         exe_list.append( (ctg_id, os.path.join(".", ctg_id)) )
 
-    exec_pool = Pool(4)  #TODO, make this configurable
+    exec_pool = Pool(2)  #TODO, make this configurable
     exec_pool.map(generate_haplotigs_for_ctg, exe_list)
     #map( generate_haplotigs_for_ctg, exe_list)
