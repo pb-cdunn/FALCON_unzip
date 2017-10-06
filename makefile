@@ -1,3 +1,5 @@
+MY_TEST_FLAGS?=-vs --durations=0
+
 default:
 pylint:
 	pylint --errors-only falcon_unzip

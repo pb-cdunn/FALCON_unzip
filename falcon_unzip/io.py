@@ -113,3 +113,14 @@ def rm(f):
 
 def touch(f):
     syscall('touch {}'.format(f))
+
+def filesize(fn):
+    return os.stat(fn).st_size
+
+def exists_and_not_empty(fn):
+    if not os.path.exists(fn):
+        return False
+    if 0 == filesize(fn):
+        LOG.debug('File {} is empty.'.format(fn))
+        return False
+    return True
