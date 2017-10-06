@@ -1,3 +1,5 @@
-dist/*
-build/*
-falcon_kit_phasing.egg-info/*
+dist/
+build/
+*.egg-info/
+/LOCAL/
+/test-reports/
