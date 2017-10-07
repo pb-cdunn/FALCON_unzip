@@ -310,8 +310,8 @@ def main(argv=sys.argv):
 
     pt = PypeTask(inputs = {"rawread_db": rawread_db}, 
             outputs =  {"rawread_id_file": rawread_id_file},
-            TaskType = PypeThreadTaskBase,
-            URL = "task://localhost/dump_rawread_ids")(dump_rawread_ids)
+            #URL = "task://localhost/dump_rawread_ids",
+    )(dump_rawread_ids)
     wf.addTask(pt)
 
     pread_db = makePypeLocalFile( os.path.join( pread_dir, "preads.db" ) )
@@ -319,8 +319,8 @@ def main(argv=sys.argv):
 
     pt = PypeTask( inputs = {"pread_db": pread_db}, 
             outputs =  {"pread_id_file": pread_id_file},
-            TaskType = PypeThreadTaskBase,
-            URL = "task://localhost/dump_pread_ids" )(dump_pread_ids)
+            #URL = "task://localhost/dump_pread_ids",
+    )(dump_pread_ids)
     wf.addTask(pt)
     wf.refreshTargets() # block
 
@@ -354,8 +354,8 @@ def main(argv=sys.argv):
 
     pt = PypeTask(inputs = inputs, 
             outputs = {"read_to_contig_map": read_to_contig_map}, 
-            TaskType = PypeThreadTaskBase, 
-            URL = "task://localhost/get_ctg_read_map")(generate_read_to_ctg_map)
+            #URL = "task://localhost/get_ctg_read_map",
+    )(generate_read_to_ctg_map)
     wf.addTask(pt)
 
 
@@ -374,8 +374,8 @@ def main(argv=sys.argv):
                                                         "pread_id_file": pread_id_file,
                                                         "phased_reads" : phased_reads},
                                         outputs = { "rawread_to_contig_file": rawread_to_contig_file },
-                                        TaskType = PypeThreadTaskBase,
-                                        URL = "task://localhost/r_read_to_contigs.%s" % idx )
+                                        #URL = "task://localhost/r_read_to_contigs.%s" % idx,
+        )
         dump_rawread_to_ctg_task = make_dump_rawread_to_ctg(dump_rawread_to_ctg)                           
         wf.addTask( dump_rawread_to_ctg_task )
 
@@ -391,8 +391,8 @@ def main(argv=sys.argv):
                                                     "pread_id_file": pread_id_file,
                                                     "phased_reads": phased_reads},
                                         outputs = { "pread_to_contig_file": pread_to_contig_file },
-                                        TaskType = PypeThreadTaskBase,
-                                        URL = "task://localhost/pread_to_contigs.%s" % idx )
+                                        #URL = "task://localhost/pread_to_contigs.%s" % idx,
+        )
         dump_pread_to_ctg_task = make_dump_pread_to_ctg(dump_pread_to_ctg)                           
         wf.addTask( dump_pread_to_ctg_task )
 

@@ -9,11 +9,11 @@ import logging
 import sys
 
 def get_ctg2bam(input_bam_fofn_fn, read2ctg):
-    pass
+    return []
 
-def write_ctg2bam(output, input_bam_fofn, int_file)len(val))):
+def write_ctg2bam(output, input_bam_fofn, int_file):
     read2ctg = deserialize(int_file)
-    ctg2bam = get_ctg2bam(input_bam_fofn_fn=input_bam_fofn, read2ctg)
+    ctg2bam = get_ctg2bam(input_bam_fofn_fn=input_bam_fofn, read2ctg=read2ctg)
     serialize(output, ctg2bam)
     serialize(output + '.json', ctg2bam)
 
