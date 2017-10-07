@@ -6,7 +6,8 @@ from falcon_kit.FastaReader import FastaReader
 def main(argv=sys.argv):
     ctg_id = argv[1]
 
-    if os.path.exists("h_ctg_all.{ctg_id}.fa".format(ctg_id = ctg_id)):
+    fn = "h_ctg_all.{ctg_id}.fa".format(ctg_id = ctg_id)
+    if io.exists_and_not_empty(fn):
         io.syscall("nucmer -mum p_ctg.{ctg_id}.fa h_ctg_all.{ctg_id}.fa -p hp_aln".format(ctg_id = ctg_id))
         io.syscall("show-coords -T -H -l -c hp_aln.delta > hp_aln.coor")
     else:

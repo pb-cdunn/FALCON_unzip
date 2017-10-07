@@ -1,4 +1,3 @@
-from nose.tools import assert_equal, assert_raises, eq_
 #import falcon_unzip.phasing as M
 import StringIO
 import collections
