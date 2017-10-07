@@ -5,7 +5,7 @@ set -vex
 python setup.py -v bdist_wheel
 
 WHEELHOUSE=/home/cdunn/wheelhouse/gcc-6/
-pip install --user --find-links=${WHEELHOUSE} pytest networkx pysam msgpack-python pylint
+pip install -v --user --no-index --find-links=${WHEELHOUSE} pytest networkx pysam msgpack-python pylint
 
 pushd ../pypeFLOW
 pip install -v --user --no-deps --edit .
