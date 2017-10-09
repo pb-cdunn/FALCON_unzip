@@ -2,6 +2,7 @@ import json
 import logging
 import msgpack
 import os
+import pprint
 
 try:
     # pylint: disable=no-name-in-module, import-error, fixme, line-too-long
@@ -14,6 +15,23 @@ LOG = logging.getLogger()
 
 def log(*msgs):
     LOG.info(' '.join(repr(m) for m in msgs))
+
+def validate_config(config, fn=None):
+    # This simple and quick check catches common problems early.
+    # This code might go somewhere else someday.
+    LOG.info('From {!r}, config={}'.format(fn, pprint.pformat(config)))
+    smrt_bin = config['smrt_bin']
+    assert os.path.isdir(smrt_bin), 'Not a directory: smrt_bin={!r}'.format(smrt_bin)
+    smrt_bin_cmds = [
+        'blasr', 'samtools', 'pbalign', 'variantCaller',
+    ]
+    smrt_bin_cmds = [os.path.join(smrt_bin, cmd) for cmd in smrt_bin_cmds]
+    path_cmds = [
+        'nucmer', 'show-coords',
+        'fc_rr_hctg_track2.exe',
+    ]
+    for cmd in smrt_bin_cmds + path_cmds:
+        syscall('which ' + cmd)
 
 def mkdirs(*dirnames):
     for dirname in dirnames:
@@ -97,7 +115,7 @@ def yield_abspath_from_fofn(fofn_fn):
 def syscall(call, nocheck=False):
     """Raise Exception in error, unless nocheck==True
     """
-    LOG.debug('$(%s)' %repr(call))
+    LOG.info('$(%s)' %repr(call))
     rc = os.system(call)
     msg = 'Call %r returned %d.' % (call, rc)
     if rc:

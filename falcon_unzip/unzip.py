@@ -4,6 +4,7 @@ from pypeflow.simple_pwatcher_bridge import (
         PypeTask,
         PypeProcWatcherWorkflow, MyFakePypeThreadTaskBase)
 from falcon_kit.FastaReader import FastaReader
+from . import io
 import glob
 import logging
 import os
@@ -336,7 +337,7 @@ def main(argv=sys.argv):
     if config.has_option('Unzip', 'sge_blasr_aln'):
         sge_blasr_aln = config.get('Unzip', 'sge_blasr_aln')
 
-    smrt_bin = '/mnt/secondary/builds/full/3.0.0/prod/smrtanalysis_3.0.0.153854/smrtcmds/bin/'
+    smrt_bin = '/pbi/dept/secondary/builds/links/current_develop_smrttools-incremental_installdir/private/otherbins/all/bin'
     if config.has_option('Unzip', 'smrt_bin'):
         smrt_bin = config.get('Unzip', 'smrt_bin')
 
@@ -371,6 +372,7 @@ def main(argv=sys.argv):
               'unzip_phasing_concurrent_jobs': unzip_phasing_concurrent_jobs,
               'pwatcher_type': pwatcher_type,
     }
+    io.validate_config(config, config_fn)
 
     #support.job_type = 'SGE' #tmp hack until we have a configuration parser
 
