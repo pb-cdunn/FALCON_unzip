@@ -4,6 +4,7 @@ from pypeflow.simple_pwatcher_bridge import (
         PypeTask,
         PypeProcWatcherWorkflow, MyFakePypeThreadTaskBase)
 from falcon_kit.FastaReader import FastaReader
+from . import io
 import glob
 import logging
 import os
@@ -371,6 +372,7 @@ def main(argv=sys.argv):
               'unzip_phasing_concurrent_jobs': unzip_phasing_concurrent_jobs,
               'pwatcher_type': pwatcher_type,
     }
+    io.validate_config(config, config_fn)
 
     #support.job_type = 'SGE' #tmp hack until we have a configuration parser
 
