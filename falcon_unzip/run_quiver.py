@@ -440,7 +440,7 @@ def main(argv=sys.argv):
     if config.has_option('Unzip', 'sge_quiver'):
         sge_quiver = config.get('Unzip', 'sge_quiver')
 
-    smrt_bin = '/mnt/secondary/builds/full/3.0.0/prod/smrtanalysis_3.0.0.153854/smrtcmds/bin/'
+    smrt_bin = '/pbi/dept/secondary/builds/links/current_develop_smrttools-incremental_installdir/private/otherbins/all/bin'
     if config.has_option('Unzip', 'smrt_bin'):
         smrt_bin = config.get('Unzip', 'smrt_bin')
 
