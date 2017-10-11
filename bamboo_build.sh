@@ -6,6 +6,7 @@ python setup.py -v bdist_wheel
 
 WHEELHOUSE=/home/cdunn/wheelhouse/gcc-6/
 pip install -v --user --no-index --find-links=${WHEELHOUSE} pytest networkx pysam msgpack-python pylint
+# We try to avoid slow internet checks/downloads by using our local WHEELHOUSE.
 
 pushd ../pypeFLOW
 pip install -v --user --no-deps --edit .
@@ -15,6 +16,7 @@ pushd ../FALCON
 pip install -v --user --no-deps --edit .
 popd
 
+python -c 'import falcon_kit; print falcon_kit.falcon'
 pip -v install --user --no-deps --use-wheel --find-links=dist/ .
 
 mkdir -p test-reports/
