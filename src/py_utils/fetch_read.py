@@ -8,5 +8,5 @@ for r in f:
     rid = r.name.split()[0]
     if rid not in rl:
         continue
-    print ">"+rid
+    print ">" + rid
     print r.sequence

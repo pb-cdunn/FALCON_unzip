@@ -1,8 +1,8 @@
 from falcon_kit import run_support as support
 from pypeflow.simple_pwatcher_bridge import (
-        PypeLocalFile, makePypeLocalFile, fn,
-        PypeTask,
-        PypeProcWatcherWorkflow, MyFakePypeThreadTaskBase)
+    PypeLocalFile, makePypeLocalFile, fn,
+    PypeTask,
+    PypeProcWatcherWorkflow, MyFakePypeThreadTaskBase)
 from falcon_kit.FastaReader import FastaReader
 from . import io
 import glob
@@ -17,11 +17,12 @@ import ConfigParser
 
 LOG = logging.getLogger(__name__)
 
+
 def task_track_reads_h(self):
     input_bam_fofn = fn(self.input_bam_fofn)
     job_done = fn(self.job_done)
     work_dir = os.getcwd()
-    basedir = '../..' # assuming we are in ./4-quiver/track_reads/
+    basedir = '../..'  # assuming we are in ./4-quiver/track_reads/
     script_fn = 'track_reads_h.sh'
 
     # For now, in/outputs are in various directories, by convention, including '0-rawreads/m_*/*.msgpack'
@@ -57,7 +58,7 @@ ls -lhH output
 touch {job_done}
 """.format(**locals())
 
-    with open(script_fn,'w') as script_file:
+    with open(script_fn, 'w') as script_file:
         script_file.write(script)
     self.generated_script_fn = script_fn
 
@@ -66,7 +67,7 @@ def task_select_reads_h(self):
     read2ctg_fn = fn(self.read2ctg)
     input_bam_fofn = fn(self.input_bam_fofn)
     work_dir = os.getcwd()
-    basedir = '../..' # assuming we are in ./4-quiver/select_reads/
+    basedir = '../..'  # assuming we are in ./4-quiver/select_reads/
     script_fn = 'select_reads_h.sh'
 
     # For now, in/outputs are in various directories, by convention.
@@ -83,9 +84,10 @@ date
 cd {work_dir}
 """.format(**locals())
 
-    with open(script_fn,'w') as script_file:
+    with open(script_fn, 'w') as script_file:
         script_file.write(script)
     self.generated_script_fn = script_fn
+
 
 def task_merge_reads(self):
     merged_fofn_fn = fn(self.merged_fofn)
@@ -93,7 +95,7 @@ def task_merge_reads(self):
     input_bam_fofn = fn(self.input_bam_fofn)
     max_n_open_files = self.parameters['max_n_open_files']
     work_dir = os.getcwd()
-    basedir = '../..' # assuming we are in ./4-quiver/merge_reads/
+    basedir = '../..'  # assuming we are in ./4-quiver/merge_reads/
     script_fn = 'merge_reads.sh'
 
     # For now, in/outputs are in various directories, by convention.
@@ -113,7 +115,7 @@ cd {work_dir}
 # Expect {merged_fofn_fn}
 """.format(**locals())
 
-    with open(script_fn,'w') as script_file:
+    with open(script_fn, 'w') as script_file:
         script_file.write(script)
     self.generated_script_fn = script_fn
 
@@ -154,9 +156,10 @@ date
 touch {job_done}
 """.format(**locals())
 
-    with open(script_fn,'w') as script_file:
+    with open(script_fn, 'w') as script_file:
         script_file.write(script)
     self.generated_script_fn = script_fn
+
 
 def task_cns_zcat(self):
     gathered_p_ctg_fn = fn(self.gathered_p_ctg)
@@ -179,7 +182,7 @@ def task_cns_zcat(self):
             io.syscall('zcat {cns_fastq_fn} >> {cns_p_ctg_fastq_fn}'.format(**locals()))
 
     # comment out this for now for recovering purpose
-    #with open(gathered_p_ctg_fn) as ifs:
+    # with open(gathered_p_ctg_fn) as ifs:
     #    for line in ifs:
     #        cns_fasta_fn, cns_fastq_fn = line.split()
     #        io.rm(cns_fasta_fn)
@@ -196,13 +199,14 @@ def task_cns_zcat(self):
             io.syscall('zcat {cns_fastq_fn} >> {cns_h_ctg_fastq_fn}'.format(**locals()))
 
     # comment out this for now for recovering purpose
-    #with open(gathered_h_ctg_fn) as ifs:
+    # with open(gathered_h_ctg_fn) as ifs:
     #    for line in ifs:
     #        cns_fasta_fn, cns_fastq_fn = line.split()
     #        io.rm(cns_fasta_fn)
     #        io.rm(cns_fasta_fn)
 
     io.touch(job_done_fn)
+
 
 def task_scatter_quiver(self):
     p_ctg_fn = fn(self.p_ctg_fa)
@@ -223,7 +227,6 @@ def task_scatter_quiver(self):
         ref_seq_data[rid] = r.sequence
         ctg_types[rid] = 'p'
 
-
     # I think this will crash if the file is empty. Maybe that is ok.
     h_ctg_fa = FastaReader(h_ctg_fn)
     for r in h_ctg_fa:
@@ -232,22 +235,22 @@ def task_scatter_quiver(self):
         ctg_types[rid] = 'h'
 
     ctg_ids = sorted(ref_seq_data.keys())
-    #p_ctg_out=[]
-    #h_ctg_out=[]
+    # p_ctg_out=[]
+    # h_ctg_out=[]
     #job_done_plfs = {}
     jobs = []
     for ctg_id in ctg_ids:
         sequence = ref_seq_data[ctg_id]
         m_ctg_id = ctg_id.split('-')[0]
         wd = os.path.join(os.getcwd(), m_ctg_id)
-        ref_fasta = os.path.join(wd, '{ctg_id}_ref.fa'.format(ctg_id = ctg_id))
+        ref_fasta = os.path.join(wd, '{ctg_id}_ref.fa'.format(ctg_id=ctg_id))
         #cns_fasta = makePypeLocalFile(os.path.join(wd, 'cns-{ctg_id}.fasta.gz'.format(ctg_id = ctg_id)))
         #cns_fastq = makePypeLocalFile(os.path.join(wd, 'cns-{ctg_id}.fastq.gz'.format(ctg_id = ctg_id)))
         #job_done = makePypeLocalFile(os.path.join(wd, '{ctg_id}_quiver_done'.format(ctg_id = ctg_id)))
         ctg_types2 = {}
         ctg_types2[ctg_id] = ctg_types[ctg_id]
 
-        #if os.path.exists(read_bam):
+        # if os.path.exists(read_bam):
         if ctg_id in ctg2bamfn:
             read_bam = ctg2bamfn[ctg_id]
             # The segregated *.sam are created in task_segregate.
@@ -256,8 +259,8 @@ def task_scatter_quiver(self):
             if not os.path.exists(ref_fasta):
                 # TODO(CD): Up to 50MB of seq data. Should do this on remote host.
                 #   See https://github.com/PacificBiosciences/FALCON_unzip/issues/59
-                with open(ref_fasta,'w') as f:
-                    print >>f, '>'+ctg_id
+                with open(ref_fasta, 'w') as f:
+                    print >>f, '>' + ctg_id
                     print >>f, sequence
             new_job = {}
             new_job['ctg_id'] = ctg_id
@@ -269,12 +272,13 @@ def task_scatter_quiver(self):
             jobs.append(new_job)
     io.serialize(out_json, jobs)
 
+
 def create_quiver_jobs(wf, scattered_quiver_plf):
     scattered_quiver_fn = fn(scattered_quiver_plf)
     jobs = json.loads(open(scattered_quiver_fn).read())
     #ctg_ids = sorted(jobs['ref_seq_data'])
-    p_ctg_out=[]
-    h_ctg_out=[]
+    p_ctg_out = []
+    h_ctg_out = []
     job_done_plfs = {}
     for job in jobs:
         ctg_id = job['ctg_id']
@@ -287,33 +291,34 @@ def create_quiver_jobs(wf, scattered_quiver_plf):
         wd = os.path.join(os.getcwd(), './4-quiver/', m_ctg_id)
         #ref_fasta = makePypeLocalFile(os.path.join(wd, '{ctg_id}_ref.fa'.format(ctg_id = ctg_id)))
         #read_bam = makePypeLocalFile(os.path.join(os.getcwd(), './4-quiver/reads/' '{ctg_id}.sam'.format(ctg_id = ctg_id)))
-        cns_fasta = makePypeLocalFile(os.path.join(wd, 'cns-{ctg_id}.fasta.gz'.format(ctg_id = ctg_id)))
-        cns_fastq = makePypeLocalFile(os.path.join(wd, 'cns-{ctg_id}.fastq.gz'.format(ctg_id = ctg_id)))
-        job_done = makePypeLocalFile(os.path.join(wd, '{ctg_id}_quiver_done'.format(ctg_id = ctg_id)))
+        cns_fasta = makePypeLocalFile(os.path.join(wd, 'cns-{ctg_id}.fasta.gz'.format(ctg_id=ctg_id)))
+        cns_fastq = makePypeLocalFile(os.path.join(wd, 'cns-{ctg_id}.fastq.gz'.format(ctg_id=ctg_id)))
+        job_done = makePypeLocalFile(os.path.join(wd, '{ctg_id}_quiver_done'.format(ctg_id=ctg_id)))
 
-        if os.path.exists(fn(read_bam)): # TODO(CD): Ask Jason what we should do if missing SAM.
+        if os.path.exists(fn(read_bam)):  # TODO(CD): Ask Jason what we should do if missing SAM.
             if ctg_types[ctg_id] == 'p':
-                p_ctg_out.append( (fn(cns_fasta), fn(cns_fastq)) )
+                p_ctg_out.append((fn(cns_fasta), fn(cns_fastq)))
             elif ctg_types[ctg_id] == 'h':
-                h_ctg_out.append( (fn(cns_fasta), fn(cns_fastq)) )
+                h_ctg_out.append((fn(cns_fasta), fn(cns_fastq)))
             else:
                 LOG.warning('Type is {!r}, not "p" or "h". Why are we running Quiver?'.format(ctg_types[ctg_id]))
             parameters = {
-                    'job_uid':'q-'+ctg_id,
-                    'ctg_id': ctg_id,
-                    'smrt_bin': smrt_bin,
-                    'sge_option': sge_option,
+                'job_uid': 'q-' + ctg_id,
+                'ctg_id': ctg_id,
+                'smrt_bin': smrt_bin,
+                'sge_option': sge_option,
             }
-            make_quiver_task = PypeTask(inputs = {'ref_fasta': ref_fasta, 'read_bam': read_bam,
-                                         'scattered_quiver': scattered_quiver_plf,
-                                       },
-                                       outputs = {'cns_fasta': cns_fasta, 'cns_fastq': cns_fastq, 'job_done': job_done},
-                                       parameters = parameters,
-            )
+            make_quiver_task = PypeTask(inputs={'ref_fasta': ref_fasta, 'read_bam': read_bam,
+                                                'scattered_quiver': scattered_quiver_plf,
+                                                },
+                                        outputs={'cns_fasta': cns_fasta, 'cns_fastq': cns_fastq, 'job_done': job_done},
+                                        parameters=parameters,
+                                        )
             quiver_task = make_quiver_task(task_run_quiver)
             wf.addTask(quiver_task)
             job_done_plfs['{}'.format(ctg_id)] = job_done
     return p_ctg_out, h_ctg_out, job_done_plfs
+
 
 def task_gather_quiver(self):
     """We wrote the "gathered" files during task construction.
@@ -340,8 +345,9 @@ def task_segregate_scatter(self):
     io.serialize(scattered_segregate_json_fn, jobs)
     # Fast (for now), so do it locally.
 
+
 def task_run_segregate(self):
-    #max_n_open_files = 300 # Ignored for now. Should not matter here.
+    # max_n_open_files = 300 # Ignored for now. Should not matter here.
     merged_bamfn_fn = self.merged_bamfn
     segregated_bam_fofn_fn = self.segregated_bam_fofn
 
@@ -350,17 +356,18 @@ python -m falcon_unzip.bam_segregate --merged-fn={merged_bamfn_fn} --output-fn={
 """.format(**locals())
 
     script_fn = 'run_bam_segregate.sh'
-    with open(script_fn,'w') as script_file:
+    with open(script_fn, 'w') as script_file:
         script_file.write(script)
     self.generated_script_fn = script_fn
 
+
 def create_segregate_jobs(wf, parameters, scattered_segregate_plf):
-    jn2segregated_bam_fofn = dict() # job_name -> FOFN_plf
+    jn2segregated_bam_fofn = dict()  # job_name -> FOFN_plf
 
     #cwd = os.getcwd()
     scattered_segregate_fn = fn(scattered_segregate_plf)
     jobs = io.deserialize(scattered_segregate_fn)
-    basedir = os.path.dirname(scattered_segregate_fn) # Should this be relative to cwd?
+    basedir = os.path.dirname(scattered_segregate_fn)  # Should this be relative to cwd?
     for job in jobs:
         job_name = job['job_name']
         merged_bamfn_plf = makePypeLocalFile(job['merged_bamfn'])
@@ -368,16 +375,17 @@ def create_segregate_jobs(wf, parameters, scattered_segregate_plf):
         # ctg is encoded into each filepath within the FOFN.
         segregated_bam_fofn_plf = makePypeLocalFile(os.path.join(wd, 'segregated_bam.fofn'))
         make_task = PypeTask(
-                inputs = {
-                    # The other input is next to this one, named by convention.
-                    'merged_bamfn': merged_bamfn_plf},
-                outputs = {
-                    'segregated_bam_fofn': segregated_bam_fofn_plf},
-                parameters = parameters,
+            inputs={
+                # The other input is next to this one, named by convention.
+                'merged_bamfn': merged_bamfn_plf},
+            outputs={
+                'segregated_bam_fofn': segregated_bam_fofn_plf},
+            parameters=parameters,
         )
         wf.addTask(make_task(task_run_segregate))
         jn2segregated_bam_fofn[job_name] = segregated_bam_fofn_plf
     return jn2segregated_bam_fofn
+
 
 def task_segregate_gather(self):
     jn2segregated_bam_fofn = self.inputs
@@ -395,14 +403,13 @@ def task_segregate_gather(self):
             ctg = os.path.splitext(basename)[0]
             ctg2segregated_bamfn[ctg] = bamfn
     io.serialize(ctg2segregated_bamfn_fn, ctg2segregated_bamfn)
-    io.serialize(ctg2segregated_bamfn_fn + '.json', ctg2segregated_bamfn) # for debugging
+    io.serialize(ctg2segregated_bamfn_fn + '.json', ctg2segregated_bamfn)  # for debugging
     # Do not generate a script. This is light and fast, so do it locally.
 
 
 def main(argv=sys.argv):
     global LOG
     LOG = support.setup_logger(None)
-
 
     if len(sys.argv) < 2:
         print>>sys.stderr, 'you need to provide a configuration file to specific a couple cluster running environment'
@@ -413,7 +420,6 @@ def main(argv=sys.argv):
 
     config = ConfigParser.ConfigParser()
     config.read(config_fn)
-
 
     job_type = 'SGE'
     if config.has_option('General', 'job_type'):
@@ -449,7 +455,6 @@ def main(argv=sys.argv):
     if not os.path.isabs(input_bam_fofn):
         input_bam_fofn = os.path.join(config_absbasedir, input_bam_fofn)
 
-
     quiver_concurrent_jobs = 8
     if config.has_option('Unzip', 'quiver_concurrent_jobs'):
         quiver_concurrent_jobs = config.getint('Unzip', 'quiver_concurrent_jobs')
@@ -464,69 +469,68 @@ def main(argv=sys.argv):
               'smrt_bin': smrt_bin}
     io.validate_config(config, config_fn)
 
-    #support.job_type = 'SGE' #tmp hack until we have a configuration parser
-
+    # support.job_type = 'SGE' #tmp hack until we have a configuration parser
 
     wf = PypeProcWatcherWorkflow(
-            max_jobs=quiver_concurrent_jobs,
-            job_type=config['job_type'],
-            job_queue=config.get('job_queue'),
-            sge_option=config.get('sge_option'),
-            watcher_type=config.get('pwatcher_type'),
-            #watcher_directory=config.get('pwatcher_directory', 'mypwatcher'),
-            use_tmpdir=config.get('use_tmpdir'),
+        max_jobs=quiver_concurrent_jobs,
+        job_type=config['job_type'],
+        job_queue=config.get('job_queue'),
+        sge_option=config.get('sge_option'),
+        watcher_type=config.get('pwatcher_type'),
+        #watcher_directory=config.get('pwatcher_directory', 'mypwatcher'),
+        use_tmpdir=config.get('use_tmpdir'),
     )
 
     abscwd = os.path.abspath('.')
     parameters = {
-            'sge_option': config['sge_track_reads'], # applies to select_reads task also, for now
-            'max_n_open_files': config['max_n_open_files'],
+        'sge_option': config['sge_track_reads'],  # applies to select_reads task also, for now
+        'max_n_open_files': config['max_n_open_files'],
     }
     input_bam_fofn_fn = config['input_bam_fofn']
     input_bam_fofn_plf = makePypeLocalFile(input_bam_fofn_fn)
-    hasm_done_plf = makePypeLocalFile('./3-unzip/1-hasm/hasm_done') # by convention
+    hasm_done_plf = makePypeLocalFile('./3-unzip/1-hasm/hasm_done')  # by convention
 
     track_reads_h_done_plf = makePypeLocalFile('./4-quiver/track_reads/track_reads_h_done')
-    make_task = PypeTask(inputs = {
-                                       'input_bam_fofn': input_bam_fofn_plf,
-                                       'hasm_done': hasm_done_plf},
-                                     outputs = {'job_done': track_reads_h_done_plf},
-                                     parameters = parameters,
+    make_task = PypeTask(inputs={
+        'input_bam_fofn': input_bam_fofn_plf,
+        'hasm_done': hasm_done_plf},
+        outputs={'job_done': track_reads_h_done_plf},
+        parameters=parameters,
     )
     wf.addTask(make_task(task_track_reads_h))
     # Note: The output is actually './2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs'
 
     read2ctg_plf = makePypeLocalFile('./4-quiver/select_reads/read2ctg.msgpack')
-    make_task = PypeTask(inputs = {
-                             # Some implicit inputs, plus these deps:
-                             'track_reads_h_done': track_reads_h_done_plf,
-                             'input_bam_fofn': input_bam_fofn_plf,
-                             'hasm_done': hasm_done_plf},
-                         outputs = {
-                             'read2ctg': read2ctg_plf},
-                         parameters = parameters,
+    make_task = PypeTask(inputs={
+        # Some implicit inputs, plus these deps:
+        'track_reads_h_done': track_reads_h_done_plf,
+        'input_bam_fofn': input_bam_fofn_plf,
+        'hasm_done': hasm_done_plf},
+        outputs={
+        'read2ctg': read2ctg_plf},
+        parameters=parameters,
     )
     wf.addTask(make_task(task_select_reads_h))
 
     merged_fofn_plf = makePypeLocalFile('./4-quiver/merge_reads/merged.fofn')
-    make_task = PypeTask(inputs = {
-                            'input_bam_fofn': input_bam_fofn_plf,
-                            'read2ctg': read2ctg_plf},
-                         outputs = {
-                            'merged_fofn': merged_fofn_plf},
-                         parameters = parameters,
+    make_task = PypeTask(inputs={
+        'input_bam_fofn': input_bam_fofn_plf,
+        'read2ctg': read2ctg_plf},
+        outputs={
+        'merged_fofn': merged_fofn_plf},
+        parameters=parameters,
     )
     wf.addTask(make_task(task_merge_reads))
 
     scattered_segregate_plf = makePypeLocalFile('./4-quiver/segregate_scatter/scattered.json')
     make_task = PypeTask(
-            inputs = {
-                'merged_fofn': merged_fofn_plf,
-            },
-            outputs = {
-                'scattered_segregate_json': scattered_segregate_plf,
-            },
-            parameters = parameters,
+        inputs={
+            'merged_fofn': merged_fofn_plf,
+        },
+        outputs={
+            'scattered_segregate_json': scattered_segregate_plf,
+        },
+        parameters=parameters,
     )
     wf.addTask(make_task(task_segregate_scatter))
     wf.refreshTargets()
@@ -536,32 +540,31 @@ def main(argv=sys.argv):
     jn2segregated_bam_fofn = create_segregate_jobs(wf, parameters, scattered_segregate_plf)
     # ctg is encoded into each filepath within each FOFN.
 
-
     ctg2segregated_bamfn_plf = makePypeLocalFile('./4-quiver/segregate_gather/ctg2segregated_bamfn.msgpack')
     make_task = PypeTask(
-            inputs = jn2segregated_bam_fofn,
-            outputs = {
-                'ctg2segregated_bamfn': ctg2segregated_bamfn_plf,
-            },
-            parameters = parameters,
+        inputs=jn2segregated_bam_fofn,
+        outputs={
+            'ctg2segregated_bamfn': ctg2segregated_bamfn_plf,
+        },
+        parameters=parameters,
     )
     wf.addTask(make_task(task_segregate_gather))
     wf.refreshTargets()
 
     scattered_quiver_plf = makePypeLocalFile('4-quiver/quiver_scatter/scattered.json')
     parameters = {
-            'config': config,
+        'config': config,
     }
     make_task = PypeTask(
-            inputs = {
-                'p_ctg_fa': makePypeLocalFile('3-unzip/all_p_ctg.fa'),
-                'h_ctg_fa': makePypeLocalFile('3-unzip/all_h_ctg.fa'),
-                'ctg2bamfn': ctg2segregated_bamfn_plf,
-            },
-            outputs = {
-                'scattered_quiver_json': scattered_quiver_plf,
-            },
-            parameters = parameters,
+        inputs={
+            'p_ctg_fa': makePypeLocalFile('3-unzip/all_p_ctg.fa'),
+            'h_ctg_fa': makePypeLocalFile('3-unzip/all_h_ctg.fa'),
+            'ctg2bamfn': ctg2segregated_bamfn_plf,
+        },
+        outputs={
+            'scattered_quiver_json': scattered_quiver_plf,
+        },
+        parameters=parameters,
     )
     wf.addTask(make_task(task_scatter_quiver))
     wf.refreshTargets()
@@ -580,11 +583,11 @@ def main(argv=sys.argv):
             ifs.write('{} {}\n'.format(cns_fasta_fn, cns_fastq_fn))
 
     make_task = PypeTask(
-            inputs = job_done_plfs,
-            outputs = {
-                'job_done': gather_done_plf,
-            },
-            parameters = {},
+        inputs=job_done_plfs,
+        outputs={
+            'job_done': gather_done_plf,
+        },
+        parameters={},
     )
     wf.addTask(make_task(task_gather_quiver))
     wf.refreshTargets()
@@ -595,18 +598,18 @@ def main(argv=sys.argv):
     cns_h_ctg_fastq_plf = makePypeLocalFile('4-quiver/cns_output/cns_h_ctg.fastq')
     zcat_done_plf = makePypeLocalFile('4-quiver/cns_output/job_done')
     make_task = PypeTask(
-            inputs = {
-                'gathered_p_ctg': gathered_p_ctg_plf,
-                'gathered_h_ctg': gathered_h_ctg_plf,
-                'gather_done': gather_done_plf,
-            },
-            outputs = {
-                'cns_p_ctg_fasta': cns_p_ctg_fasta_plf,
-                'cns_p_ctg_fastq': cns_p_ctg_fastq_plf,
-                'cns_h_ctg_fasta': cns_h_ctg_fasta_plf,
-                'cns_h_ctg_fastq': cns_h_ctg_fastq_plf,
-                'job_done': zcat_done_plf,
-            },
+        inputs={
+            'gathered_p_ctg': gathered_p_ctg_plf,
+            'gathered_h_ctg': gathered_h_ctg_plf,
+            'gather_done': gather_done_plf,
+        },
+        outputs={
+            'cns_p_ctg_fasta': cns_p_ctg_fasta_plf,
+            'cns_p_ctg_fastq': cns_p_ctg_fastq_plf,
+            'cns_h_ctg_fasta': cns_h_ctg_fasta_plf,
+            'cns_h_ctg_fastq': cns_h_ctg_fastq_plf,
+            'job_done': zcat_done_plf,
+        },
     )
     wf.addTask(make_task(task_cns_zcat))
 

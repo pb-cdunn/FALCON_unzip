@@ -6,7 +6,7 @@ from distutils.core import Extension
 
 import glob
 
-install_requires=[ "networkx >= 1.7", "pysam >= 0.8.4", "msgpack-python" ]
+install_requires = ["networkx >= 1.7", "pysam >= 0.8.4", "msgpack-python"]
 
 #scripts = glob.glob("src/py_scripts/*.py")
 
@@ -18,8 +18,8 @@ setup(name='falcon_unzip',
       maintainer='Christopher Dunn',
       maintainer_email='pb.cdunn@gmail.com',
       packages=['falcon_unzip'],
-      package_dir={'falcon_unzip':'falcon_unzip/'},
-      entry_points = {'console_scripts': [
+      package_dir={'falcon_unzip': 'falcon_unzip/'},
+      entry_points={'console_scripts': [
           'fc_dedup_h_tigs.py=falcon_unzip.dedup_h_tigs:main',
           'fc_get_read_hctg_map.py=falcon_unzip.get_read_hctg_map:main',
           'fc_graphs_to_h_tigs.py=falcon_unzip.graphs_to_h_tigs:main',
@@ -36,6 +36,6 @@ setup(name='falcon_unzip',
           'fc_unzip_gen_gfa_v1.py=falcon_unzip.unzip_gen_gfa_v1:main',
       ]},
       #scripts = scripts,
-      zip_safe = False,
+      zip_safe=False,
       install_requires=install_requires
-     )
+      )

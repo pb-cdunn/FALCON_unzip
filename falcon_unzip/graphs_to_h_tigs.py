@@ -7,18 +7,20 @@ import argparse
 import re
 import sys
 
-RCMAP = dict(zip("ACGTacgtNn-","TGCAtgcaNn-"))
-## for shared memory usage
+RCMAP = dict(zip("ACGTacgtNn-", "TGCAtgcaNn-"))
+# for shared memory usage
 global p_asm_G
 global h_asm_G
 global all_rid_to_phase
 global seqs
 
+
 def mkdir(d):
     if not os.path.isdir(d):
         os.makedirs(d)
 
-def reverse_end( node_id ):
+
+def reverse_end(node_id):
     node_id, end = node_id.split(":")
     new_end = "B" if end == "E" else "E"
     return node_id + ":" + new_end
@@ -35,6 +37,7 @@ def load_sg_seq(all_read_ids, fasta_fn):
     assert seqs, 'No sg_seqs. Maybe empty fasta input? {!r}'.format(fasta_fn)
     return seqs
 
+
 def generate_haplotigs_for_ctg(input_):
     ctg_id, out_dir = input_
     global p_asm_G
@@ -43,7 +46,7 @@ def generate_haplotigs_for_ctg(input_):
     global seqs
     arid_to_phase = all_rid_to_phase[ctg_id]
 
-    mkdir( out_dir )
+    mkdir(out_dir)
 
     ctg_G = p_asm_G.get_sg_for_ctg(ctg_id)
 
@@ -56,39 +59,39 @@ def generate_haplotigs_for_ctg(input_):
         vrid = v[:9]
         wrid = w[:9]
 
-        edge_data = p_asm_G.sg_edges[ (v, w) ]
+        edge_data = p_asm_G.sg_edges[(v, w)]
         if edge_data[-1] != "G":
             continue
 
-        vphase = arid_to_phase.get(vrid, (-1,0))
-        wphase = arid_to_phase.get(wrid, (-1,0))
+        vphase = arid_to_phase.get(vrid, (-1, 0))
+        wphase = arid_to_phase.get(wrid, (-1, 0))
         if vphase[0] == wphase[0] and vphase[1] != wphase[1]:
             cross_phase = "Y"
         else:
             cross_phase = "N"
 
-        sg.add_node( v, label= "%d_%d" % vphase,
-                        phase="%d_%d" % vphase,
-                        src="P" )
+        sg.add_node(v, label="%d_%d" % vphase,
+                    phase="%d_%d" % vphase,
+                    src="P")
 
-        sg.add_node( w, label= "%d_%d" % wphase,
-                        phase="%d_%d" % wphase,
-                        src="P" )
+        sg.add_node(w, label="%d_%d" % wphase,
+                    phase="%d_%d" % wphase,
+                    src="P")
 
-        sg.add_edge(v, w, src="OP", cross_phase = cross_phase)
+        sg.add_edge(v, w, src="OP", cross_phase=cross_phase)
 
         # we need to add the complimentary edges as the ctg_graph does not contain the dual edges
         rv = reverse_end(v)
         rw = reverse_end(w)
-        sg.add_node( rv, label= "%d_%d" % vphase,
-                         phase="%d_%d" % vphase,
-                         src="P" )
+        sg.add_node(rv, label="%d_%d" % vphase,
+                    phase="%d_%d" % vphase,
+                    src="P")
 
-        sg.add_node( rw, label= "%d_%d" % wphase,
-                         phase="%d_%d" % wphase,
-                         src="P" )
+        sg.add_node(rw, label="%d_%d" % wphase,
+                    phase="%d_%d" % wphase,
+                    src="P")
 
-        sg.add_edge(rw, rv, src="OP", cross_phase = cross_phase)
+        sg.add_edge(rw, rv, src="OP", cross_phase=cross_phase)
 
     PG_nodes = set(sg.nodes())
     PG_edges = set(sg.edges())
@@ -104,40 +107,40 @@ def generate_haplotigs_for_ctg(input_):
             continue
 
         if (v, w) in PG_edges:
-            if p_asm_G.sg_edges[(v,w)][-1] == "G":
+            if p_asm_G.sg_edges[(v, w)][-1] == "G":
                 continue
 
-        edge_data = h_asm_G.sg_edges[ (v, w) ]
+        edge_data = h_asm_G.sg_edges[(v, w)]
 
         if edge_data[-1] != "G":
             continue
 
         cross_phase = "N"
         if v not in PG_nodes:
-            sg.add_node( v, label= "%d_%d" % arid_to_phase[vrid],
-                            phase="%d_%d" % arid_to_phase[vrid],
-                            src="H" )
+            sg.add_node(v, label="%d_%d" % arid_to_phase[vrid],
+                        phase="%d_%d" % arid_to_phase[vrid],
+                        src="H")
 
         if w not in PG_nodes:
-            sg.add_node( w, label= "%d_%d" % arid_to_phase[wrid],
-                            phase="%d_%d" % arid_to_phase[wrid],
-                            src="H" )
+            sg.add_node(w, label="%d_%d" % arid_to_phase[wrid],
+                        phase="%d_%d" % arid_to_phase[wrid],
+                        src="H")
 
-        sg.add_edge(v, w, src="H", cross_phase = cross_phase)
+        sg.add_edge(v, w, src="H", cross_phase=cross_phase)
 
         rv = reverse_end(v)
         rw = reverse_end(w)
         if rv not in PG_nodes:
-            sg.add_node( rv, label= "%d_%d" % arid_to_phase[vrid],
-                             phase="%d_%d" % arid_to_phase[vrid],
-                             src="H" )
+            sg.add_node(rv, label="%d_%d" % arid_to_phase[vrid],
+                        phase="%d_%d" % arid_to_phase[vrid],
+                        src="H")
 
         if rw not in PG_nodes:
-            sg.add_node( rw, label= "%d_%d" % arid_to_phase[wrid],
-                             phase="%d_%d" % arid_to_phase[wrid],
-                             src="H" )
+            sg.add_node(rw, label="%d_%d" % arid_to_phase[wrid],
+                        phase="%d_%d" % arid_to_phase[wrid],
+                        src="H")
 
-        sg.add_edge(rw, rv, src="H", cross_phase = cross_phase)
+        sg.add_edge(rw, rv, src="H", cross_phase=cross_phase)
 
     sg0 = sg.copy()
     for v, w in h_asm_G.sg_edges:
@@ -149,69 +152,69 @@ def generate_haplotigs_for_ctg(input_):
             continue
 
         if (v, w) in PG_edges:
-            if p_asm_G.sg_edges[(v,w)][-1] == "G":
+            if p_asm_G.sg_edges[(v, w)][-1] == "G":
                 continue
 
-        edge_data = h_asm_G.sg_edges[ (v, w) ]
+        edge_data = h_asm_G.sg_edges[(v, w)]
 
         if sg0.in_degree(w) == 0:
             cross_phase = "Y"
             if v not in PG_nodes:
-                sg.add_node( v, label= "%d_%d" % arid_to_phase[vrid],
-                                phase="%d_%d" % arid_to_phase[vrid],
-                                src="H" )
+                sg.add_node(v, label="%d_%d" % arid_to_phase[vrid],
+                            phase="%d_%d" % arid_to_phase[vrid],
+                            src="H")
 
             if w not in PG_nodes:
-                sg.add_node( w, label= "%d_%d" % arid_to_phase[wrid],
-                                phase="%d_%d" % arid_to_phase[wrid],
-                                src="H" )
+                sg.add_node(w, label="%d_%d" % arid_to_phase[wrid],
+                            phase="%d_%d" % arid_to_phase[wrid],
+                            src="H")
 
-            sg.add_edge(v, w, src="ext", cross_phase = cross_phase)
+            sg.add_edge(v, w, src="ext", cross_phase=cross_phase)
 
             rv = reverse_end(v)
             rw = reverse_end(w)
             if rv not in PG_nodes:
-                sg.add_node( rv, label= "%d_%d" % arid_to_phase[vrid],
-                                 phase="%d_%d" % arid_to_phase[vrid],
-                                 src="H" )
+                sg.add_node(rv, label="%d_%d" % arid_to_phase[vrid],
+                            phase="%d_%d" % arid_to_phase[vrid],
+                            src="H")
 
             if rw not in PG_nodes:
-                sg.add_node( rw, label= "%d_%d" % arid_to_phase[wrid],
-                                 phase="%d_%d" % arid_to_phase[wrid],
-                                 src="H" )
+                sg.add_node(rw, label="%d_%d" % arid_to_phase[wrid],
+                            phase="%d_%d" % arid_to_phase[wrid],
+                            src="H")
 
-            sg.add_edge(rw, rv, src="ext", cross_phase = cross_phase)
+            sg.add_edge(rw, rv, src="ext", cross_phase=cross_phase)
 
         if sg0.out_degree(v) == 0:
             cross_phase = "Y"
             if v not in PG_nodes:
-                sg.add_node( v, label= "%d_%d" % arid_to_phase[vrid],
-                                phase="%d_%d" % arid_to_phase[vrid],
-                                src="H" )
+                sg.add_node(v, label="%d_%d" % arid_to_phase[vrid],
+                            phase="%d_%d" % arid_to_phase[vrid],
+                            src="H")
 
             if w not in PG_nodes:
-                sg.add_node( w, label= "%d_%d" % arid_to_phase[wrid],
-                                phase="%d_%d" % arid_to_phase[wrid],
-                                src="H" )
+                sg.add_node(w, label="%d_%d" % arid_to_phase[wrid],
+                            phase="%d_%d" % arid_to_phase[wrid],
+                            src="H")
 
-            sg.add_edge(v, w, src="ext", cross_phase = cross_phase)
+            sg.add_edge(v, w, src="ext", cross_phase=cross_phase)
 
             rv = reverse_end(v)
             rw = reverse_end(w)
             if rv not in PG_nodes:
-                sg.add_node( rv, label= "%d_%d" % arid_to_phase[vrid],
-                                 phase="%d_%d" % arid_to_phase[vrid],
-                                 src="H" )
+                sg.add_node(rv, label="%d_%d" % arid_to_phase[vrid],
+                            phase="%d_%d" % arid_to_phase[vrid],
+                            src="H")
 
             if rw not in PG_nodes:
-                sg.add_node( rw, label= "%d_%d" % arid_to_phase[wrid],
-                                 phase="%d_%d" % arid_to_phase[wrid],
-                                 src="H" )
+                sg.add_node(rw, label="%d_%d" % arid_to_phase[wrid],
+                            phase="%d_%d" % arid_to_phase[wrid],
+                            src="H")
 
-            sg.add_edge(rw, rv, src="ext", cross_phase = cross_phase)
+            sg.add_edge(rw, rv, src="ext", cross_phase=cross_phase)
 
     sg2 = sg.copy()
-    ctg_nodes_r = set([ reverse_end(v) for v in list(ctg_nodes) ])
+    ctg_nodes_r = set([reverse_end(v) for v in list(ctg_nodes)])
     for v, w in ctg_G.edges():
         sg2.remove_edge(v, w)
         rv, rw = reverse_end(v), reverse_end(w)
@@ -226,40 +229,39 @@ def generate_haplotigs_for_ctg(input_):
         sub_g_nodes = set(sub_g.nodes())
         if len(sub_g_nodes & ctg_nodes_r) > 0 and len(sub_g_nodes & ctg_nodes) > 0:
             # remove cross edge
-            sources = [n for n in sub_g.nodes() if sub_g.in_degree(n) == 0 or n in ctg_nodes or n in ctg_nodes_r ]
-            sinks = [n for n in sub_g.nodes() if sub_g.out_degree(n) == 0 or n in ctg_nodes or n in ctg_nodes_r ]
+            sources = [n for n in sub_g.nodes() if sub_g.in_degree(n) == 0 or n in ctg_nodes or n in ctg_nodes_r]
+            sinks = [n for n in sub_g.nodes() if sub_g.out_degree(n) == 0 or n in ctg_nodes or n in ctg_nodes_r]
             edges_to_keep = set()
             for v in sources:
                 for w in sinks:
                     path = []
                     if v in ctg_nodes and w not in ctg_nodes_r:
                         try:
-                            path = nx.shortest_path( sub_g, v, w )
+                            path = nx.shortest_path(sub_g, v, w)
                         except nx.exception.NetworkXNoPath:
                             path = []
                     elif v not in ctg_nodes and w in ctg_nodes_r:
                         try:
-                            path = nx.shortest_path( sub_g, v, w )
+                            path = nx.shortest_path(sub_g, v, w)
                         except nx.exception.NetworkXNoPath:
                             path = []
 
                     if len(path) >= 2:
                         v1 = path[0]
                         for w1 in path[1:]:
-                            edges_to_keep.add( (v1, w1) )
+                            edges_to_keep.add((v1, w1))
                             rv1, rw1 = reverse_end(v1), reverse_end(w1)
-                            edges_to_keep.add( (rw1, rv1) )
+                            edges_to_keep.add((rw1, rv1))
                             v1 = w1
             for v, w in sub_g.edges():
                 if (v, w) not in edges_to_keep:
-                    edges_to_remove.add( (v, w) )
+                    edges_to_remove.add((v, w))
                     rv, rw = reverse_end(v), reverse_end(w)
-                    edges_to_remove.add( (rw, rv) )
-
+                    edges_to_remove.add((rw, rv))
 
         if len(sub_g_nodes & ctg_nodes_r) == 0 and len(sub_g_nodes & ctg_nodes) == 0:
-            nodes_to_remove.update( sub_g_nodes )
-            nodes_to_remove.update( set( [reverse_end(v) for v in list(sub_g_nodes)] ) )
+            nodes_to_remove.update(sub_g_nodes)
+            nodes_to_remove.update(set([reverse_end(v) for v in list(sub_g_nodes)]))
 
     for v, w in list(edges_to_remove):
         sg.remove_edge(v, w)
@@ -293,37 +295,36 @@ def generate_haplotigs_for_ctg(input_):
                 sg[v][w]["score"] = 50
                 sg[v][w]["label"] = "type2"
 
-
     sg2 = sg.copy()
     edge_to_remove = set()
     for v, w in sg2.edges():
         if sg2[v][w]["src"] == "ext":
-            edge_to_remove.add( (v, w) )
+            edge_to_remove.add((v, w))
             rv, rw = reverse_end(v), reverse_end(w)
-            edge_to_remove.add( (rw, rv) )
+            edge_to_remove.add((rw, rv))
 
-        if sg2.node[v]["phase"] ==  sg2.node[w]["phase"]:
+        if sg2.node[v]["phase"] == sg2.node[w]["phase"]:
             continue
         flag1 = 0
         flag2 = 0
         for e in sg2.out_edges(v):
-            if sg2.node[e[0]]["phase"] ==  sg2.node[e[1]]["phase"]:
+            if sg2.node[e[0]]["phase"] == sg2.node[e[1]]["phase"]:
                 flag1 = 1
                 break
         if flag1 == 1:
             for e in sg2.in_edges(w):
-                if sg2.node[e[0]]["phase"] ==  sg2.node[e[1]]["phase"]:
+                if sg2.node[e[0]]["phase"] == sg2.node[e[1]]["phase"]:
                     flag2 = 1
                     break
         if flag2 == 1:
-            edge_to_remove.add( (v, w) )
+            edge_to_remove.add((v, w))
             rv, rw = reverse_end(v), reverse_end(w)
-            edge_to_remove.add( (rw, rv) )
+            edge_to_remove.add((rw, rv))
 
     for v, w in list(edge_to_remove):
         sg2.remove_edge(v, w)
 
-    ## remove some new short cut due to repeats in the haplotype edges
+    # remove some new short cut due to repeats in the haplotype edges
     edge_to_remove = set()
     with open(os.path.join(out_dir, "path_len.%s" % ctg_id), "w") as f:
 
@@ -346,10 +347,11 @@ def generate_haplotigs_for_ctg(input_):
                     if v in all_length_from_s:
                         len_ = all_length_from_s[v]
                         print >>f, ctg_id, "link_lengths", v, w, longest, len_
-                        if longest - len_ > 10 and sg[v][w]["src"] != "OP":  #make sure we always have one path drived from the original graph from s to t
-                            edge_to_remove.add( (v, w) )
+                        # make sure we always have one path drived from the original graph from s to t
+                        if longest - len_ > 10 and sg[v][w]["src"] != "OP":
+                            edge_to_remove.add((v, w))
                             rv, rw = reverse_end(v), reverse_end(w)
-                            edge_to_remove.add( (rw, rv) )
+                            edge_to_remove.add((rw, rv))
 
         for v, w in list(edge_to_remove):
             sg.remove_edge(v, w)
@@ -361,10 +363,8 @@ def generate_haplotigs_for_ctg(input_):
             except Exception:
                 pass
 
-
-    nx.write_gexf(sg, os.path.join(out_dir, "sg.gexf" ))
-    nx.write_gexf(sg2, os.path.join(out_dir, "sg2.gexf" ))
-
+    nx.write_gexf(sg, os.path.join(out_dir, "sg.gexf"))
+    nx.write_gexf(sg2, os.path.join(out_dir, "sg2.gexf"))
 
     try:
         s_path = nx.shortest_path(sg2, source=s_node, target=t_node, weight="score")
@@ -372,51 +372,49 @@ def generate_haplotigs_for_ctg(input_):
         s_path = nx.shortest_path(sg, source=s_node, target=t_node, weight="score")
 
     s_path_edges = []
-    for i in xrange(len(s_path)-1):
+    for i in xrange(len(s_path) - 1):
         v = s_path[i]
-        w = s_path[i+1]
+        w = s_path[i + 1]
         sg[v][w]["weight"] = 15
-        s_path_edges.append( (v,w) )
+        s_path_edges.append((v, w))
 
     s_path_edge_set = set(s_path_edges)
 
-
-
-    #output the updated primary contig
+    # output the updated primary contig
     edges_to_remove1 = set()
     edges_to_remove2 = set()
-    with open(os.path.join(out_dir, "p_ctg_path.%s" % ctg_id),"w") as p_tig_path, \
-         open(os.path.join(out_dir, "p_ctg.%s.fa" % ctg_id),"w") as p_tig_fa, \
-         open(os.path.join(out_dir, "p_ctg_edges.%s" % ctg_id), "w") as f:
+    with open(os.path.join(out_dir, "p_ctg_path.%s" % ctg_id), "w") as p_tig_path, \
+        open(os.path.join(out_dir, "p_ctg.%s.fa" % ctg_id), "w") as p_tig_fa, \
+            open(os.path.join(out_dir, "p_ctg_edges.%s" % ctg_id), "w") as f:
         seq = []
         for v, w in s_path_edges:
             sg[v][w]["h_edge"] = 1
             vrid = v.split(":")[0]
             wrid = w.split(":")[0]
-            vphase = arid_to_phase.get(vrid, (-1,0))
-            wphase = arid_to_phase.get(wrid, (-1,0))
+            vphase = arid_to_phase.get(vrid, (-1, 0))
+            wphase = arid_to_phase.get(wrid, (-1, 0))
             print >>f, "%s" % ctg_id, v, w, sg[v][w]["cross_phase"], sg[v][w]["src"], vphase[0], vphase[1], wphase[0], wphase[1]
 
             if sg.edge[v][w]["src"] == "OP":
-                edge_data = p_asm_G.sg_edges[ (v,w) ]
+                edge_data = p_asm_G.sg_edges[(v, w)]
             else:
-                edge_data = h_asm_G.sg_edges[ (v,w) ]
+                edge_data = h_asm_G.sg_edges[(v, w)]
 
             seq_id, s, t = edge_data[0]
             if s < t:
-                seq.append(seqs[ seq_id ][ s:t ])
+                seq.append(seqs[seq_id][s:t])
             else:
-                seq.append("".join([ RCMAP[c] for c in seqs[ seq_id ][ s:t:-1 ] ]))
-            print >>p_tig_path, "%s" % ctg_id, v, w, seq_id, s, t, edge_data[1], edge_data[2], "%d %d" % arid_to_phase.get(seq_id, (-1,0))
+                seq.append("".join([RCMAP[c] for c in seqs[seq_id][s:t:-1]]))
+            print >>p_tig_path, "%s" % ctg_id, v, w, seq_id, s, t, edge_data[1], edge_data[2], "%d %d" % arid_to_phase.get(
+                seq_id, (-1, 0))
             sg[v][w]["tig_id"] = "%s" % ctg_id
 
             rv, rw = reverse_end(v), reverse_end(w)
-            edges_to_remove1.add( (v, w) )
-            edges_to_remove2.add( (rw, rv) )
+            edges_to_remove1.add((v, w))
+            edges_to_remove2.add((rw, rv))
 
         print >> p_tig_fa, ">%s" % ctg_id
         print >> p_tig_fa, "".join(seq)
-
 
     sg2 = sg.copy()
     reachable1 = nx.descendants(sg2, s_node)
@@ -426,13 +424,12 @@ def generate_haplotigs_for_ctg(input_):
     reachable_all = reachable1 | reachable2
     reachable_both = reachable1 & reachable2
 
-
     for v, w in list(edges_to_remove2 | edges_to_remove1):
-        sg2.remove_edge( v, w )
+        sg2.remove_edge(v, w)
 
     for v, w in sg2.edges():
         if sg2[v][w]["cross_phase"] == "Y":
-            sg2.remove_edge( v, w )
+            sg2.remove_edge(v, w)
 
     for v in sg2.nodes():
         if v not in reachable_all:
@@ -447,40 +444,38 @@ def generate_haplotigs_for_ctg(input_):
         else:
             sg2.node[v]["reachable"] = 0
 
-    dump_graph = False # the code segement below is useful for showing the graph
+    dump_graph = False  # the code segement below is useful for showing the graph
     if dump_graph == True:
         nx.write_gexf(sg2, "%s_1.gexf" % ctg_id)
 
     p_path_nodes = set(s_path)
-    p_path_rc_nodes = set( [reverse_end(v) for v in s_path] )
+    p_path_rc_nodes = set([reverse_end(v) for v in s_path])
 
     sg2_nodes = set(sg2.nodes())
     for v in p_asm_G.get_sg_for_ctg(ctg_id).nodes():
         rv = reverse_end(v)
-        p_path_rc_nodes.add( rv )
+        p_path_rc_nodes.add(rv)
         if rv in sg2_nodes:
             sg2.remove_node(rv)
 
-
     edges_to_remove = set()
     labelled_node = set()
-    with open(os.path.join(out_dir, "h_ctg_path.%s" % ctg_id),"w") as h_tig_path, \
-         open(os.path.join(out_dir, "h_ctg_all.%s.fa" % ctg_id),"w") as h_tig_fa, \
-         open(os.path.join(out_dir, "h_ctg_edges.%s" % ctg_id),"w") as f:
+    with open(os.path.join(out_dir, "h_ctg_path.%s" % ctg_id), "w") as h_tig_path, \
+            open(os.path.join(out_dir, "h_ctg_all.%s.fa" % ctg_id), "w") as h_tig_fa, \
+            open(os.path.join(out_dir, "h_ctg_edges.%s" % ctg_id), "w") as f:
         h_tig_id = 1
         h_paths = {}
-        #print "number of components:", len([tmp for tmp in nx.weakly_connected_component_subgraphs(sg2)])
+        # print "number of components:", len([tmp for tmp in nx.weakly_connected_component_subgraphs(sg2)])
         for sub_hg_0 in nx.weakly_connected_component_subgraphs(sg2):
             sub_hg = sub_hg_0.copy()
             while sub_hg.size() > 5:
-                #print "sub_hg size:", len(sub_hg.nodes())
-                sources = [n for n in sub_hg.nodes() if sub_hg.in_degree(n) != 1 ]
-                sinks = [n for n in sub_hg.nodes() if sub_hg.out_degree(n) != 1 ]
+                # print "sub_hg size:", len(sub_hg.nodes())
+                sources = [n for n in sub_hg.nodes() if sub_hg.in_degree(n) != 1]
+                sinks = [n for n in sub_hg.nodes() if sub_hg.out_degree(n) != 1]
 
-
-                #print "number of sources", len(sources),  sources
-                #print "number of sinks", len(sinks), sinks
-                if len(sources) == 0 and len(sinks) == 0: #TODO, the rest of the sub-graph are circles, we need to break and print warnning message
+                # print "number of sources", len(sources),  sources
+                # print "number of sinks", len(sinks), sinks
+                if len(sources) == 0 and len(sinks) == 0:  # TODO, the rest of the sub-graph are circles, we need to break and print warnning message
                     break
 
                 longest = []
@@ -488,7 +483,7 @@ def generate_haplotigs_for_ctg(input_):
                 eliminated_sinks = set()
                 s_longest = {}
                 for s in sources:
-                    #print "test source",s, len(eliminated_sinks)
+                    # print "test source",s, len(eliminated_sinks)
                     if s in labelled_node:
                         continue
                     s_path = []
@@ -497,28 +492,28 @@ def generate_haplotigs_for_ctg(input_):
                             continue
                         try:
                             path = nx.shortest_path(sub_hg, s, t, weight="score")
-                            #print "test path len:", len(path), s, t
+                            # print "test path len:", len(path), s, t
                         except nx.exception.NetworkXNoPath:
                             path = []
                             continue
-                        s_path.append( [ path, t ] )
-                    s_path.sort(key = lambda x: -len(x[0]))
+                        s_path.append([path, t])
+                    s_path.sort(key=lambda x: -len(x[0]))
                     if len(s_path) == 0:
                         continue
                     s_longest[s] = s_path[0][0]
                     if len(s_longest[s]) > len(longest):
                         longest = s_longest[s]
-                        #print "s longest", longest[0], longest[-1], len(longest)
+                        # print "s longest", longest[0], longest[-1], len(longest)
                     for path, t in s_path[1:]:
                         eliminated_sinks.add(t)
-                        #print "elimated t", t
+                        # print "elimated t", t
 
                 if len(longest) == 0:
                     break
 
                 s = longest[0]
                 t = longest[-1]
-                h_paths[ ( s, t ) ] = longest
+                h_paths[(s, t)] = longest
 
                 labelled_node.add(s)
                 rs = reverse_end(s)
@@ -528,42 +523,43 @@ def generate_haplotigs_for_ctg(input_):
                     sub_hg.remove_node(v)
 
         for s, t in h_paths:
-            longest = h_paths[ (s, t) ]
-            #print "number of node in path", s,t,len(longest)
+            longest = h_paths[(s, t)]
+            # print "number of node in path", s,t,len(longest)
             seq = []
             for v, w in zip(longest[:-1], longest[1:]):
                 sg[v][w]["h_edge"] = 1
                 if sg.edge[v][w]["src"] == "OP":
-                    edge_data = p_asm_G.sg_edges[ (v,w) ]
+                    edge_data = p_asm_G.sg_edges[(v, w)]
                 else:
-                    edge_data = h_asm_G.sg_edges[ (v,w) ]
+                    edge_data = h_asm_G.sg_edges[(v, w)]
                 vrid = v.split(":")[0]
                 wrid = w.split(":")[0]
-                vphase = arid_to_phase.get(vrid, (-1,0))
-                wphase = arid_to_phase.get(wrid, (-1,0))
-                print >>f, "%s_%03d" % (ctg_id, h_tig_id), v, w, sg[v][w]["cross_phase"], sg[v][w]["src"], vphase[0], vphase[1], wphase[0], wphase[1]
+                vphase = arid_to_phase.get(vrid, (-1, 0))
+                wphase = arid_to_phase.get(wrid, (-1, 0))
+                print >>f, "%s_%03d" % (
+                    ctg_id, h_tig_id), v, w, sg[v][w]["cross_phase"], sg[v][w]["src"], vphase[0], vphase[1], wphase[0], wphase[1]
 
                 if sg.edge[v][w]["src"] == "OP":
-                    edge_data = p_asm_G.sg_edges[ (v,w) ]
+                    edge_data = p_asm_G.sg_edges[(v, w)]
                 else:
-                    edge_data = h_asm_G.sg_edges[ (v,w) ]
+                    edge_data = h_asm_G.sg_edges[(v, w)]
 
                 seq_id, sp, tp = edge_data[0]
                 if sp < tp:
-                    seq.append(seqs[ seq_id ][ sp:tp ])
+                    seq.append(seqs[seq_id][sp:tp])
                 else:
-                    seq.append("".join([ RCMAP[c] for c in seqs[ seq_id ][ sp:tp:-1 ] ]))
-                print >> h_tig_path, "%s_%03d" % (ctg_id, h_tig_id), v, w, seq_id, sp, tp, edge_data[1], edge_data[2], "%d %d" % arid_to_phase.get(seq_id, (-1,0))
+                    seq.append("".join([RCMAP[c] for c in seqs[seq_id][sp:tp:-1]]))
+                print >> h_tig_path, "%s_%03d" % (
+                    ctg_id, h_tig_id), v, w, seq_id, sp, tp, edge_data[1], edge_data[2], "%d %d" % arid_to_phase.get(seq_id, (-1, 0))
                 sg[v][w]["tig_id"] = "%s_%03d" % (ctg_id, h_tig_id)
 
                 rv, rw = reverse_end(v), reverse_end(w)
-                edges_to_remove.add( (v, w) )
-                edges_to_remove.add( (rw, rv) )
+                edges_to_remove.add((v, w))
+                edges_to_remove.add((rw, rv))
 
             print >> h_tig_fa, ">%s_%03d" % (ctg_id, h_tig_id)
             print >> h_tig_fa, "".join(seq)
             h_tig_id += 1
-
 
     dump_graph = False  # the code segement below is useful for showing the graph
     if dump_graph == True:
@@ -582,20 +578,25 @@ def generate_haplotigs_for_ctg(input_):
         nx.write_gexf(sg, "%s_0.gexf" % ctg_id)
 
 
-
 def parse_args(argv):
 
-    parser = argparse.ArgumentParser(description='layout haplotigs from primary assembly graph and phased aseembly graph')
+    parser = argparse.ArgumentParser(
+        description='layout haplotigs from primary assembly graph and phased aseembly graph')
 
-    parser.add_argument('--fc_asm_path', type=str, help='path to the primary Falcon assembly output directory', required=True)
-    parser.add_argument('--fc_hasm_path', type=str, help='path to the phased Falcon assembly output directory', required=True)
-    parser.add_argument('--ctg_id', type=str, help='contig identifier in the bam file', default = "all", required=True)
-    parser.add_argument('--base_dir', type=str, default="./", help='the output base_dir, default to current working directory')
-    parser.add_argument('--rid_phase_map', type=str, help="path to the file that encode the relationship of the read id to phase blocks", required=True)
+    parser.add_argument('--fc_asm_path', type=str,
+                        help='path to the primary Falcon assembly output directory', required=True)
+    parser.add_argument('--fc_hasm_path', type=str,
+                        help='path to the phased Falcon assembly output directory', required=True)
+    parser.add_argument('--ctg_id', type=str, help='contig identifier in the bam file', default="all", required=True)
+    parser.add_argument('--base_dir', type=str, default="./",
+                        help='the output base_dir, default to current working directory')
+    parser.add_argument('--rid_phase_map', type=str,
+                        help="path to the file that encode the relationship of the read id to phase blocks", required=True)
     parser.add_argument('--fasta', type=str, help="sequence file of the p-reads", required=True)
     args = parser.parse_args(argv[1:])
 
     return args
+
 
 def main(argv=sys.argv):
 
@@ -615,27 +616,27 @@ def main(argv=sys.argv):
 
     p_asm_G = AsmGraph(os.path.join(fc_asm_path, "sg_edges_list"),
                        os.path.join(fc_asm_path, "utg_data"),
-                       os.path.join(fc_asm_path, "ctg_paths") )
-    h_asm_G = AsmGraph( os.path.join(fc_hasm_path, "sg_edges_list"),
-                        os.path.join(fc_hasm_path, "utg_data"),
-                        os.path.join(fc_hasm_path, "ctg_paths") )
+                       os.path.join(fc_asm_path, "ctg_paths"))
+    h_asm_G = AsmGraph(os.path.join(fc_hasm_path, "sg_edges_list"),
+                       os.path.join(fc_hasm_path, "utg_data"),
+                       os.path.join(fc_hasm_path, "ctg_paths"))
     assert p_asm_G, 'Empty AsmGraph. Maybe empty inputs?\n{!r}\n{!r}\n{!r}'.format(
-            os.path.join(fc_asm_path, "sg_edges_list"),
-            os.path.join(fc_asm_path, "utg_data"),
-            os.path.join(fc_asm_path, "ctg_paths"),
+        os.path.join(fc_asm_path, "sg_edges_list"),
+        os.path.join(fc_asm_path, "utg_data"),
+        os.path.join(fc_asm_path, "ctg_paths"),
     )
     all_rid_to_phase = {}
     all_read_ids = set()
     with open(args.rid_phase_map) as f:
         for row in f:
             row = row.strip().split()
-            all_rid_to_phase.setdefault( row[1], {} )
+            all_rid_to_phase.setdefault(row[1], {})
             all_rid_to_phase[row[1]][row[0]] = (int(row[2]), int(row[3]))
             all_read_ids.add(row[0])
     assert all_read_ids, 'Empty all_read_ids and all_rid_to_phase. Maybe empty rid_phase_map file? {!r}'.format(
-            args.rid_phase_map)
+        args.rid_phase_map)
     for v, w in p_asm_G.sg_edges:
-        if p_asm_G.sg_edges[ (v, w) ][-1] != "G":
+        if p_asm_G.sg_edges[(v, w)][-1] != "G":
             continue
         v = v.split(":")[0]
         w = w.split(":")[0]
@@ -643,7 +644,7 @@ def main(argv=sys.argv):
         all_read_ids.add(w)
 
     for v, w in h_asm_G.sg_edges:
-        if h_asm_G.sg_edges[ (v, w) ][-1] != "G":
+        if h_asm_G.sg_edges[(v, w)][-1] != "G":
             continue
         v = v.split(":")[0]
         w = w.split(":")[0]
@@ -663,8 +664,8 @@ def main(argv=sys.argv):
             continue
         if ctg_id not in all_rid_to_phase:
             continue
-        exe_list.append( (ctg_id, os.path.join(".", ctg_id)) )
+        exe_list.append((ctg_id, os.path.join(".", ctg_id)))
 
-    exec_pool = Pool(2)  #TODO, make this configurable
+    exec_pool = Pool(2)  # TODO, make this configurable
     exec_pool.map(generate_haplotigs_for_ctg, exe_list)
     #map( generate_haplotigs_for_ctg, exe_list)

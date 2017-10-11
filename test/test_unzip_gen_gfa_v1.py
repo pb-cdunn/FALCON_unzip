@@ -3,6 +3,7 @@ import helpers
 import pytest
 import os
 
+
 def test_main_1(capsys):
     """
     Tests writing a GFA from both sg.gexf and tiling paths.
@@ -20,12 +21,13 @@ def test_main_1(capsys):
             '--write-contigs',
             '--min-p-len', '0',
             '--min-h-len', '0',
-           ]
+            ]
     mod.main(argv)
     out, err = capsys.readouterr()
     expected_path = os.path.join(test_dir, 'expected-1-sg-r-c.gfa')
     expected = open(expected_path).read()
     assert(out == expected)
+
 
 def test_main_2(capsys):
     """
@@ -44,12 +46,13 @@ def test_main_2(capsys):
             '--write-contigs',
             '--min-p-len', '0',
             '--min-h-len', '0',
-           ]
+            ]
     mod.main(argv)
     out, err = capsys.readouterr()
     expected_path = os.path.join(test_dir, 'expected-2-tiling-r-c.gfa')
     expected = open(expected_path).read()
     assert(out == expected)
+
 
 def test_main_3(capsys):
     """
@@ -68,12 +71,13 @@ def test_main_3(capsys):
             '--write-contigs',
             '--min-p-len', '0',
             '--min-h-len', '0',
-           ]
+            ]
     mod.main(argv)
     out, err = capsys.readouterr()
     expected_path = os.path.join(test_dir, 'expected-3-tiling-no_r-c.gfa')
     expected = open(expected_path).read()
     assert(out == expected)
+
 
 def test_main_4(capsys):
     """
@@ -92,12 +96,13 @@ def test_main_4(capsys):
             # '--write-contigs',
             '--min-p-len', '0',
             '--min-h-len', '0',
-           ]
+            ]
     mod.main(argv)
     out, err = capsys.readouterr()
     expected_path = os.path.join(test_dir, 'expected-4-tiling-no_r-no_c.gfa')
     expected = open(expected_path).read()
     assert(out == expected)
+
 
 def test_main_5(capsys):
     """
@@ -116,12 +121,13 @@ def test_main_5(capsys):
             # '--write-contigs',
             '--min-p-len', '0',
             '--min-h-len', '0',
-           ]
+            ]
     mod.main(argv)
     out, err = capsys.readouterr()
     expected_path = os.path.join(test_dir, 'expected-5-sg-no_r-no_c.gfa')
     expected = open(expected_path).read()
     assert(out == expected)
+
 
 def test_main_6(capsys):
     """
@@ -141,7 +147,7 @@ def test_main_6(capsys):
             # '--write-contigs',
             '--min-p-len', '10000',
             '--min-h-len', '10000',
-           ]
+            ]
     mod.main(argv)
     out, err = capsys.readouterr()
     expected_path = os.path.join(test_dir, 'expected-6-tiling-no_r-no_c-minlen.gfa')

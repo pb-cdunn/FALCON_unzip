@@ -13,18 +13,22 @@ read2ctg = {
     'r33': 'c3',
 }
 
+
 def test_partition_ctgs_1():
     groups = M.partition_ctgs(read2ctg, 1)
     assert groups == [set(['c1', 'c2', 'c3'])]
+
 
 def test_partition_ctgs_2():
     groups = M.partition_ctgs(read2ctg, 2)
     assert groups == [set(['c1', 'c2']), set(['c3'])]
 
+
 def test_partition_ctgs_3():
     groups = M.partition_ctgs(read2ctg, 3)
     assert groups == [set(['c3']), set(['c1']), set(['c2'])]
     # Order matters. They tend to be sorted by number of reads.
+
 
 def test_partition_ctgs_4():
     groups3 = M.partition_ctgs(read2ctg, 3)
