@@ -1,6 +1,7 @@
 import os
 import falcon_unzip.io as M
 
+
 def test_exists_and_not_empty(tmpdir):
     with tmpdir.as_cwd():
         foo = 'foo'
@@ -15,6 +16,7 @@ def test_exists_and_not_empty(tmpdir):
         assert M.exists_and_not_empty(foo)
         M.rm(foo)
         assert not M.exists_and_not_empty(foo)
+
 
 def test_eng():
     assert '0.1MB' == M.eng(100000)

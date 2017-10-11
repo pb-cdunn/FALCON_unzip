@@ -9,6 +9,7 @@ log = io.log
 
 re_merged_fn = re.compile(r'([^/.]+).bam$')
 
+
 def get_ctg_from_fn(fn):
     """
     >>> get_ctg_from_fn('/a/b/c.bam')
@@ -23,8 +24,10 @@ def get_ctg_from_fn(fn):
             fn, re_merged_fn.pattern))
     return mo.group(1)
 
+
 def segregate_ctgs(merged_fn, read2ctg, ctg2samfn, samfn2writer):
     log('Segregating reads from a merged BAM: {!r}'.format(merged_fn))
+
     def yield_record_and_ctg():
         """yield (r, ctg)"""
         seen = 0
@@ -33,7 +36,7 @@ def segregate_ctgs(merged_fn, read2ctg, ctg2samfn, samfn2writer):
             for r in samfile.fetch(until_eof=True):
                 seen += 1
                 if r.query_name not in read2ctg:
-                    #print "Missing:", r.query_name
+                    # print "Missing:", r.query_name
                     continue
                 used += 1
                 ctg = read2ctg[r.query_name]
@@ -46,6 +49,7 @@ def segregate_ctgs(merged_fn, read2ctg, ctg2samfn, samfn2writer):
         #log(' Writing to samfn:{!r}'.format(samfn))
         writer = samfn2writer[samfn]
         writer.write(r)
+
 
 def open_sam_writers(header, sam_fns):
     log('Opening {} sam writers'.format(len(sam_fns)))
@@ -63,14 +67,17 @@ def open_sam_writers(header, sam_fns):
         samfn2writer[samfn] = writer
     return samfn2writer
 
+
 def close_sam_writers(writers):
     for writer in writers:
         writer.close()
 
+
 def get_single_bam_header(fn):
     log('Reading BAM header from {!r}'.format(fn))
-    with io.AlignmentFile(fn, 'rb', check_sq = False) as samfile:
+    with io.AlignmentFile(fn, 'rb', check_sq=False) as samfile:
         return samfile.header
+
 
 def get_ctg2samfn(read2ctg, basedir):
     ctg2samfn = dict()
@@ -80,8 +87,9 @@ def get_ctg2samfn(read2ctg, basedir):
         ctg2samfn[ctg] = fn
     return ctg2samfn
 
+
 def bam_segregate(output_fn, merged_fn):
-    read2ctg_fn = merged_fn + '.read2ctg.msgpack' # by convention
+    read2ctg_fn = merged_fn + '.read2ctg.msgpack'  # by convention
     read2ctg = io.deserialize(read2ctg_fn)
     ctg2samfn = get_ctg2samfn(read2ctg, os.path.dirname(output_fn))
     header = get_single_bam_header(merged_fn)
@@ -96,29 +104,32 @@ def bam_segregate(output_fn, merged_fn):
     with open(output_fn, 'w') as ofs:
         ofs.write(fofn_content)
 
+
 def parse_args(argv):
     parser = argparse.ArgumentParser(description='Segregate merged BAM files into single-ctg BAM files.',
-            formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--output-fn', type=str,
-            help='A FOFN of BAM for segregated reads. The paths must encode each ctg somehow (by convention).',
-    )
+                        help='A FOFN of BAM for segregated reads. The paths must encode each ctg somehow (by convention).',
+                        )
     parser.add_argument('--merged-fn', type=str,
-            help='A merged BAM file.',
-    )
-    #parser.add_argument('--max-n-open-files', type=int,
+                        help='A merged BAM file.',
+                        )
+    # parser.add_argument('--max-n-open-files', type=int,
     #        default=300,
     #        help='We write BAM files several at-a-time, hopefully not exceeding this limit.',
     #)
     args = parser.parse_args(argv[1:])
     return args
 
+
 def main(argv=sys.argv):
     args = parse_args(argv)
     bam_segregate(**vars(args))
 
+
 if __name__ == '__main__':
     logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s %(message)s',
+        level=logging.INFO,
+        format='%(asctime)s %(message)s',
     )
     main()

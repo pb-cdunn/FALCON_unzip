@@ -1,8 +1,8 @@
 from falcon_kit import run_support as support
 from pypeflow.simple_pwatcher_bridge import (
-        PypeLocalFile, makePypeLocalFile, fn,
-        PypeTask,
-        PypeProcWatcherWorkflow, MyFakePypeThreadTaskBase)
+    PypeLocalFile, makePypeLocalFile, fn,
+    PypeTask,
+    PypeProcWatcherWorkflow, MyFakePypeThreadTaskBase)
 from falcon_kit.FastaReader import FastaReader
 from . import io
 import glob
@@ -15,11 +15,12 @@ import ConfigParser
 
 LOG = logging.getLogger(__name__)
 
+
 def task_track_reads(self):
     job_done = fn(self.job_done)
     wd = self.parameters['wd']
     #config = self.parameters['config']
-    script_fn = os.path.join(wd , 'track_reads.sh')
+    script_fn = os.path.join(wd, 'track_reads.sh')
     topdir = '../..'
 
     script = """\
@@ -38,7 +39,7 @@ date
 touch {job_done}
 """.format(**locals())
 
-    with open(script_fn,'w') as script_file:
+    with open(script_fn, 'w') as script_file:
         script_file.write(script)
     self.generated_script_fn = script_fn
 
@@ -57,9 +58,8 @@ def task_run_blasr(self):
     blasr = os.path.join(smrt_bin, 'blasr')
     samtools = os.path.join(smrt_bin, 'samtools')
 
-
     script_dir = os.path.join(wd)
-    script_fn =  os.path.join(script_dir , 'aln_{ctg_id}.sh'.format(ctg_id = ctg_id))
+    script_fn = os.path.join(script_dir, 'aln_{ctg_id}.sh'.format(ctg_id=ctg_id))
 
     script = """\
 set -vex
@@ -79,7 +79,7 @@ date
 touch {job_done}
 """.format(**locals())
 
-    with open(script_fn,'w') as script_file:
+    with open(script_fn, 'w') as script_file:
         script_file.write(script)
     self.generated_script_fn = script_fn
 
@@ -98,7 +98,7 @@ def task_phasing(self):
     smrt_bin = config['smrt_bin']
     samtools = os.path.join(smrt_bin, 'samtools')
 
-    script_fn = os.path.join(wd , 'p_%s.sh' % (ctg_id))
+    script_fn = os.path.join(wd, 'p_%s.sh' % (ctg_id))
 
     script = """\
 set -vex
@@ -113,7 +113,7 @@ date
 touch {job_done}
 """.format(**locals())
 
-    with open(script_fn,'w') as script_file:
+    with open(script_fn, 'w') as script_file:
         script_file.write(script)
     self.generated_script_fn = script_fn
 
@@ -124,7 +124,7 @@ def task_hasm(self):
     #config = self.parameters['config']
 
     wd = self.parameters['wd']
-    script_fn =  os.path.join(wd , 'hasm.sh')
+    script_fn = os.path.join(wd, 'hasm.sh')
 
     las_fofn = '../../2-asm-falcon/las.fofn'
     las_fofn = '../../1-preads_ovl/merge-gather/las.fofn'
@@ -177,39 +177,40 @@ date
 touch {job_done}
 """.format(**locals())
 
-    with open(script_fn,'w') as script_file:
+    with open(script_fn, 'w') as script_file:
         script_file.write(script)
     self.generated_script_fn = script_fn
+
 
 def unzip_all(config):
     unzip_blasr_concurrent_jobs = config['unzip_blasr_concurrent_jobs']
     unzip_phasing_concurrent_jobs = config['unzip_phasing_concurrent_jobs']
     wf = PypeProcWatcherWorkflow(
-            max_jobs=unzip_blasr_concurrent_jobs,
-            job_type=config['job_type'],
-            job_queue=config.get('job_queue'),
-            sge_option=config.get('sge_option'),
-            watcher_type=config.get('pwatcher_type'),
-            #watcher_directory=config.get('pwatcher_directory', 'mypwatcher'),
-            use_tmpdir=config.get('use_tmpdir'),
+        max_jobs=unzip_blasr_concurrent_jobs,
+        job_type=config['job_type'],
+        job_queue=config.get('job_queue'),
+        sge_option=config.get('sge_option'),
+        watcher_type=config.get('pwatcher_type'),
+        #watcher_directory=config.get('pwatcher_directory', 'mypwatcher'),
+        use_tmpdir=config.get('use_tmpdir'),
     )
 
     ctg_list_file = makePypeLocalFile('./3-unzip/reads/ctg_list')
     falcon_asm_done = makePypeLocalFile('./2-asm-falcon/falcon_asm_done')
     wdir = os.path.abspath('./3-unzip/reads')
     parameters = {'wd': wdir, 'config': config,
-            'sge_option': config['sge_track_reads'],
-    }
+                  'sge_option': config['sge_track_reads'],
+                  }
     job_done = makePypeLocalFile(os.path.join(parameters['wd'], 'track_reads_done'))
-    make_track_reads_task = PypeTask(inputs = {'falcon_asm_done': falcon_asm_done},
-                                     outputs = {'job_done': job_done, 'ctg_list_file': ctg_list_file},
-                                     parameters = parameters,
-                                     wdir = wdir,
-    )
+    make_track_reads_task = PypeTask(inputs={'falcon_asm_done': falcon_asm_done},
+                                     outputs={'job_done': job_done, 'ctg_list_file': ctg_list_file},
+                                     parameters=parameters,
+                                     wdir=wdir,
+                                     )
     track_reads_task = make_track_reads_task(task_track_reads)
 
     wf.addTask(track_reads_task)
-    wf.refreshTargets() #force refresh now, will put proper dependence later
+    wf.refreshTargets()  # force refresh now, will put proper dependence later
 
     ctg_ids = []
     with open('./3-unzip/reads/ctg_list') as f:
@@ -223,23 +224,23 @@ def unzip_all(config):
 
     for ctg_id in ctg_ids:
         # inputs
-        ref_fasta = makePypeLocalFile('./3-unzip/reads/{ctg_id}_ref.fa'.format(ctg_id = ctg_id))
-        read_fasta = makePypeLocalFile('./3-unzip/reads/{ctg_id}_reads.fa'.format(ctg_id = ctg_id))
+        ref_fasta = makePypeLocalFile('./3-unzip/reads/{ctg_id}_ref.fa'.format(ctg_id=ctg_id))
+        read_fasta = makePypeLocalFile('./3-unzip/reads/{ctg_id}_reads.fa'.format(ctg_id=ctg_id))
 
         # outputs
-        wd = os.path.join(os.getcwd(), './3-unzip/0-phasing/{ctg_id}/'.format(ctg_id = ctg_id))
-        #io.mkdir(wd)
+        wd = os.path.join(os.getcwd(), './3-unzip/0-phasing/{ctg_id}/'.format(ctg_id=ctg_id))
+        # io.mkdir(wd)
         blasr_dir = os.path.join(wd, 'blasr')
-        ctg_aln_out = makePypeLocalFile(os.path.join(blasr_dir, '{ctg_id}_sorted.bam'.format(ctg_id = ctg_id)))
-        job_done = makePypeLocalFile(os.path.join(blasr_dir, 'aln_{ctg_id}_done'.format(ctg_id = ctg_id)))
+        ctg_aln_out = makePypeLocalFile(os.path.join(blasr_dir, '{ctg_id}_sorted.bam'.format(ctg_id=ctg_id)))
+        job_done = makePypeLocalFile(os.path.join(blasr_dir, 'aln_{ctg_id}_done'.format(ctg_id=ctg_id)))
 
-        parameters = {'job_uid':'aln-'+ctg_id, 'wd': blasr_dir, 'config':config, 'ctg_id': ctg_id,
-                'sge_option': config['sge_blasr_aln'],
-        }
-        make_blasr_task = PypeTask(inputs = {'ref_fasta': ref_fasta, 'read_fasta': read_fasta},
-                                   outputs = {'ctg_aln_out': ctg_aln_out, 'job_done': job_done},
-                                   parameters = parameters,
-        )
+        parameters = {'job_uid': 'aln-' + ctg_id, 'wd': blasr_dir, 'config': config, 'ctg_id': ctg_id,
+                      'sge_option': config['sge_blasr_aln'],
+                      }
+        make_blasr_task = PypeTask(inputs={'ref_fasta': ref_fasta, 'read_fasta': read_fasta},
+                                   outputs={'ctg_aln_out': ctg_aln_out, 'job_done': job_done},
+                                   parameters=parameters,
+                                   )
         blasr_task = make_blasr_task(task_run_blasr)
         aln1_outs[ctg_id] = (ctg_aln_out, job_done)
         wf.addTask(blasr_task)
@@ -248,56 +249,58 @@ def unzip_all(config):
     wf.max_jobs = unzip_phasing_concurrent_jobs
     for ctg_id in ctg_ids:
         # inputs
-        ref_fasta = makePypeLocalFile('./3-unzip/reads/{ctg_id}_ref.fa'.format(ctg_id = ctg_id))
-        read_fasta = makePypeLocalFile('./3-unzip/reads/{ctg_id}_reads.fa'.format(ctg_id = ctg_id))
+        ref_fasta = makePypeLocalFile('./3-unzip/reads/{ctg_id}_ref.fa'.format(ctg_id=ctg_id))
+        read_fasta = makePypeLocalFile('./3-unzip/reads/{ctg_id}_reads.fa'.format(ctg_id=ctg_id))
 
         # outputs
-        wd = os.path.join(os.getcwd(), './3-unzip/0-phasing/{ctg_id}/'.format(ctg_id = ctg_id))
+        wd = os.path.join(os.getcwd(), './3-unzip/0-phasing/{ctg_id}/'.format(ctg_id=ctg_id))
 
         blasr_dir = os.path.join(wd, 'blasr')
-        ctg_aln_out = makePypeLocalFile(os.path.join(blasr_dir, '{ctg_id}_sorted.bam'.format(ctg_id = ctg_id)))
+        ctg_aln_out = makePypeLocalFile(os.path.join(blasr_dir, '{ctg_id}_sorted.bam'.format(ctg_id=ctg_id)))
 
         phasing_dir = os.path.join(wd, 'phasing')
-        job_done = makePypeLocalFile(os.path.join(phasing_dir, 'p_{ctg_id}_done'.format(ctg_id = ctg_id)))
-        rid_to_phase_out = makePypeLocalFile(os.path.join(wd, 'rid_to_phase.{ctg_id}'.format(ctg_id = ctg_id))) # TODO: ???
-        all_ctg_out[ 'r2p.{ctg_id}'.format(ctg_id = ctg_id) ] = rid_to_phase_out # implicit output?
+        job_done = makePypeLocalFile(os.path.join(phasing_dir, 'p_{ctg_id}_done'.format(ctg_id=ctg_id)))
+        rid_to_phase_out = makePypeLocalFile(os.path.join(
+            wd, 'rid_to_phase.{ctg_id}'.format(ctg_id=ctg_id)))  # TODO: ???
+        all_ctg_out['r2p.{ctg_id}'.format(ctg_id=ctg_id)] = rid_to_phase_out  # implicit output?
 
-        parameters = {'job_uid':'ha-'+ctg_id, 'wd': wd, 'config':config, 'ctg_id': ctg_id,
-                'sge_option': config['sge_phasing'],
-        }
-        make_phasing_task = PypeTask(inputs = {'ref_fasta': ref_fasta, 'aln_bam':ctg_aln_out},
-                                   outputs = {'job_done': job_done},
-                                   parameters = parameters,
-        )
+        parameters = {'job_uid': 'ha-' + ctg_id, 'wd': wd, 'config': config, 'ctg_id': ctg_id,
+                      'sge_option': config['sge_phasing'],
+                      }
+        make_phasing_task = PypeTask(inputs={'ref_fasta': ref_fasta, 'aln_bam': ctg_aln_out},
+                                     outputs={'job_done': job_done},
+                                     parameters=parameters,
+                                     )
         phasing_task = make_phasing_task(task_phasing)
         wf.addTask(phasing_task)
     wf.refreshTargets()
 
     hasm_wd = os.path.abspath('./3-unzip/1-hasm/')
-    #io.mkdir(hasm_wd)
+    # io.mkdir(hasm_wd)
     rid_to_phase_all = makePypeLocalFile(os.path.join(hasm_wd, 'rid-to-phase-all', 'rid_to_phase.all'))
-    task = PypeTask(inputs = all_ctg_out, outputs = {'rid_to_phase_all': rid_to_phase_all},
-    ) (get_rid_to_phase_all)
+    task = PypeTask(inputs=all_ctg_out, outputs={'rid_to_phase_all': rid_to_phase_all},
+                    )(get_rid_to_phase_all)
     wf.addTask(task)
 
     parameters['wd'] = hasm_wd
     parameters['sge_option'] = config['sge_hasm']
     job_done = makePypeLocalFile(os.path.join(hasm_wd, 'hasm_done'))
-    make_hasm_task = PypeTask(inputs = {'rid_to_phase_all': rid_to_phase_all},
-                              outputs = {'job_done': job_done},
-                              parameters = parameters,
-    )
+    make_hasm_task = PypeTask(inputs={'rid_to_phase_all': rid_to_phase_all},
+                              outputs={'job_done': job_done},
+                              parameters=parameters,
+                              )
     hasm_task = make_hasm_task(task_hasm)
 
     wf.addTask(hasm_task)
 
     wf.refreshTargets()
 
+
 def get_rid_to_phase_all(self):
     # Tasks must be at module scope now.
     # TODO: Make this a script.
     rid_to_phase_all_fn = fn(self.rid_to_phase_all)
-    inputs_fn = [ fn(f) for f in self.inputs.values() ]
+    inputs_fn = [fn(f) for f in self.inputs.values()]
     inputs_fn.sort()
     output = []
     LOG.info('Generate {!r} from {!r}'.format(
@@ -307,6 +310,7 @@ def get_rid_to_phase_all(self):
 
     with open(rid_to_phase_all_fn, 'w') as out:
         out.write(''.join(output))
+
 
 def main(argv=sys.argv):
     global LOG
@@ -371,9 +375,9 @@ def main(argv=sys.argv):
               'unzip_blasr_concurrent_jobs': unzip_blasr_concurrent_jobs,
               'unzip_phasing_concurrent_jobs': unzip_phasing_concurrent_jobs,
               'pwatcher_type': pwatcher_type,
-    }
+              }
     io.validate_config(config, config_fn)
 
-    #support.job_type = 'SGE' #tmp hack until we have a configuration parser
+    # support.job_type = 'SGE' #tmp hack until we have a configuration parser
 
     unzip_all(config)
