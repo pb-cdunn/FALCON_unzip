@@ -1,4 +1,3 @@
-#from nose.tools import assert_equal, assert_raises, eq_
 import falcon_unzip.bam_partition_and_merge as M
 import StringIO
 import collections
