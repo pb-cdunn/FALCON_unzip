@@ -10,7 +10,7 @@ import falcon_kit.mains.gen_gfa_v1 as gen_gfa_v1
 from falcon_kit.util.system import find_files
 
 
-def gfa_from_unzip(fp_out, preads_fasta, p_ctg_fasta, h_ctg_fasta, tiling, unzip_root, write_reads, write_contigs, min_p_len, min_h_len):
+def gfa_from_unzip(fp_out, preads_fasta, p_ctg_fasta, h_ctg_fasta, add_string_graph, unzip_root, write_reads, write_contigs, min_p_len, min_h_len):
     """
     This method produces the GFA-1 formatted output of the
     FALCON assembly.
@@ -54,7 +54,7 @@ def gfa_from_unzip(fp_out, preads_fasta, p_ctg_fasta, h_ctg_fasta, tiling, unzip
         for ctg_id, path in h_paths.iteritems():
             gfa_graph.add_tiling_path(path, ctg_id)
 
-    if not tiling:
+    if add_string_graph:
         # Load the unzip graphs.
         for gexf_file in find_files(hasm_dir, 'sg.gexf'):
             sg = nx.read_gexf(gexf_file)
@@ -71,8 +71,8 @@ def parse_args(argv):
     parser.add_argument('--p-ctg-fasta', type=str, default='all_p_ctg.fa', help='path to the primary contigs file')
     parser.add_argument('--h-ctg-fasta', type=str, default='all_h_ctg.fa', help='path to the haplotig file')
     parser.add_argument('--unzip-root', type=str, default='./', help='path to the 3-unzip directory')
-    parser.add_argument('--tiling', '-t', action='store_true',
-                        help="outputs only the tiling paths of contigs/associated contigs instead of the entire graph")
+    parser.add_argument('--add-string-graph', action='store_true',
+                        help="in addition to tiling paths, output other edges and nodes from the final string graph")
     parser.add_argument('--write-reads', '-r', action='store_true', help="output read sequences in S lines")
     parser.add_argument('--write-contigs', '-c', action='store_true', help="output contig sequences as S lines")
     parser.add_argument('--min-p-len', type=int, default=0,
