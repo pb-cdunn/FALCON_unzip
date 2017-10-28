@@ -1,10 +1,22 @@
 from . import io
+import argparse
 import os
 import sys
 from falcon_kit.FastaReader import FastaReader
 
 
+def parse_args(argv):
+    parser = argparse.ArgumentParser(description='Dedup h_tigs for a given ctg_id.',
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('ctg_id', type=str,
+                        )
+    args = parser.parse_args(argv[1:])
+    raise Exception('x')
+    return args
+
+
 def main(argv=sys.argv):
+    args = parse_args(argv)
     ctg_id = argv[1]
 
     fn = "h_ctg_all.{ctg_id}.fa".format(ctg_id=ctg_id)

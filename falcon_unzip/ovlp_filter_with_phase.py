@@ -267,7 +267,6 @@ def filter_stage3(input_):
 
 
 def parse_args(argv):
-
     parser = argparse.ArgumentParser(description='a simple multi-processes LAS ovelap data filter')
     parser.add_argument('--n_core', type=int, default=4,
                         help='number of processes used for generating consensus')
@@ -282,7 +281,6 @@ def parse_args(argv):
     parser.add_argument('--rid_phase_map', type=str,
                         help="the file that encode the relationship of the read id to phase blocks", required=True)
     args = parser.parse_args(argv[1:])
-
     return args
 
 

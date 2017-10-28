@@ -7,6 +7,7 @@ from pypeflow.simple_pwatcher_bridge import (PypeProcWatcherWorkflow, MyFakePype
 PypeThreadTaskBase = MyFakePypeThreadTaskBase
 from falcon_kit.FastaReader import FastaReader
 from falcon_kit.fc_asm_graph import AsmGraph
+import argparse
 import glob
 import sys
 import subprocess as sp
@@ -296,7 +297,15 @@ def dump_pread_to_ctg(self):
                 rank += 1
 
 
+def parse_args(argv):
+    parser = argparse.ArgumentParser(description='Not sure. Not currently used.',
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    args = parser.parse_args(argv[1:])
+    return args
+
+
 def main(argv=sys.argv):
+    args = parse_args(argv)
     rawread_dir = os.path.abspath("./0-rawreads")
     pread_dir = os.path.abspath("./1-preads_ovl")
     asm_dir = os.path.abspath(os.path.join("./3-unzip/"))

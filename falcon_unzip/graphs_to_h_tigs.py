@@ -579,7 +579,6 @@ def generate_haplotigs_for_ctg(input_):
 
 
 def parse_args(argv):
-
     parser = argparse.ArgumentParser(
         description='layout haplotigs from primary assembly graph and phased aseembly graph')
 
@@ -599,7 +598,6 @@ def parse_args(argv):
 
 
 def main(argv=sys.argv):
-
     # make life easier for now. will refactor it out if possible
     global all_rid_to_phase
     global p_asm_G
