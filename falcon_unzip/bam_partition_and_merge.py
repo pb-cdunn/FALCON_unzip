@@ -251,12 +251,12 @@ def parse_args(argv):
 
 def main(argv=sys.argv):
     args = parse_args(argv)
-    bam_partition_and_merge(**vars(args))
-
-
-if __name__ == '__main__':
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s %(message)s',
     )
+    bam_partition_and_merge(**vars(args))
+
+
+if __name__ == '__main__': # pragma: no cover
     main()

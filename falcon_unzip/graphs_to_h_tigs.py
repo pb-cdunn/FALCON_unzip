@@ -673,3 +673,7 @@ def main(argv=sys.argv):
     exec_pool = Pool(2)  # TODO, make this configurable
     exec_pool.map(generate_haplotigs_for_ctg, exe_list)
     #map( generate_haplotigs_for_ctg, exe_list)
+
+
+if __name__ == '__main__': # pragma: no cover
+    main()

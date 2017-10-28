@@ -95,13 +95,12 @@ def parse_args(argv):
 
 def main(argv=sys.argv):
     args = parse_args(argv)
-
-    write_read2ctg(**vars(args))
-
-
-if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s %(message)s',
     )
+    write_read2ctg(**vars(args))
+
+
+if __name__ == "__main__":
     main()

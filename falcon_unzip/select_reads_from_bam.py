@@ -145,11 +145,15 @@ def parse_args(argv):
 
 
 def main(argv=sys.argv):
+    args = parse_args(argv)
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s %(message)s',
     )
-    args = parse_args(argv)
 
     select_reads_from_bam(args.input_bam_fofn, args.rawread_to_contigs, args.rawread_ids, args.sam_dir,
                           args.max_n_open_files)
+
+
+if __name__ == '__main__': # pragma: no cover
+    main()

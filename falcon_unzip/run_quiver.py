@@ -39,7 +39,7 @@ ln -s {basedir}/./2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs out
 # for convenience and transparency
 
 cd {basedir}
-fc_get_read_hctg_map.py
+python -m falcon_unzip.get_read_hctg_map
 # generated ./4-quiver/read_maps/read_to_contig_map
 
 rm -f ./2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs
@@ -626,3 +626,7 @@ def main(argv=sys.argv):
     wf.addTask(make_task(task_cns_zcat))
 
     wf.refreshTargets()
+
+
+if __name__ == '__main__': # pragma: no cover
+    main()

@@ -85,3 +85,7 @@ def main(argv=sys.argv):
                 print >>f, ">" + r.name
                 print >>f, r.sequence
                 print >> h_ids, r.name
+
+
+if __name__ == "__main__": # pragma: no cover
+    main()

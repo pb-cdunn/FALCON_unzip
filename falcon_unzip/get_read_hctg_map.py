@@ -100,8 +100,10 @@ It assumes the inputs are already generated.
 
 
 def main(argv=sys.argv):
-    logging.basicConfig()
-
     args = parse_args(argv)
-
+    logging.basicConfig()
     generate_read_to_hctg_map(**vars(args))
+
+
+if __name__ == '__main__': # pragma: no cover
+    main()

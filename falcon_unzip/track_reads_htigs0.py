@@ -406,3 +406,7 @@ def main(argv=sys.argv):
         wf.addTask(dump_pread_to_ctg_task)
 
     wf.refreshTargets()  # block
+
+
+if __name__ == '__main__': # pragma: no cover
+    main()

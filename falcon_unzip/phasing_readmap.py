@@ -70,6 +70,10 @@ def parse_args(argv):
 
 
 def main(argv=sys.argv):
-    logging.basicConfig()
     args = parse_args(argv)
+    logging.basicConfig()
     get_phasing_readmap(args)
+
+
+if __name__ == '__main__': # pragma: no cover
+    main()

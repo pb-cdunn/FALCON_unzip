@@ -1514,3 +1514,7 @@ def main(argv=sys.argv):
             length, score, path, type_ = u_edge_data[(s, t, v)]
             print >> ctg_paths, "%6d" % ctg_id, "ctg_circular", s + "~" + v + "~" + t, t, length, score, s + "~" + v + "~" + t
             ctg_id += 1
+
+
+if __name__ == '__main__': # pragma: no cover
+    main()

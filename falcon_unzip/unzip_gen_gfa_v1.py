@@ -98,5 +98,5 @@ def main(argv=sys.argv):
     gfa_from_unzip(sys.stdout, **vars(args))
 
 
-if __name__ == '__main__':
+if __name__ == '__main__': # pragma: no cover
     main()

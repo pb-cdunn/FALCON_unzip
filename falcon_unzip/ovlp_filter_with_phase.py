@@ -351,3 +351,7 @@ def main(argv=sys.argv):
     for res in exe_pool.imap(filter_stage3, inputs):
         for l in res[1]:
             print " ".join(l)
+
+
+if __name__ == '__main__': # pragma: no cover
+    main()

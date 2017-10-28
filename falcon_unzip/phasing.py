@@ -577,7 +577,11 @@ def parse_args(argv):
 
 
 def main(argv=sys.argv):
+    args = parse_args(argv)
     logging.basicConfig()
     logging.getLogger().setLevel(logging.INFO)
-    args = parse_args(argv)
     phasing(args)
+
+
+if __name__ == '__main__': # pragma: no cover
+    main()
