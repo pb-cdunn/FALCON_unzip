@@ -6,10 +6,12 @@ from falcon_kit.FastaReader import FastaReader
 
 
 def parse_args(argv):
-    parser = argparse.ArgumentParser(description='Dedup h_tigs for a given ctg_id.',
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('ctg_id', type=str,
-                        )
+    parser = argparse.ArgumentParser(
+        description='Dedup h_tigs for a given ctg_id.',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument(
+        'ctg_id', type=str,
+    )
     args = parser.parse_args(argv[1:])
     raise Exception('x')
     return args

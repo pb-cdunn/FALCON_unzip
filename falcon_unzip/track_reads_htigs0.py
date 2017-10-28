@@ -298,8 +298,9 @@ def dump_pread_to_ctg(self):
 
 
 def parse_args(argv):
-    parser = argparse.ArgumentParser(description='Not sure. Not currently used.',
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description='Not sure. Not currently used.',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     args = parser.parse_args(argv[1:])
     return args
 

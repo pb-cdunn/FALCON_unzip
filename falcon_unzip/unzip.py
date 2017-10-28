@@ -314,12 +314,14 @@ def get_rid_to_phase_all(self):
 
 
 def parse_args(argv):
-    parser = argparse.ArgumentParser(description='Run stage 3-unzip, given the results of stage 2-asm-falcon.',
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    parser = argparse.ArgumentParser(
+        description='Run stage 3-unzip, given the results of stage 2-asm-falcon.',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument('config_fn', type=str,
-                        help='Configuration file',
-                        )
+    parser.add_argument(
+        'config_fn', type=str,
+        help='Configuration file',
+    )
     args = parser.parse_args(argv[1:])
     return args
 

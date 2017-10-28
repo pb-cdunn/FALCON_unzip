@@ -555,17 +555,23 @@ def phasing(args):
 
 
 def parse_args(argv):
-    parser = argparse.ArgumentParser(description='phasing variants and reads from a bam file')
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description='phasing variants and reads from a bam file')
     # we can run this in parallel mode in the furture
     # parser.add_argument('--n_core', type=int, default=4,
     #                    help='number of processes used for generating consensus')
-    parser.add_argument('--bam', type=str, help='path to sorted bam file', required=True)
-    parser.add_argument('--fasta', type=str, help='path to the fasta file of contain the contig', required=True)
-    parser.add_argument('--ctg_id', type=str, help='contig identifier in the bam file', required=True)
-    parser.add_argument('--base_dir', type=str, default="./",
-                        help='the output base_dir, default to current working directory')
-    parser.add_argument('--samtools', type=str, default="samtools", help='path to samtools')
-
+    parser.add_argument(
+        '--bam', type=str, help='path to sorted bam file', required=True)
+    parser.add_argument(
+        '--fasta', type=str, help='path to the fasta file of contain the contig', required=True)
+    parser.add_argument(
+        '--ctg_id', type=str, help='contig identifier in the bam file', required=True)
+    parser.add_argument(
+        '--base_dir', type=str, default="./",
+        help='the output base_dir, default to current working directory')
+    parser.add_argument(
+        '--samtools', type=str, default="samtools", help='path to samtools')
     args = parser.parse_args(argv[1:])
     return args
 

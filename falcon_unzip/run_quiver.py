@@ -409,12 +409,14 @@ def task_segregate_gather(self):
 
 
 def parse_args(argv):
-    parser = argparse.ArgumentParser(description='Run stage 4-quiver, given the results of stage 3-unzip.',
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    parser = argparse.ArgumentParser(
+        description='Run stage 4-quiver, given the results of stage 3-unzip.',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument('config_fn', type=str,
-                        help='Configuration file',
-                        )
+    parser.add_argument(
+        'config_fn', type=str,
+        help='Configuration file',
+    )
     args = parser.parse_args(argv[1:])
     return args
 
