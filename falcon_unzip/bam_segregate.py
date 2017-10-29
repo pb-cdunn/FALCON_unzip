@@ -1,9 +1,7 @@
 from . import io
-import argparse
 import logging
 import os
 import re
-import sys
 #LOG = logging.getLogger()
 log = io.log
 
@@ -88,7 +86,7 @@ def get_ctg2samfn(read2ctg, basedir):
     return ctg2samfn
 
 
-def bam_segregate(output_fn, merged_fn):
+def run(output_fn, merged_fn):
     read2ctg_fn = merged_fn + '.read2ctg.msgpack'  # by convention
     read2ctg = io.deserialize(read2ctg_fn)
     ctg2samfn = get_ctg2samfn(read2ctg, os.path.dirname(output_fn))
@@ -103,36 +101,3 @@ def bam_segregate(output_fn, merged_fn):
     io.mkdirs(os.path.dirname(os.path.abspath(output_fn)))
     with open(output_fn, 'w') as ofs:
         ofs.write(fofn_content)
-
-
-def parse_args(argv):
-    parser = argparse.ArgumentParser(
-        description='Segregate merged BAM files into single-ctg BAM files.',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument(
-        '--output-fn', type=str,
-        help='A FOFN of BAM for segregated reads. The paths must encode each ctg somehow (by convention).',
-    )
-    parser.add_argument(
-        '--merged-fn', type=str,
-        help='A merged BAM file.',
-    )
-    # parser.add_argument('--max-n-open-files', type=int,
-    #        default=300,
-    #        help='We write BAM files several at-a-time, hopefully not exceeding this limit.',
-    #)
-    args = parser.parse_args(argv[1:])
-    return args
-
-
-def main(argv=sys.argv):
-    args = parse_args(argv)
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s %(message)s',
-    )
-    bam_segregate(**vars(args))
-
-
-if __name__ == '__main__': # pragma: no cover
-    main()

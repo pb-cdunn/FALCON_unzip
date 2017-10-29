@@ -81,7 +81,7 @@ hostname
 date
 cd {wd}
 python -m falcon_unzip.mains.phasing --bam {aln_bam} --fasta {ref_fasta} --ctg_id {ctg_id} --base_dir .. --samtools {samtools}
-python -m falcon_unzip.phasing_readmap --ctg_id {ctg_id} --read_map_dir ../../../2-asm-falcon/read_maps --phased_reads phased_reads
+python -m falcon_unzip.mains.phasing_readmap --ctg_id {ctg_id} --read_map_dir ../../../2-asm-falcon/read_maps --phased_reads phased_reads
 date
 touch {job_done}
 """.format(**locals())

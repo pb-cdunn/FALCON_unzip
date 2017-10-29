@@ -6,12 +6,10 @@ from pypeflow.simple_pwatcher_bridge import (
 from falcon_kit.FastaReader import FastaReader
 from .tasks import unzip as tasks_unzip
 from . import io
-import argparse
 import glob
 import logging
 import os
 import re
-import sys
 import time
 import ConfigParser
 
@@ -103,20 +101,20 @@ hostname
 date
 cd {wd}
 
-python -m falcon_unzip.ovlp_filter_with_phase --fofn {las_fofn} --max_diff 120 --max_cov 120 --min_cov 1 --n_core 48 --min_len 2500 --db ../../1-preads_ovl/preads.db --rid_phase_map {rid_to_phase_all} > preads.p_ovl
-python -m falcon_unzip.phased_ovlp_to_graph preads.p_ovl --min_len 2500 > fc.log
+python -m falcon_unzip.mains.ovlp_filter_with_phase --fofn {las_fofn} --max_diff 120 --max_cov 120 --min_cov 1 --n_core 48 --min_len 2500 --db ../../1-preads_ovl/preads.db --rid_phase_map {rid_to_phase_all} > preads.p_ovl
+python -m falcon_unzip.mains.phased_ovlp_to_graph preads.p_ovl --min_len 2500 > fc.log
 if [ -e ../../1-preads_ovl/preads4falcon.fasta ];
 then
   ln -sf ../../1-preads_ovl/preads4falcon.fasta .
 else
   ln -sf ../../1-preads_ovl/db2falcon/preads4falcon.fasta .
 fi
-python -m falcon_unzip.graphs_to_h_tigs --fc_asm_path ../../2-asm-falcon/ --fc_hasm_path ./ --ctg_id all --rid_phase_map {rid_to_phase_all} --fasta preads4falcon.fasta
+python -m falcon_unzip.mains.graphs_to_h_tigs --fc_asm_path ../../2-asm-falcon/ --fc_hasm_path ./ --ctg_id all --rid_phase_map {rid_to_phase_all} --fasta preads4falcon.fasta
 
 # more script -- a little bit hacky here, we should improve
 
 WD=$PWD
-for f in `cat ../reads/ctg_list `; do mkdir -p $WD/$f; cd $WD/$f; python -m falcon_unzip.dedup_h_tigs $f; done
+for f in `cat ../reads/ctg_list `; do mkdir -p $WD/$f; cd $WD/$f; python -m falcon_unzip.mains.dedup_h_tigs $f; done
 
 ## prepare for quviering the haplotig
 cd $WD/..
@@ -134,11 +132,11 @@ find 1-hasm -name "p_ctg.*.fa" | sort | xargs cat >> all_p_ctg.fa
 find 1-hasm -name "h_ctg.*.fa" | sort | xargs cat >> all_h_ctg.fa
 
 # Generate a GFA for only primary contigs and haplotigs.
-time python -m falcon_unzip.unzip_gen_gfa_v1 --unzip-root $WD/.. --p-ctg-fasta $WD/../all_p_ctg.fa --h-ctg-fasta $WD/../all_h_ctg.fa --preads-fasta $WD/preads4falcon.fasta >| $WD/../asm.gfa
+time python -m falcon_unzip.mains.unzip_gen_gfa_v1 --unzip-root $WD/.. --p-ctg-fasta $WD/../all_p_ctg.fa --h-ctg-fasta $WD/../all_h_ctg.fa --preads-fasta $WD/preads4falcon.fasta >| $WD/../asm.gfa
 
 # Generate a GFA of all assembly graph edges. This GFA can contain
 # edges and nodes which are not part of primary contigs and haplotigs
-time python -m falcon_unzip.unzip_gen_gfa_v1 --unzip-root $WD/.. --p-ctg-fasta $WD/../all_p_ctg.fa --h-ctg-fasta $WD/../all_h_ctg.fa --preads-fasta $WD/preads4falcon.fasta --add-string-graph >| $WD/../sg.gfa
+time python -m falcon_unzip.mains.unzip_gen_gfa_v1 --unzip-root $WD/.. --p-ctg-fasta $WD/../all_p_ctg.fa --h-ctg-fasta $WD/../all_h_ctg.fa --preads-fasta $WD/preads4falcon.fasta --add-string-graph >| $WD/../sg.gfa
 
 cd ../
 date
@@ -148,6 +146,22 @@ touch {job_done}
     with open(script_fn, 'w') as script_file:
         script_file.write(script)
     self.generated_script_fn = script_fn
+
+
+def task_get_rid_to_phase_all(self):
+    # Tasks must be at module scope now.
+    # TODO: Make this a script.
+    rid_to_phase_all_fn = fn(self.rid_to_phase_all)
+    inputs_fn = [fn(f) for f in self.inputs.values()]
+    inputs_fn.sort()
+    output = []
+    LOG.info('Generate {!r} from {!r}'.format(
+        rid_to_phase_all_fn, inputs_fn))
+    for fname in inputs_fn:
+        output.extend(open(fname).read())
+
+    with open(rid_to_phase_all_fn, 'w') as out:
+        out.write(''.join(output))
 
 
 def unzip_all(config):
@@ -223,7 +237,7 @@ def unzip_all(config):
     # io.mkdir(hasm_wd)
     rid_to_phase_all = makePypeLocalFile(os.path.join(hasm_wd, 'rid-to-phase-all', 'rid_to_phase.all'))
     task = PypeTask(inputs=all_ctg_out, outputs={'rid_to_phase_all': rid_to_phase_all},
-                    )(get_rid_to_phase_all)
+                    )(task_get_rid_to_phase_all)
     wf.addTask(task)
 
     parameters['wd'] = hasm_wd
@@ -240,46 +254,9 @@ def unzip_all(config):
     wf.refreshTargets()
 
 
-def get_rid_to_phase_all(self):
-    # Tasks must be at module scope now.
-    # TODO: Make this a script.
-    rid_to_phase_all_fn = fn(self.rid_to_phase_all)
-    inputs_fn = [fn(f) for f in self.inputs.values()]
-    inputs_fn.sort()
-    output = []
-    LOG.info('Generate {!r} from {!r}'.format(
-        rid_to_phase_all_fn, inputs_fn))
-    for fname in inputs_fn:
-        output.extend(open(fname).read())
-
-    with open(rid_to_phase_all_fn, 'w') as out:
-        out.write(''.join(output))
-
-
-class HelpF(argparse.RawTextHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
-    pass
-
-
-def parse_args(argv):
-    parser = argparse.ArgumentParser(
-        description='Run stage 3-unzip, given the results of stage 2-asm-falcon.',
-        formatter_class=HelpF,
-    )
-    parser.add_argument(
-        'config_fn', type=str,
-        help='Configuration file. (This needs its own help section. Note: smrt_bin is deprecated, but if supplied will be appended to PATH.)',
-    )
-    args = parser.parse_args(argv[1:])
-    return args
-
-
-def main(argv=sys.argv):
-    args = parse_args(argv)
-
+def run(config_fn):
     global LOG
     LOG = support.setup_logger(None)
-
-    config_fn = args.config_fn
 
     config = ConfigParser.ConfigParser()
     config.read(config_fn)
@@ -340,7 +317,3 @@ def main(argv=sys.argv):
     # support.job_type = 'SGE' #tmp hack until we have a configuration parser
 
     unzip_all(config)
-
-
-if __name__ == '__main__': # pragma: no cover
-    main()

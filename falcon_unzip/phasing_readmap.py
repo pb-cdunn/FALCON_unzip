@@ -1,11 +1,8 @@
-import argparse
-import logging
 import os
 import re
-import sys
 
 
-def get_phasing_readmap(args):
+def run(args):
     phased_reads = args.phased_reads
     read_map_dir = args.read_map_dir
     the_ctg_id = args.ctg_id
@@ -47,33 +44,3 @@ def get_phasing_readmap(args):
     with open(os.path.join(base_dir, 'rid_to_phase.%s' % the_ctg_id), 'w') as f:
         for arid, phase in arid_to_phase.items():
             print >>f, arid, the_ctg_id, phase[0], phase[1]
-
-
-def parse_args(argv):
-    parser = argparse.ArgumentParser(
-        description='mapping internal daligner read id to phase block and phase',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    # we can run this in parallel mode in the furture
-    # parser.add_argument('--n_core', type=int, default=4,
-    #                    help='number of processes used for generating consensus')
-    parser.add_argument(
-        '--phased_reads', type=str, help='path to read vs. phase map', required=True)
-    parser.add_argument(
-        '--read_map_dir', type=str, help='path to the read map directory', required=True)
-    parser.add_argument(
-        '--ctg_id', type=str, help='contig identifier in the bam file', required=True)
-    parser.add_argument(
-        '--base_dir', type=str, default="./",
-        help='the output base_dir, default to current working directory')
-    args = parser.parse_args(argv[1:])
-    return args
-
-
-def main(argv=sys.argv):
-    args = parse_args(argv)
-    logging.basicConfig()
-    get_phasing_readmap(args)
-
-
-if __name__ == '__main__': # pragma: no cover
-    main()

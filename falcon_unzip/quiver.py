@@ -5,13 +5,11 @@ from pypeflow.simple_pwatcher_bridge import (
     PypeProcWatcherWorkflow, MyFakePypeThreadTaskBase)
 from falcon_kit.FastaReader import FastaReader
 from . import io
-import argparse
 import glob
 import json
 import logging
 import os
 import re
-import sys
 import time
 import ConfigParser
 
@@ -39,7 +37,7 @@ ln -s {basedir}/./2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs out
 # for convenience and transparency
 
 cd {basedir}
-python -m falcon_unzip.get_read_hctg_map
+python -m falcon_unzip.mains.get_read_hctg_map
 # generated ./4-quiver/read_maps/read_to_contig_map
 
 rm -f ./2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs
@@ -79,7 +77,7 @@ date
 cd {basedir}
 
 pwd
-python -m falcon_unzip.get_read2ctg --output={read2ctg_fn} {input_bam_fofn}
+python -m falcon_unzip.mains.get_read2ctg --output={read2ctg_fn} {input_bam_fofn}
 
 date
 cd {work_dir}
@@ -109,7 +107,7 @@ cd {basedir}
 
 #fc_select_reads_from_bam.py --max-n-open-files={max_n_open_files} {input_bam_fofn}
 pwd
-python -m falcon_unzip.bam_partition_and_merge --max-n-open-files={max_n_open_files} --read2ctg-fn={read2ctg_fn} --merged-fn={merged_fofn_fn} {input_bam_fofn}
+python -m falcon_unzip.mains.bam_partition_and_merge --max-n-open-files={max_n_open_files} --read2ctg-fn={read2ctg_fn} --merged-fn={merged_fofn_fn} {input_bam_fofn}
 
 date
 cd {work_dir}
@@ -353,7 +351,7 @@ def task_run_segregate(self):
     segregated_bam_fofn_fn = self.segregated_bam_fofn
 
     script = """
-python -m falcon_unzip.bam_segregate --merged-fn={merged_bamfn_fn} --output-fn={segregated_bam_fofn_fn}
+python -m falcon_unzip.mains.bam_segregate --merged-fn={merged_bamfn_fn} --output-fn={segregated_bam_fofn_fn}
 """.format(**locals())
 
     script_fn = 'run_bam_segregate.sh'
@@ -408,30 +406,10 @@ def task_segregate_gather(self):
     # Do not generate a script. This is light and fast, so do it locally.
 
 
-class HelpF(argparse.RawTextHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
-    pass
-
-
-def parse_args(argv):
-    parser = argparse.ArgumentParser(
-        description='Run stage 4-quiver, given the results of stage 3-unzip.',
-        formatter_class=HelpF,
-    )
-    parser.add_argument(
-        'config_fn', type=str,
-        help='Configuration file. (This needs its own help section. Note: smrt_bin is deprecated, but if supplied will be appended to PATH.)',
-    )
-    args = parser.parse_args(argv[1:])
-    return args
-
-
-def main(argv=sys.argv):
-    args = parse_args(argv)
-
+def run(config_fn):
     global LOG
     LOG = support.setup_logger(None)
 
-    config_fn = args.config_fn
     config_absbasedir = os.path.dirname(os.path.abspath(config_fn))
 
     config = ConfigParser.ConfigParser()
@@ -630,7 +608,3 @@ def main(argv=sys.argv):
     wf.addTask(make_task(task_cns_zcat))
 
     wf.refreshTargets()
-
-
-if __name__ == '__main__': # pragma: no cover
-    main()
