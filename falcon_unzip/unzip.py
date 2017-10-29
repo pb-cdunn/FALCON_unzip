@@ -313,14 +313,18 @@ def get_rid_to_phase_all(self):
         out.write(''.join(output))
 
 
+class HelpF(argparse.RawTextHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
+    pass
+
+
 def parse_args(argv):
     parser = argparse.ArgumentParser(
         description='Run stage 3-unzip, given the results of stage 2-asm-falcon.',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        formatter_class=HelpF,
     )
     parser.add_argument(
         'config_fn', type=str,
-        help='Configuration file',
+        help='Configuration file. (This needs its own help section. Note: smrt_bin is deprecated, but if supplied will be appended to PATH.)',
     )
     args = parser.parse_args(argv[1:])
     return args
@@ -353,7 +357,7 @@ def main(argv=sys.argv):
     if config.has_option('Unzip', 'sge_blasr_aln'):
         sge_blasr_aln = config.get('Unzip', 'sge_blasr_aln')
 
-    smrt_bin = '/pbi/dept/secondary/builds/links/current_develop_smrttools-incremental_installdir/private/otherbins/all/bin'
+    smrt_bin = ''
     if config.has_option('Unzip', 'smrt_bin'):
         smrt_bin = config.get('Unzip', 'smrt_bin')
 
@@ -388,7 +392,7 @@ def main(argv=sys.argv):
               'unzip_phasing_concurrent_jobs': unzip_phasing_concurrent_jobs,
               'pwatcher_type': pwatcher_type,
               }
-    io.validate_config(config, config_fn)
+    io.update_env_from_config(config, config_fn)
 
     # support.job_type = 'SGE' #tmp hack until we have a configuration parser
 

@@ -3,6 +3,7 @@ import logging
 import msgpack
 import os
 import pprint
+import subprocess
 
 try:
     # pylint: disable=no-name-in-module, import-error, fixme, line-too-long
@@ -18,22 +19,33 @@ def log(*msgs):
     LOG.info(' '.join(repr(m) for m in msgs))
 
 
-def validate_config(config, fn=None):
+def validate_config(config):
     # This simple and quick check catches common problems early.
     # This code might go somewhere else someday.
-    LOG.info('From {!r}, config={}'.format(fn, pprint.pformat(config)))
-    smrt_bin = config['smrt_bin']
-    assert os.path.isdir(smrt_bin), 'Not a directory: smrt_bin={!r}'.format(smrt_bin)
     smrt_bin_cmds = [
         'blasr', 'samtools', 'pbalign', 'variantCaller',
     ]
-    smrt_bin_cmds = [os.path.join(smrt_bin, cmd) for cmd in smrt_bin_cmds]
     path_cmds = [
         'nucmer', 'show-coords',
         'fc_rr_hctg_track2.exe',
     ]
+    LOG.info('PATH={}'.format(os.environ['PATH']))
+    try:
+        capture('which which')
+    except Exception:
+        LOG.warning('Could not find "which" command. Skipping checks for "blasr", etc.')
+        return
     for cmd in smrt_bin_cmds + path_cmds:
         syscall('which ' + cmd)
+
+
+def update_env_from_config(config, fn):
+    LOG.info('From {!r}, config={}'.format(fn, pprint.pformat(config)))
+    smrt_bin = config.get('smrt_bin')
+    if smrt_bin:
+        PATH = '{}:{}'.format(os.environ['PATH'], smrt_bin)
+        os.environ['PATH'] = PATH
+    validate_config(config)
 
 
 def mkdirs(*dirnames):
@@ -139,6 +151,20 @@ def syscall(call, nocheck=False):
     else:
         LOG.debug(msg)
     return rc
+
+
+def capture(cmd):
+    """Return stdout, fully captured.
+    Wait for subproc to finish.
+    Raise if empty.
+    Raise on non-zero exit-code.
+    """
+    LOG.info('$ {} >'.format(cmd))
+    output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+    if not output:
+        msg = '{!r} failed to produce any output.'.format(cmd)
+        LOG.warning(msg)
+    return output
 
 
 def rm(f):
