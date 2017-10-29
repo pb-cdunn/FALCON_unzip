@@ -4,6 +4,58 @@ from pypeflow.simple_pwatcher_bridge import (
 )
 import os
 
+from falcon_unzip import phasing
+
+def task_make_het_call(self):
+    bam_fn = fn(self.bam_file)
+    fasta_fn = fn(self.fasta)
+    vmap_fn = fn(self.vmap_file)
+    vpos_fn = fn(self.vpos_file)
+    q_id_map_fn = fn(self.q_id_map_file)
+    kwds = dict(
+            bam_fn=bam_fn,
+            fasta_fn=fasta_fn,
+            vmap_fn=vmap_fn,
+            vpos_fn=vpos_fn,
+            q_id_map_fn=q_id_map_fn,
+            parameters=self.parameters)
+    return phasing.make_het_call(**kwds)
+
+
+def task_generate_association_table(self):
+    vmap_fn = fn(self.vmap_file)
+    atable_fn = fn(self.atable_file)
+    kwds = dict(
+            vmap_fn=vmap_fn,
+            atable_fn=atable_fn,
+            parameters=self.parameters)
+    return phasing.generate_association_table(**kwds)
+
+
+def task_get_phased_blocks(self):
+    vmap_fn = fn(self.vmap_file)
+    atable_fn = fn(self.atable_file)
+    p_variant_fn = fn(self.phased_variant_file)
+    kwds = dict(
+            vmap_fn=vmap_fn,
+            atable_fn=atable_fn,
+            p_variant_fn=p_variant_fn)
+    return phasing.get_phased_blocks(**kwds)
+
+
+def task_get_phased_reads(self):
+    phased_read_fn = fn(self.phased_read_file)
+    q_id_map_fn = fn(self.q_id_map_file)
+    vmap_fn = fn(self.vmap_file)
+    p_variant_fn = fn(self.phased_variant_file)
+    parameters = self.parameters
+    kwds = dict(
+            phased_read_fn=phased_read_fn,
+            q_id_map_fn=q_id_map_fn,
+            vmap_fn=vmap_fn,
+            p_variant_fn=p_variant_fn,
+            parameters=self.parameters)
+    return phasing.get_phased_reads(**kwds)
 
 def task_phasing(self):
     ref_fasta = fn(self.ref_fasta)
@@ -28,7 +80,7 @@ cd {wd}
 hostname
 date
 cd {wd}
-python -m falcon_unzip.phasing --bam {aln_bam} --fasta {ref_fasta} --ctg_id {ctg_id} --base_dir .. --samtools {samtools}
+python -m falcon_unzip.mains.phasing --bam {aln_bam} --fasta {ref_fasta} --ctg_id {ctg_id} --base_dir .. --samtools {samtools}
 python -m falcon_unzip.phasing_readmap --ctg_id {ctg_id} --read_map_dir ../../../2-asm-falcon/read_maps --phased_reads phased_reads
 date
 touch {job_done}

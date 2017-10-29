@@ -12,7 +12,7 @@ import pytest
     'graphs_to_h_tigs',
     'ovlp_filter_with_phase',
     'phased_ovlp_to_graph',
-    'phasing',
+    #'phasing',
     'phasing_readmap',
     'rr_hctg_track',
     'run_quiver',

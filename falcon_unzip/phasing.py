@@ -1,7 +1,6 @@
 from pypeflow.simple_pwatcher_bridge import (PypeProcWatcherWorkflow, MyFakePypeThreadTaskBase,
                                              makePypeLocalFile, fn, PypeTask)
 from falcon_kit.FastaReader import FastaReader
-import argparse
 import logging
 import os
 import re
@@ -11,15 +10,10 @@ import sys
 LOG = logging.getLogger(__name__)
 
 
-def make_het_call(self):
-    bam_fn = fn(self.bam_file)
-    fasta_fn = fn(self.fasta)
-    ctg_id = self.parameters["ctg_id"]
-    base_dir = self.parameters["base_dir"]
-    samtools = self.parameters["samtools"]
-    vmap_fn = fn(self.vmap_file)
-    vpos_fn = fn(self.vpos_file)
-    q_id_map_fn = fn(self.q_id_map_file)
+def make_het_call(bam_fn, fasta_fn, vmap_fn, vpos_fn, q_id_map_fn, parameters):
+    ctg_id = parameters["ctg_id"]
+    base_dir = parameters["base_dir"]
+    samtools = parameters["samtools"]
 
     LOG.info('Getting ref_seq for {!r} in {!r}'.format(ctg_id, fasta_fn))
     for r in FastaReader(fasta_fn):
@@ -154,11 +148,9 @@ def make_het_call_map(ref_seq, samtools_view_bam_ctg_f, vmap_f, vpos_f, q_id_map
         print >> q_id_map_f, q_id, q_name
 
 
-def generate_association_table(self):
-    vmap_fn = fn(self.vmap_file)
-    atable_fn = fn(self.atable_file)
-    ctg_id = self.parameters["ctg_id"]
-    base_dir = self.parameters["base_dir"]
+def generate_association_table(vmap_fn, atable_fn, parameters):
+    ctg_id = parameters["ctg_id"]
+    base_dir = parameters["base_dir"]
 
     vmap = {}
     v_positions = []
@@ -233,11 +225,7 @@ def get_score(c_score, pos1, pos2, s1, s2):
     return c_score[(pos1, pos2)][(b11 + b21, b12 + b22)]
 
 
-def get_phased_blocks(self):
-    vmap_fn = fn(self.vmap_file)
-    atable_fn = fn(self.atable_file)
-    p_variant_fn = fn(self.phased_variant_file)
-
+def get_phased_blocks(vmap_fn, atable_fn, p_variant_fn):
     left_connect = {}
     right_connect = {}
 
@@ -433,15 +421,8 @@ def get_phased_blocks(self):
                     p, rb, b2), left_extent[p], right_extent[p], left_score[p], right_score[p]
 
 
-def get_phased_reads(self):
-    q_id_map_fn = fn(self.q_id_map_file)
-    vmap_fn = fn(self.vmap_file)
-    p_variant_fn = fn(self.phased_variant_file)
-    parameters = self.parameters
-
+def get_phased_reads(phased_read_fn, q_id_map_fn, vmap_fn, p_variant_fn, parameters):
     ctg_id = parameters["ctg_id"]
-
-    phased_read_fn = fn(self.phased_read_file)
 
     rid_map = {}
     with open(q_id_map_fn) as f:
@@ -488,100 +469,3 @@ def get_phased_reads(self):
                     print >> out_f, r, ctg_id, p, 0, vl.get((p, 0), 0), vl.get((p, 1), 0), rid_map[r]
                 elif vl.get((p, 1), 0) - vl.get((p, 0), 0) > 1:
                     print >> out_f, r, ctg_id, p, 1, vl.get((p, 0), 0), vl.get((p, 1), 0), rid_map[r]
-
-
-def phasing(args):
-    LOG.debug('IN PHASING')
-    bam_fn = args.bam
-    fasta_fn = args.fasta
-    ctg_id = args.ctg_id
-    base_dir = args.base_dir
-    samtools = args.samtools
-
-    wf = PypeProcWatcherWorkflow(
-        max_jobs=1,
-    )
-
-    bam_file = makePypeLocalFile(bam_fn)
-    fasta_file = makePypeLocalFile(fasta_fn)
-    vmap_file = makePypeLocalFile(os.path.join(base_dir, ctg_id, 'het_call', "variant_map"))
-    vpos_file = makePypeLocalFile(os.path.join(base_dir, ctg_id, 'het_call', "variant_pos"))
-    q_id_map_file = makePypeLocalFile(os.path.join(base_dir, ctg_id, 'het_call', "q_id_map"))
-    parameters = {}
-    parameters["ctg_id"] = ctg_id
-    parameters["base_dir"] = base_dir
-    parameters["samtools"] = samtools
-
-    make_het_call_task = PypeTask(
-        inputs={
-            "bam_file": bam_file,
-            "fasta": fasta_file,
-        },
-        outputs={"vmap_file": vmap_file, "vpos_file": vpos_file, "q_id_map_file": q_id_map_file},
-        parameters=parameters,
-    )(make_het_call)
-
-    wf.addTasks([make_het_call_task])
-
-    atable_file = makePypeLocalFile(os.path.join(base_dir, ctg_id, 'g_atable', "atable"))
-    parameters = {}
-    parameters["ctg_id"] = ctg_id
-    parameters["base_dir"] = base_dir
-    generate_association_table_task = PypeTask(inputs={"vmap_file": vmap_file},
-                                               outputs={"atable_file": atable_file},
-                                               parameters=parameters,
-                                               )(generate_association_table)
-
-    wf.addTasks([generate_association_table_task])
-
-    phased_variant_file = makePypeLocalFile(os.path.join(base_dir, ctg_id, 'get_phased_blocks', "phased_variants"))
-    get_phased_blocks_task = PypeTask(inputs={"vmap_file": vmap_file, "atable_file": atable_file},
-                                      outputs={"phased_variant_file": phased_variant_file},
-                                      )(get_phased_blocks)
-    wf.addTasks([get_phased_blocks_task])
-
-    phased_read_file = makePypeLocalFile(os.path.join(base_dir, ctg_id, "phased_reads"))
-    get_phased_reads_task = PypeTask(inputs={"vmap_file": vmap_file,
-                                             "q_id_map_file": q_id_map_file,
-                                             "phased_variant_file": phased_variant_file},
-                                     outputs={"phased_read_file": phased_read_file},
-                                     parameters={"ctg_id": ctg_id},
-                                     )(get_phased_reads)
-    wf.addTasks([get_phased_reads_task])
-
-    wf.refreshTargets()
-    # with open("fc_phasing_wf.dot", "w") as f:
-    #    print >>f, wf.graphvizDot
-
-
-def parse_args(argv):
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        description='phasing variants and reads from a bam file')
-    # we can run this in parallel mode in the furture
-    # parser.add_argument('--n_core', type=int, default=4,
-    #                    help='number of processes used for generating consensus')
-    parser.add_argument(
-        '--bam', type=str, help='path to sorted bam file', required=True)
-    parser.add_argument(
-        '--fasta', type=str, help='path to the fasta file of contain the contig', required=True)
-    parser.add_argument(
-        '--ctg_id', type=str, help='contig identifier in the bam file', required=True)
-    parser.add_argument(
-        '--base_dir', type=str, default="./",
-        help='the output base_dir, default to current working directory')
-    parser.add_argument(
-        '--samtools', type=str, default="samtools", help='path to samtools')
-    args = parser.parse_args(argv[1:])
-    return args
-
-
-def main(argv=sys.argv):
-    args = parse_args(argv)
-    logging.basicConfig()
-    logging.getLogger().setLevel(logging.INFO)
-    phasing(args)
-
-
-if __name__ == '__main__': # pragma: no cover
-    main()
