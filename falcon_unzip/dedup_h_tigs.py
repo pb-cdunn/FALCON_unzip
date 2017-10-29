@@ -13,7 +13,6 @@ def parse_args(argv):
         'ctg_id', type=str,
     )
     args = parser.parse_args(argv[1:])
-    raise Exception('x')
     return args
 
 
