@@ -123,27 +123,37 @@ def merge_and_split_alignments(input_bam_fofn_fn, read_to_ctgs, selected_ctgs, h
 
 
 def parse_args(argv):
-    parser = argparse.ArgumentParser(description='Write ctg.sam files, based on BAM subreads.',
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--rawread-to-contigs', type=str,
-                        default='./2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs', help='rawread_to_contigs file (from where?)')
-    parser.add_argument('--rawread-ids', type=str,
-                        default='./2-asm-falcon/read_maps/dump_rawread_ids/rawread_ids', help='rawread_ids file (from where?)')
-    parser.add_argument('--sam-dir', type=str, default='./4-quiver/reads', help='Output directory for ctg.sam files')
-    parser.add_argument('--max-n-open-files', type=int, default='50',
-                        help='We write sam files several at-a-time, limited by this.')
-    parser.add_argument('input_bam_fofn', type=str,
-                        help='File of BAM filenames. Paths are relative to dir of FOFN, not CWD.')
+    parser = argparse.ArgumentParser(
+        description='Write ctg.sam files, based on BAM subreads.',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument(
+        '--rawread-to-contigs', type=str,
+        default='./2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs', help='rawread_to_contigs file (from where?)')
+    parser.add_argument(
+        '--rawread-ids', type=str,
+        default='./2-asm-falcon/read_maps/dump_rawread_ids/rawread_ids', help='rawread_ids file (from where?)')
+    parser.add_argument(
+        '--sam-dir', type=str, default='./4-quiver/reads', help='Output directory for ctg.sam files')
+    parser.add_argument(
+        '--max-n-open-files', type=int, default='50',
+        help='We write sam files several at-a-time, limited by this.')
+    parser.add_argument(
+        'input_bam_fofn', type=str,
+        help='File of BAM filenames. Paths are relative to dir of FOFN, not CWD.')
     args = parser.parse_args(argv[1:])
     return args
 
 
 def main(argv=sys.argv):
+    args = parse_args(argv)
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s %(message)s',
     )
-    args = parse_args(argv)
 
     select_reads_from_bam(args.input_bam_fofn, args.rawread_to_contigs, args.rawread_ids, args.sam_dir,
                           args.max_n_open_files)
+
+
+if __name__ == '__main__': # pragma: no cover
+    main()

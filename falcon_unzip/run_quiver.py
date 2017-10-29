@@ -5,6 +5,7 @@ from pypeflow.simple_pwatcher_bridge import (
     PypeProcWatcherWorkflow, MyFakePypeThreadTaskBase)
 from falcon_kit.FastaReader import FastaReader
 from . import io
+import argparse
 import glob
 import json
 import logging
@@ -38,7 +39,7 @@ ln -s {basedir}/./2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs out
 # for convenience and transparency
 
 cd {basedir}
-fc_get_read_hctg_map.py
+python -m falcon_unzip.get_read_hctg_map
 # generated ./4-quiver/read_maps/read_to_contig_map
 
 rm -f ./2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs
@@ -407,15 +408,26 @@ def task_segregate_gather(self):
     # Do not generate a script. This is light and fast, so do it locally.
 
 
+def parse_args(argv):
+    parser = argparse.ArgumentParser(
+        description='Run stage 4-quiver, given the results of stage 3-unzip.',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        'config_fn', type=str,
+        help='Configuration file',
+    )
+    args = parser.parse_args(argv[1:])
+    return args
+
+
 def main(argv=sys.argv):
+    args = parse_args(argv)
+
     global LOG
     LOG = support.setup_logger(None)
 
-    if len(sys.argv) < 2:
-        print>>sys.stderr, 'you need to provide a configuration file to specific a couple cluster running environment'
-        sys.exit(1)
-
-    config_fn = sys.argv[1]
+    config_fn = args.config_fn
     config_absbasedir = os.path.dirname(os.path.abspath(config_fn))
 
     config = ConfigParser.ConfigParser()
@@ -614,3 +626,7 @@ def main(argv=sys.argv):
     wf.addTask(make_task(task_cns_zcat))
 
     wf.refreshTargets()
+
+
+if __name__ == '__main__': # pragma: no cover
+    main()

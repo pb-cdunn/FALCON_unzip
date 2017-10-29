@@ -5,6 +5,7 @@ from pypeflow.simple_pwatcher_bridge import (
     PypeProcWatcherWorkflow, MyFakePypeThreadTaskBase)
 from falcon_kit.FastaReader import FastaReader
 from . import io
+import argparse
 import glob
 import logging
 import os
@@ -107,8 +108,8 @@ cd {wd}
 hostname
 date
 cd {wd}
-fc_phasing.py --bam {aln_bam} --fasta {ref_fasta} --ctg_id {ctg_id} --base_dir .. --samtools {samtools}
-fc_phasing_readmap.py --ctg_id {ctg_id} --read_map_dir ../../../2-asm-falcon/read_maps --phased_reads phased_reads
+python -m falcon_unzip.phasing --bam {aln_bam} --fasta {ref_fasta} --ctg_id {ctg_id} --base_dir .. --samtools {samtools}
+python -m falcon_unzip.phasing_readmap --ctg_id {ctg_id} --read_map_dir ../../../2-asm-falcon/read_maps --phased_reads phased_reads
 date
 touch {job_done}
 """.format(**locals())
@@ -135,20 +136,20 @@ hostname
 date
 cd {wd}
 
-fc_ovlp_filter_with_phase.py --fofn {las_fofn} --max_diff 120 --max_cov 120 --min_cov 1 --n_core 48 --min_len 2500 --db ../../1-preads_ovl/preads.db --rid_phase_map {rid_to_phase_all} > preads.p_ovl
-fc_phased_ovlp_to_graph.py preads.p_ovl --min_len 2500 > fc.log
+python -m falcon_unzip.ovlp_filter_with_phase --fofn {las_fofn} --max_diff 120 --max_cov 120 --min_cov 1 --n_core 48 --min_len 2500 --db ../../1-preads_ovl/preads.db --rid_phase_map {rid_to_phase_all} > preads.p_ovl
+python -m falcon_unzip.phased_ovlp_to_graph preads.p_ovl --min_len 2500 > fc.log
 if [ -e ../../1-preads_ovl/preads4falcon.fasta ];
 then
   ln -sf ../../1-preads_ovl/preads4falcon.fasta .
 else
   ln -sf ../../1-preads_ovl/db2falcon/preads4falcon.fasta .
 fi
-fc_graphs_to_h_tigs.py --fc_asm_path ../../2-asm-falcon/ --fc_hasm_path ./ --ctg_id all --rid_phase_map {rid_to_phase_all} --fasta preads4falcon.fasta
+python -m falcon_unzip.graphs_to_h_tigs --fc_asm_path ../../2-asm-falcon/ --fc_hasm_path ./ --ctg_id all --rid_phase_map {rid_to_phase_all} --fasta preads4falcon.fasta
 
 # more script -- a little bit hacky here, we should improve
 
 WD=$PWD
-for f in `cat ../reads/ctg_list `; do mkdir -p $WD/$f; cd $WD/$f; fc_dedup_h_tigs.py $f; done
+for f in `cat ../reads/ctg_list `; do mkdir -p $WD/$f; cd $WD/$f; python -m falcon_unzip.dedup_h_tigs $f; done
 
 ## prepare for quviering the haplotig
 cd $WD/..
@@ -312,15 +313,26 @@ def get_rid_to_phase_all(self):
         out.write(''.join(output))
 
 
+def parse_args(argv):
+    parser = argparse.ArgumentParser(
+        description='Run stage 3-unzip, given the results of stage 2-asm-falcon.',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        'config_fn', type=str,
+        help='Configuration file',
+    )
+    args = parser.parse_args(argv[1:])
+    return args
+
+
 def main(argv=sys.argv):
+    args = parse_args(argv)
+
     global LOG
     LOG = support.setup_logger(None)
 
-    if len(argv) < 2 or argv[1].startswith('-'):
-        print 'you need to provide a configuration file to specific a couple cluster running environment'
-        sys.exit(1)
-
-    config_fn = argv[1]
+    config_fn = args.config_fn
 
     config = ConfigParser.ConfigParser()
     config.read(config_fn)
@@ -381,3 +393,7 @@ def main(argv=sys.argv):
     # support.job_type = 'SGE' #tmp hack until we have a configuration parser
 
     unzip_all(config)
+
+
+if __name__ == '__main__': # pragma: no cover
+    main()
