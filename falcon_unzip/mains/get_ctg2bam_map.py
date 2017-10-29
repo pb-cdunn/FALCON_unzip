@@ -3,7 +3,7 @@
 And not currently used. Since ctgs tend to be spread over many BAM files,
 this might not be useful information.
 """
-from .io import (serialize, deserialize, yield_bam_fn, log, AlignmentFile)
+from ..io import (serialize, deserialize, yield_bam_fn, log, AlignmentFile)
 import argparse
 import logging
 import sys

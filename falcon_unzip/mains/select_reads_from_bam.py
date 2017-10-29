@@ -1,9 +1,7 @@
-from .io import (serialize, deserialize, yield_bam_fn, log, AlignmentFile)
-import argparse
-import glob
-import logging
+"""NOT CURRENTLY USED
+"""
+from ..io import (serialize, yield_bam_fn, log, AlignmentFile)
 import os
-import sys
 
 
 def select_reads_from_bam(input_bam_fofn_fn, rawread_to_contigs_fn, rawread_ids_fn, sam_dir,
@@ -120,6 +118,12 @@ def merge_and_split_alignments(input_bam_fofn_fn, read_to_ctgs, selected_ctgs, h
             outfile[ctg].write(r)
         for ctg in outfile:
             outfile[ctg].close()
+
+
+##################################
+import argparse
+import logging
+import sys
 
 
 def parse_args(argv):

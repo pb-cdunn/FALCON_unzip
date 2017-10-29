@@ -1,4 +1,4 @@
-import falcon_unzip.unzip_gen_gfa_v1 as mod
+import falcon_unzip.mains.unzip_gen_gfa_v1 as mod
 import helpers
 import pytest
 import os

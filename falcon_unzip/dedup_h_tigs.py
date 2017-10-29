@@ -1,25 +1,10 @@
 from . import io
-import argparse
 import os
 import sys
 from falcon_kit.FastaReader import FastaReader
 
 
-def parse_args(argv):
-    parser = argparse.ArgumentParser(
-        description='Dedup h_tigs for a given ctg_id.',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument(
-        'ctg_id', type=str,
-    )
-    args = parser.parse_args(argv[1:])
-    return args
-
-
-def main(argv=sys.argv):
-    args = parse_args(argv)
-    ctg_id = argv[1]
-
+def run(ctg_id):
     fn = "h_ctg_all.{ctg_id}.fa".format(ctg_id=ctg_id)
     if io.exists_and_not_empty(fn):
         io.syscall("nucmer -mum p_ctg.{ctg_id}.fa h_ctg_all.{ctg_id}.fa -p hp_aln".format(ctg_id=ctg_id))
@@ -84,7 +69,3 @@ def main(argv=sys.argv):
                 print >>f, ">" + r.name
                 print >>f, r.sequence
                 print >> h_ids, r.name
-
-
-if __name__ == "__main__": # pragma: no cover
-    main()
