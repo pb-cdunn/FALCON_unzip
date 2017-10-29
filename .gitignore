@@ -3,3 +3,4 @@ build/
 *.egg-info/
 /LOCAL/
 /test-reports/
+*.xml

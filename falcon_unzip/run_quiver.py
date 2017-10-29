@@ -408,14 +408,18 @@ def task_segregate_gather(self):
     # Do not generate a script. This is light and fast, so do it locally.
 
 
+class HelpF(argparse.RawTextHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
+    pass
+
+
 def parse_args(argv):
     parser = argparse.ArgumentParser(
         description='Run stage 4-quiver, given the results of stage 3-unzip.',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        formatter_class=HelpF,
     )
     parser.add_argument(
         'config_fn', type=str,
-        help='Configuration file',
+        help='Configuration file. (This needs its own help section. Note: smrt_bin is deprecated, but if supplied will be appended to PATH.)',
     )
     args = parser.parse_args(argv[1:])
     return args
@@ -457,7 +461,7 @@ def main(argv=sys.argv):
     if config.has_option('Unzip', 'sge_quiver'):
         sge_quiver = config.get('Unzip', 'sge_quiver')
 
-    smrt_bin = '/pbi/dept/secondary/builds/links/current_develop_smrttools-incremental_installdir/private/otherbins/all/bin'
+    smrt_bin = ''
     if config.has_option('Unzip', 'smrt_bin'):
         smrt_bin = config.get('Unzip', 'smrt_bin')
 
@@ -479,7 +483,7 @@ def main(argv=sys.argv):
               'max_n_open_files': max_n_open_files,
               'pwatcher_type': pwatcher_type,
               'smrt_bin': smrt_bin}
-    io.validate_config(config, config_fn)
+    io.update_env_from_config(config, config_fn)
 
     # support.job_type = 'SGE' #tmp hack until we have a configuration parser
 
