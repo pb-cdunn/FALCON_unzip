@@ -79,8 +79,11 @@ trap 'touch {job_done}.exit' EXIT
 hostname
 date
 cd {wd}
-python -m falcon_unzip.mains.phasing --bam {aln_bam} --fasta {ref_fasta} --ctg_id {ctg_id} --base_dir .. --samtools {samtools}
+mkdir -p phasing_subworkflow
+cd phasing_subworkflow
+python -m falcon_unzip.mains.phasing --bam {aln_bam} --fasta {ref_fasta} --ctg_id {ctg_id} --base_dir ../.. --samtools {samtools}
 date
+cd ..
 touch {job_done}
 """.format(**locals())
 
@@ -91,7 +94,7 @@ touch {job_done}
 
 def task_phasing_readmap(self):
     job_done = fn(self.job_done)
-    #rid_to_phase_out_fn = fn(self.rid_to_phase_out) # not used yet; implicit
+    rid_to_phase_out_fn = fn(self.rid_to_phase_out)
     wd = self.parameters['wd']
     ctg_id = self.parameters['ctg_id']
     script_fn = os.path.join(wd, 'phasing_readmap_%s.sh' % (ctg_id))
@@ -102,7 +105,8 @@ trap 'touch {job_done}.exit' EXIT
 hostname
 date
 cd {wd}
-python -m falcon_unzip.mains.phasing_readmap --ctg_id {ctg_id} --read_map_dir ../../../2-asm-falcon/read_maps --phased_reads phased_reads
+python -m falcon_unzip.mains.phasing_readmap --the-ctg-id {ctg_id} --read-map-dir ../../../2-asm-falcon/read_maps --phased-reads phased_reads >| {rid_to_phase_out_fn}.tmp
+mv {rid_to_phase_out_fn}.tmp {rid_to_phase_out_fn}
 date
 touch {job_done}
 """.format(**locals())
@@ -113,22 +117,27 @@ touch {job_done}
 
 
 def create_phasing_tasks(config, ctg_ids, all_ctg_out):
+    """Report outputs via all_ctg_out.
+    """
     for ctg_id in ctg_ids:
-        # inputs
+        # work-dir
+        wd = os.path.join(os.getcwd(), './3-unzip/0-phasing/{ctg_id}/'.format(ctg_id=ctg_id))
+
+        # inputs (by convention, for now)
         ref_fasta = makePypeLocalFile('./3-unzip/reads/{ctg_id}_ref.fa'.format(ctg_id=ctg_id))
         read_fasta = makePypeLocalFile('./3-unzip/reads/{ctg_id}_reads.fa'.format(ctg_id=ctg_id))
 
-        # outputs
-        wd = os.path.join(os.getcwd(), './3-unzip/0-phasing/{ctg_id}/'.format(ctg_id=ctg_id))
-
         blasr_dir = os.path.join(wd, 'blasr')
-        ctg_aln_out = makePypeLocalFile(os.path.join(blasr_dir, '{ctg_id}_sorted.bam'.format(ctg_id=ctg_id)))
+        ctg_aln_out = makePypeLocalFile(os.path.join(
+            blasr_dir, '{ctg_id}_sorted.bam'.format(ctg_id=ctg_id)))
 
+        # outputs
         phasing_dir = os.path.join(wd, 'phasing')
-        phasing_job_done = makePypeLocalFile(os.path.join(phasing_dir, 'p_{ctg_id}_done'.format(ctg_id=ctg_id)))
+        phasing_job_done = makePypeLocalFile(os.path.join(
+            phasing_dir, 'p_{ctg_id}_done'.format(ctg_id=ctg_id)))
         rid_to_phase_out = makePypeLocalFile(os.path.join(
-            wd, 'rid_to_phase.{ctg_id}'.format(ctg_id=ctg_id)))  # TODO: Make explicit output of task_phasing_readmap.
-        all_ctg_out['r2p.{ctg_id}'.format(ctg_id=ctg_id)] = rid_to_phase_out  # implicit output?
+            wd, 'rid_to_phase.{ctg_id}'.format(ctg_id=ctg_id)))
+        all_ctg_out['r2p.{ctg_id}'.format(ctg_id=ctg_id)] = rid_to_phase_out
 
         parameters = {'job_uid': 'ha-' + ctg_id, 'wd': wd, 'config': config, 'ctg_id': ctg_id,
                       'sge_option': config['sge_phasing'],
@@ -141,13 +150,12 @@ def create_phasing_tasks(config, ctg_ids, all_ctg_out):
         task = make_task(task_phasing)
         yield task
 
-        phasing_readmap_dir = os.path.join(wd, 'phasing_readmap')
-        job_done = makePypeLocalFile(os.path.join(phasing_readmap_dir, 'phasing_readmap_{ctg_id}_done'.format(ctg_id=ctg_id)))
+        job_done = makePypeLocalFile(os.path.join(wd, 'phasing_readmap_{ctg_id}_done'.format(ctg_id=ctg_id)))
         make_task = PypeTask(
                 inputs={'phasing_job_done': phasing_job_done,
                 },
                 outputs={'job_done': job_done,
-                        #'rid_to_phase_out': rid_to_phase_out, # This would need to be in the same dir as the other output.
+                         'rid_to_phase_out': rid_to_phase_out,
                 },
                 parameters=parameters,
         )
