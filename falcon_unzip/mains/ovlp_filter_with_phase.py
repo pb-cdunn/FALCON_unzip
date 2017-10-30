@@ -1,5 +1,6 @@
 import argparse
 import sys
+from .. import ovlp_filter_with_phase
 
 
 def parse_args(argv):
@@ -33,6 +34,7 @@ def parse_args(argv):
 
 def main(argv=sys.argv):
     args = parse_args(argv)
+    ovlp_filter_with_phase.run(args)
 
 
 if __name__ == '__main__': # pragma: no cover
