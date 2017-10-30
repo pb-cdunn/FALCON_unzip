@@ -153,7 +153,3 @@ def create_phasing_tasks(config, ctg_ids, all_ctg_out):
         )
         task = make_task(task_phasing_readmap)
         yield task
-
-        break
-        # This returns only the first (phasing+phasing_readmap), for the first ctg_id.
-        # Is that correct? Can there be multiple ctg_ids? ~cdunn
