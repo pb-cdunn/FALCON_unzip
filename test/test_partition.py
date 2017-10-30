@@ -1,4 +1,4 @@
-import falcon_unzip.bam_partition_and_merge as M
+import falcon_unzip.mains.bam_partition_and_merge as M
 import StringIO
 import collections
 import os
