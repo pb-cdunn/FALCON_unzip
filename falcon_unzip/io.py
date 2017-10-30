@@ -37,6 +37,8 @@ def validate_config(config):
         return
     for cmd in smrt_bin_cmds + path_cmds:
         syscall('which ' + cmd)
+    syscall('nucmer --help')
+    # Note: 'show-coords --help' returns non-zero, so we cannot check that so easily.
 
 
 def update_env_from_config(config, fn):
