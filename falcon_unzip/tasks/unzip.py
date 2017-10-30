@@ -79,8 +79,11 @@ trap 'touch {job_done}.exit' EXIT
 hostname
 date
 cd {wd}
-python -m falcon_unzip.mains.phasing --bam {aln_bam} --fasta {ref_fasta} --ctg_id {ctg_id} --base_dir .. --samtools {samtools}
+mkdir -p phasing_subworkflow
+cd phasing_subworkflow
+python -m falcon_unzip.mains.phasing --bam {aln_bam} --fasta {ref_fasta} --ctg_id {ctg_id} --base_dir ../.. --samtools {samtools}
 date
+cd ..
 touch {job_done}
 """.format(**locals())
 
