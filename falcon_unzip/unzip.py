@@ -228,7 +228,7 @@ def unzip_all(config):
         wf.addTask(blasr_task)
     wf.refreshTargets()
 
-    phasing_tasks = tasks_unzip.create_phasing_tasks(config, ctg_ids, all_ctg_out)
+    phasing_tasks = list(tasks_unzip.create_phasing_tasks(config, ctg_ids, all_ctg_out))
     wf.addTasks(phasing_tasks)
     wf.max_jobs = unzip_phasing_concurrent_jobs
     wf.refreshTargets()

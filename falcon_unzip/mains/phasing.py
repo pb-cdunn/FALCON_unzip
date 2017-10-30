@@ -10,17 +10,8 @@ from ..tasks import unzip as tasks_unzip
 LOG = logging.getLogger(__name__)
 
 
-def run_phasing(args):
+def get_phasing_tasks(bam_fn, fasta_fn, ctg_id, base_dir, samtools):
     LOG.debug('IN PHASING')
-    bam_fn = args.bam
-    fasta_fn = args.fasta
-    ctg_id = args.ctg_id
-    base_dir = args.base_dir
-    samtools = args.samtools
-
-    wf = PypeProcWatcherWorkflow(
-        max_jobs=1,
-    )
 
     bam_file = makePypeLocalFile(bam_fn)
     fasta_file = makePypeLocalFile(fasta_fn)
@@ -41,7 +32,7 @@ def run_phasing(args):
         parameters=parameters,
     )(tasks_unzip.task_make_het_call)
 
-    wf.addTasks([make_het_call_task])
+    yield make_het_call_task
 
     atable_file = makePypeLocalFile(os.path.join(base_dir, ctg_id, 'g_atable', "atable"))
     parameters = {}
@@ -52,13 +43,13 @@ def run_phasing(args):
                                                parameters=parameters,
                                                )(tasks_unzip.task_generate_association_table)
 
-    wf.addTasks([generate_association_table_task])
+    yield generate_association_table_task
 
     phased_variant_file = makePypeLocalFile(os.path.join(base_dir, ctg_id, 'get_phased_blocks', "phased_variants"))
     get_phased_blocks_task = PypeTask(inputs={"vmap_file": vmap_file, "atable_file": atable_file},
                                       outputs={"phased_variant_file": phased_variant_file},
                                       )(tasks_unzip.task_get_phased_blocks)
-    wf.addTasks([get_phased_blocks_task])
+    yield get_phased_blocks_task
 
     phased_read_file = makePypeLocalFile(os.path.join(base_dir, ctg_id, "phased_reads"))
     get_phased_reads_task = PypeTask(inputs={"vmap_file": vmap_file,
@@ -67,8 +58,22 @@ def run_phasing(args):
                                      outputs={"phased_read_file": phased_read_file},
                                      parameters={"ctg_id": ctg_id},
                                      )(tasks_unzip.task_get_phased_reads)
-    wf.addTasks([get_phased_reads_task])
+    yield get_phased_reads_task
 
+
+def run_phasing(args):
+    kwds = dict(
+        bam_fn = args.bam,
+        fasta_fn = args.fasta,
+        ctg_id = args.ctg_id,
+        base_dir = args.base_dir,
+        samtools = args.samtools,
+    )
+    tasks = list(get_phasing_tasks(**kwds))
+    wf = PypeProcWatcherWorkflow(
+        max_jobs=1,
+    )
+    wf.addTasks(tasks)
     wf.refreshTargets()
     # with open("fc_phasing_wf.dot", "w") as f:
     #    print >>f, wf.graphvizDot
