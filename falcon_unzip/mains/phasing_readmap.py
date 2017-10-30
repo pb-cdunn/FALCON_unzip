@@ -18,9 +18,6 @@ def run(args):
         rid = int(fid.split('/')[1]) / 10
         return rid_to_oid[int(rid)]
 
-    rid_to_oid = open(rawread_id_file).read().split('\n')  # daligner raw read id to the original ids
-    pid_to_fid = open(pread_id_file).read().split('\n')  # daligner pread id to the fake ids
-
     rid_to_phase = {}
     with open(phased_reads) as f:
         for row in f:
