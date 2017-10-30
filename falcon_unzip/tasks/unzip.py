@@ -4,7 +4,6 @@ from pypeflow.simple_pwatcher_bridge import (
 )
 import os
 
-from falcon_unzip import phasing
 
 def task_make_het_call(self):
     bam_fn = fn(self.bam_file)
@@ -12,35 +11,58 @@ def task_make_het_call(self):
     vmap_fn = fn(self.vmap_file)
     vpos_fn = fn(self.vpos_file)
     q_id_map_fn = fn(self.q_id_map_file)
-    kwds = dict(
-            bam_fn=bam_fn,
-            fasta_fn=fasta_fn,
-            vmap_fn=vmap_fn,
-            vpos_fn=vpos_fn,
-            q_id_map_fn=q_id_map_fn,
-            parameters=self.parameters)
-    return phasing.make_het_call(**kwds)
+    ctg_id = self.parameters['ctg_id']
+    script_fn = 'phasing_make_het_call.sh'
+    script = """\
+set -vex
+hostname
+pwd
+date
+python -m falcon_unzip.mains.phasing_make_het_call --bam {bam_fn} --fasta {fasta_fn} --ctg-id {ctg_id} --vmap={vmap_fn} --vpos={vpos_fn} --q-id-map={q_id_map_fn}
+date
+""".format(**locals())
+
+    with open(script_fn, 'w') as script_file:
+        script_file.write(script)
+    self.generated_script_fn = script_fn
 
 
 def task_generate_association_table(self):
     vmap_fn = fn(self.vmap_file)
     atable_fn = fn(self.atable_file)
-    kwds = dict(
-            vmap_fn=vmap_fn,
-            atable_fn=atable_fn,
-            parameters=self.parameters)
-    return phasing.generate_association_table(**kwds)
+    ctg_id = self.parameters['ctg_id']
+    script_fn = 'phasing_generate_association_table.sh'
+    script = """\
+set -vex
+hostname
+pwd
+date
+python -m falcon_unzip.mains.phasing_generate_association_table --ctg-id {ctg_id} --vmap={vmap_fn} --atable={atable_fn}
+date
+""".format(**locals())
+
+    with open(script_fn, 'w') as script_file:
+        script_file.write(script)
+    self.generated_script_fn = script_fn
 
 
 def task_get_phased_blocks(self):
     vmap_fn = fn(self.vmap_file)
     atable_fn = fn(self.atable_file)
     p_variant_fn = fn(self.phased_variant_file)
-    kwds = dict(
-            vmap_fn=vmap_fn,
-            atable_fn=atable_fn,
-            p_variant_fn=p_variant_fn)
-    return phasing.get_phased_blocks(**kwds)
+    script_fn = 'phasing_get_phased_blocks.sh'
+    script = """\
+set -vex
+hostname
+pwd
+date
+python -m falcon_unzip.mains.phasing_get_phased_blocks --vmap={vmap_fn} --atable={atable_fn} --p-variant={p_variant_fn}
+date
+""".format(**locals())
+
+    with open(script_fn, 'w') as script_file:
+        script_file.write(script)
+    self.generated_script_fn = script_fn
 
 
 def task_get_phased_reads(self):
@@ -48,14 +70,20 @@ def task_get_phased_reads(self):
     q_id_map_fn = fn(self.q_id_map_file)
     vmap_fn = fn(self.vmap_file)
     p_variant_fn = fn(self.phased_variant_file)
-    parameters = self.parameters
-    kwds = dict(
-            phased_reads_fn=phased_reads_fn,
-            q_id_map_fn=q_id_map_fn,
-            vmap_fn=vmap_fn,
-            p_variant_fn=p_variant_fn,
-            parameters=self.parameters)
-    return phasing.get_phased_reads(**kwds)
+    ctg_id = self.parameters['ctg_id']
+    script_fn = 'phasing_get_phased_reads.sh'
+    script = """\
+set -vex
+hostname
+pwd
+date
+python -m falcon_unzip.mains.phasing_get_phased_reads --ctg-id={ctg_id} --vmap={vmap_fn} --p-variant={p_variant_fn} --q-id-map={q_id_map_fn} --phased-reads={phased_reads_fn}
+date
+""".format(**locals())
+
+    with open(script_fn, 'w') as script_file:
+        script_file.write(script)
+    self.generated_script_fn = script_fn
 
 def task_phasing(self):
     ref_fasta = fn(self.ref_fasta)
