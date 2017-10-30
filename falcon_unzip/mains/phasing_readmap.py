@@ -56,6 +56,9 @@ def parse_args(argv):
     # parser.add_argument('--n_core', type=int, default=4,
     #                    help='number of processes used for generating consensus')
     parser.add_argument(
+        '--output', type=str, default=' ',
+        help='rid_to_phase.<ctg_id>', required=True)
+    parser.add_argument(
         '--phased_reads', type=str, help='path to read vs. phase map', required=True)
     parser.add_argument(
         '--read_map_dir', type=str, help='path to the read map directory', required=True)
