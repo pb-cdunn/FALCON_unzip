@@ -102,7 +102,8 @@ trap 'touch {job_done}.exit' EXIT
 hostname
 date
 cd {wd}
-python -m falcon_unzip.mains.phasing_readmap --ctg_id {ctg_id} --read_map_dir ../../../2-asm-falcon/read_maps --phased_reads phased_reads --output {rid_to_phase_out_fn}
+python -m falcon_unzip.mains.phasing_readmap --the-ctg-id {ctg_id} --read-map-dir ../../../2-asm-falcon/read_maps --phased-reads phased_reads >| {rid_to_phase_out_fn}.tmp
+mv {rid_to_phase_out_fn}.tmp {rid_to_phase_out_fn}
 date
 touch {job_done}
 """.format(**locals())
