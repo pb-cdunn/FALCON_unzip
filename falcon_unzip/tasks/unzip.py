@@ -92,6 +92,55 @@ touch {job_done}
     self.generated_script_fn = script_fn
 
 
+def get_phasing_tasks(bam_fn, fasta_fn, ctg_id, base_dir, samtools):
+    bam_file = makePypeLocalFile(bam_fn)
+    fasta_file = makePypeLocalFile(fasta_fn)
+    vmap_file = makePypeLocalFile(os.path.join(base_dir, ctg_id, 'het_call', "variant_map"))
+    vpos_file = makePypeLocalFile(os.path.join(base_dir, ctg_id, 'het_call', "variant_pos"))
+    q_id_map_file = makePypeLocalFile(os.path.join(base_dir, ctg_id, 'het_call', "q_id_map"))
+    parameters = {}
+    parameters["ctg_id"] = ctg_id
+    parameters["base_dir"] = base_dir
+    parameters["samtools"] = samtools
+
+    make_het_call_task = PypeTask(
+        inputs={
+            "bam_file": bam_file,
+            "fasta": fasta_file,
+        },
+        outputs={"vmap_file": vmap_file, "vpos_file": vpos_file, "q_id_map_file": q_id_map_file},
+        parameters=parameters,
+    )(task_make_het_call)
+
+    yield make_het_call_task
+
+    atable_file = makePypeLocalFile(os.path.join(base_dir, ctg_id, 'g_atable', "atable"))
+    parameters = {}
+    parameters["ctg_id"] = ctg_id
+    parameters["base_dir"] = base_dir
+    generate_association_table_task = PypeTask(inputs={"vmap_file": vmap_file},
+                                               outputs={"atable_file": atable_file},
+                                               parameters=parameters,
+                                               )(task_generate_association_table)
+
+    yield generate_association_table_task
+
+    phased_variant_file = makePypeLocalFile(os.path.join(base_dir, ctg_id, 'get_phased_blocks', "phased_variants"))
+    get_phased_blocks_task = PypeTask(inputs={"vmap_file": vmap_file, "atable_file": atable_file},
+                                      outputs={"phased_variant_file": phased_variant_file},
+                                      )(task_get_phased_blocks)
+    yield get_phased_blocks_task
+
+    phased_read_file = makePypeLocalFile(os.path.join(base_dir, ctg_id, "phased_reads"))
+    get_phased_reads_task = PypeTask(inputs={"vmap_file": vmap_file,
+                                             "q_id_map_file": q_id_map_file,
+                                             "phased_variant_file": phased_variant_file},
+                                     outputs={"phased_read_file": phased_read_file},
+                                     parameters={"ctg_id": ctg_id},
+                                     )(task_get_phased_reads)
+    yield get_phased_reads_task
+
+
 def task_phasing_readmap(self):
     job_done = fn(self.job_done)
     rid_to_phase_out_fn = fn(self.rid_to_phase_out)
