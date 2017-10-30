@@ -47,7 +47,7 @@ def test_update_env_from_config(tmpdir, monkeypatch):
     ]
     for cmd in cmds:
         p = tmpdir.join(cmd)
-        p.write('')
+        p.write('#!/bin/bash')
         p.chmod(0o777)
 
     config = {
