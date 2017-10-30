@@ -1,5 +1,3 @@
-from pypeflow.simple_pwatcher_bridge import (PypeProcWatcherWorkflow, MyFakePypeThreadTaskBase,
-                                             makePypeLocalFile, fn, PypeTask)
 from falcon_kit.FastaReader import FastaReader
 import logging
 import os
@@ -11,9 +9,10 @@ LOG = logging.getLogger(__name__)
 
 
 def make_het_call(bam_fn, fasta_fn, vmap_fn, vpos_fn, q_id_map_fn, parameters):
+    """samtools must be in $PATH
+    """
     ctg_id = parameters["ctg_id"]
     base_dir = parameters["base_dir"]
-    samtools = parameters["samtools"]
 
     LOG.info('Getting ref_seq for {!r} in {!r}'.format(ctg_id, fasta_fn))
     for r in FastaReader(fasta_fn):
@@ -26,7 +25,7 @@ def make_het_call(bam_fn, fasta_fn, vmap_fn, vpos_fn, q_id_map_fn, parameters):
         ref_seq = ""
     LOG.info(' Length of ref_seq: {}'.format(len(ref_seq)))
 
-    cmd = "%s view %s %s" % (samtools, bam_fn, ctg_id)
+    cmd = "samtools view %s %s" % (bam_fn, ctg_id)
     LOG.info('Capture `{}`'.format(cmd))
     p = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE)
 
@@ -421,7 +420,7 @@ def get_phased_blocks(vmap_fn, atable_fn, p_variant_fn):
                     p, rb, b2), left_extent[p], right_extent[p], left_score[p], right_score[p]
 
 
-def get_phased_reads(phased_read_fn, q_id_map_fn, vmap_fn, p_variant_fn, parameters):
+def get_phased_reads(phased_reads_fn, q_id_map_fn, vmap_fn, p_variant_fn, parameters):
     ctg_id = parameters["ctg_id"]
 
     rid_map = {}
@@ -453,7 +452,7 @@ def get_phased_reads(phased_read_fn, q_id_map_fn, vmap_fn, p_variant_fn, paramet
             variant_to_phase[l[3]] = (pb_id, 0)
             variant_to_phase[l[4]] = (pb_id, 1)
 
-    with open(phased_read_fn, "w") as out_f:
+    with open(phased_reads_fn, "w") as out_f:
         for r in read_to_variants:
             vl = {}
             pl = set()
@@ -469,3 +468,9 @@ def get_phased_reads(phased_read_fn, q_id_map_fn, vmap_fn, p_variant_fn, paramet
                     print >> out_f, r, ctg_id, p, 0, vl.get((p, 0), 0), vl.get((p, 1), 0), rid_map[r]
                 elif vl.get((p, 1), 0) - vl.get((p, 0), 0) > 1:
                     print >> out_f, r, ctg_id, p, 1, vl.get((p, 0), 0), vl.get((p, 1), 0), rid_map[r]
+    # We were unable to avoid running this particular function in a new directory,
+    # so we move the old one out of the way to catch any problems in the workflow graph.
+    old_phased_reads_fn = os.path.join(
+            os.path.dirname(phased_reads_fn), '..', 'phased_reads')
+    if os.path.exists(old_phased_reads_fn):
+        os.rename(old_phased_reads_fn, old_phased_reads_fn + '.bak')

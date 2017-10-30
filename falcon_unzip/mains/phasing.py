@@ -1,3 +1,7 @@
+"""Deprecated.
+These tasks are now run as part of the full workflow. But in theory, they can
+be run separately here.
+"""
 import argparse
 import logging
 import os
@@ -8,12 +12,16 @@ from ..tasks import unzip as tasks_unzip
 
 
 def run_phasing(args):
+    phased_reads_file = makePypeLocalFile(os.path.join(
+        args.base_dir, args.ctg_id, 'phased_reads'))
+    bam_file = makePypeLocalFile(args.bam)
+    fasta_file = makePypeLocalFile(args.fasta)
     kwds = dict(
-        bam_fn = args.bam,
-        fasta_fn = args.fasta,
+        phased_reads_file = phased_reads_file,
+        bam_file = bam_file,
+        fasta_file = fasta_file,
         ctg_id = args.ctg_id,
         base_dir = args.base_dir,
-        samtools = args.samtools,
     )
     tasks = list(tasks_unzip.get_phasing_tasks(**kwds))
     wf = PypeProcWatcherWorkflow(
@@ -41,8 +49,6 @@ def parse_args(argv):
     parser.add_argument(
         '--base_dir', type=str, default="./",
         help='the output base_dir, default to current working directory')
-    parser.add_argument(
-        '--samtools', type=str, default="samtools", help='path to samtools')
     args = parser.parse_args(argv[1:])
     return args
 
