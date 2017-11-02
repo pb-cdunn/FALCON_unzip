@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 from distutils.core import Extension
 
@@ -17,7 +17,7 @@ setup(name='falcon_unzip',
       author_email='jchin@pacificbiosciences.com',
       maintainer='Christopher Dunn',
       maintainer_email='pb.cdunn@gmail.com',
-      packages=['falcon_unzip'],
+      packages=find_packages(),
       package_dir={'falcon_unzip': 'falcon_unzip/'},
       entry_points={'console_scripts': [
           # We do not really need most of these, but mobs might depend on them.
