@@ -102,6 +102,7 @@ def run(output_fn, merged_fn):
     with open(output_fn, 'w') as ofs:
         ofs.write(fofn_content)
 
+
 ######
 import argparse
 import logging
@@ -137,5 +138,5 @@ def main(argv=sys.argv):
     run(**vars(args))
 
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':  # pragma: no cover
     main()

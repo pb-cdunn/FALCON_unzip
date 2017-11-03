@@ -51,9 +51,10 @@ def get_phased_reads(phased_reads_fn, q_id_map_fn, vmap_fn, p_variant_fn, ctg_id
     # so we move the old one out of the way to catch any problems in the workflow graph.
     # TODO: DELETE SOON. (In a couple weeks.)
     old_phased_reads_fn = os.path.join(
-            os.path.dirname(phased_reads_fn), '..', 'phased_reads')
+        os.path.dirname(phased_reads_fn), '..', 'phased_reads')
     if os.path.exists(old_phased_reads_fn):
         os.rename(old_phased_reads_fn, old_phased_reads_fn + '.bak')
+
 
 ######
 import argparse
@@ -62,7 +63,7 @@ import sys
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(
-        description='get phased reads', # better description?
+        description='get phased reads',  # better description?
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '--ctg-id', required=True,
@@ -92,5 +93,5 @@ def main(argv=sys.argv):
     get_phased_reads(**vars(args))
 
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':  # pragma: no cover
     main()

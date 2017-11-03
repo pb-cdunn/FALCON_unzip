@@ -224,6 +224,7 @@ def run(input_bam_fofn, read2ctg_fn, merged_fn, max_n_open_files):
             ofs.write(samfn + '\n')
     log('Wrote {!r}'.format(merged_fn))
 
+
 ######
 import argparse
 import logging
@@ -261,5 +262,5 @@ def main(argv=sys.argv):
     run(**vars(args))
 
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':  # pragma: no cover
     main()

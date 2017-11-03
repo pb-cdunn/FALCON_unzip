@@ -36,6 +36,7 @@ def run(out_stream, phased_reads, read_map_dir, the_ctg_id):
     for arid, phase in arid_to_phase.items():
         print >>out_stream, arid, the_ctg_id, phase[0], phase[1]
 
+
 ######
 import argparse
 import logging
@@ -68,5 +69,5 @@ def main(argv=sys.argv):
     run(sys.stdout, **vars(args))
 
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':  # pragma: no cover
     main()

@@ -4,7 +4,8 @@ import subprocess
 import falcon_unzip.io as M
 
 import logging
-#logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(level=logging.INFO)
+
 
 def test_exists_and_not_empty(tmpdir):
     with tmpdir.as_cwd():

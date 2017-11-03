@@ -57,6 +57,7 @@ def run(
             for ctg in list(pread_to_contigs[k]):
                 print >>f, '%09d %09d %s %s' % (pid, rid, oid, ctg)
 
+
 ######
 import argparse
 import logging
@@ -107,5 +108,5 @@ def main(argv=sys.argv):
     run(**vars(args))
 
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':  # pragma: no cover
     main()

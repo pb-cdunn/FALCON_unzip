@@ -202,6 +202,7 @@ def get_phased_blocks(vmap_fn, atable_fn, p_variant_fn):
                 print >>out_f, "V", pid, p, "%d_%s_%s" % (p, rb, b1), "%d_%s_%s" % (
                     p, rb, b2), left_extent[p], right_extent[p], left_score[p], right_score[p]
 
+
 ######
 import argparse
 import sys
@@ -209,7 +210,7 @@ import sys
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(
-        description='generate association table', # better description?
+        description='generate association table',  # better description?
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '--vmap-fn', required=True,
@@ -232,5 +233,5 @@ def main(argv=sys.argv):
     get_phased_blocks(**vars(args))
 
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':  # pragma: no cover
     main()

@@ -59,6 +59,7 @@ def gfa_from_unzip(fp_out, preads_fasta, p_ctg_fasta, h_ctg_fasta, add_string_gr
 
     gfa_graph.write_gfa_v1(fp_out, preads_fasta, [p_ctg_fasta, h_ctg_fasta], write_reads, write_contigs)
 
+
 ######
 import argparse
 import sys
@@ -99,5 +100,5 @@ def main(argv=sys.argv):
     gfa_from_unzip(sys.stdout, **vars(args))
 
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':  # pragma: no cover
     main()

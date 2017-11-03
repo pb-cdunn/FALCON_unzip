@@ -318,6 +318,7 @@ def run(args):
         for l in res[1]:
             print " ".join(l)
 
+
 ######
 import argparse
 import sys
@@ -357,5 +358,5 @@ def main(argv=sys.argv):
     run(args)
 
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':  # pragma: no cover
     main()

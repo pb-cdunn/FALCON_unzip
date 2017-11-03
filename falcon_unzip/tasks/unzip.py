@@ -85,6 +85,7 @@ date
         script_file.write(script)
     self.generated_script_fn = script_fn
 
+
 def task_phasing(self):
     ref_fasta = fn(self.ref_fasta)
     aln_bam = fn(self.aln_bam)
@@ -209,11 +210,11 @@ def create_phasing_tasks(config, ctg_ids, all_ctg_out):
             wd, 'get_phased_reads', 'phased_reads'))
 
         kwds = dict(
-            phased_reads_file = phased_reads_file,
-            bam_file = ctg_aln_out,
-            fasta_file = ref_fasta,
-            ctg_id = ctg_id,
-            base_dir = './3-unzip/0-phasing'
+            phased_reads_file=phased_reads_file,
+            bam_file=ctg_aln_out,
+            fasta_file=ref_fasta,
+            ctg_id=ctg_id,
+            base_dir='./3-unzip/0-phasing'
         )
         for task in get_phasing_tasks(**kwds):
             yield task
@@ -226,16 +227,16 @@ def create_phasing_tasks(config, ctg_ids, all_ctg_out):
         all_ctg_out['r2p.{ctg_id}'.format(ctg_id=ctg_id)] = rid_to_phase_out
 
         parameters = {
-                'wd': wd,
-                'ctg_id': ctg_id,
+            'wd': wd,
+            'ctg_id': ctg_id,
         }
         make_task = PypeTask(
-                inputs={'phased_reads': phased_reads_file,
-                },
-                outputs={'job_done': job_done,
-                         'rid_to_phase_out': rid_to_phase_out,
-                },
-                parameters=parameters,
+            inputs={'phased_reads': phased_reads_file,
+                    },
+            outputs={'job_done': job_done,
+                     'rid_to_phase_out': rid_to_phase_out,
+                     },
+            parameters=parameters,
         )
         task = make_task(task_phasing_readmap)
         yield task
