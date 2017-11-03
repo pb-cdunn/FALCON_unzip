@@ -62,6 +62,7 @@ def generate_association_table(vmap_fn, atable_fn, ctg_id):
                 if link_count > 500:
                     break
 
+
 ######
 import argparse
 import sys
@@ -69,7 +70,7 @@ import sys
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(
-        description='generate association table', # better description?
+        description='generate association table',  # better description?
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '--ctg-id', required=True,
@@ -91,5 +92,5 @@ def main(argv=sys.argv):
     generate_association_table(**vars(args))
 
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':  # pragma: no cover
     main()

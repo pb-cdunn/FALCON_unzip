@@ -25,5 +25,5 @@ def main(argv=sys.argv):
     unzip.run(**vars(args))
 
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':  # pragma: no cover
     main()

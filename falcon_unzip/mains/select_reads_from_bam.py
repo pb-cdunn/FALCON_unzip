@@ -159,5 +159,5 @@ def main(argv=sys.argv):
                           args.max_n_open_files)
 
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':  # pragma: no cover
     main()

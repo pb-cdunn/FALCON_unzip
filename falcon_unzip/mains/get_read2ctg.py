@@ -66,6 +66,7 @@ def write_read2ctg(output, input_bam_fofn, rawread_to_contigs, rawread_ids):
     serialize(output, read2ctg)
     serialize(output + '.json', read2ctg)
 
+
 ######
 import argparse
 import logging

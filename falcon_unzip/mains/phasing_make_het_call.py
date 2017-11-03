@@ -143,6 +143,7 @@ def make_het_call_map(ref_seq, samtools_view_bam_ctg_f, vmap_f, vpos_f, q_id_map
     for q_id, q_name in q_id_map.items():
         print >> q_id_map_f, q_id, q_name
 
+
 ######
 import argparse
 import sys
@@ -150,7 +151,7 @@ import sys
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(
-        description='make_het_call', # better description?
+        description='make_het_call',  # better description?
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '--ctg-id', required=True,
@@ -183,5 +184,5 @@ def main(argv=sys.argv):
     make_het_call(**vars(args))
 
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':  # pragma: no cover
     main()

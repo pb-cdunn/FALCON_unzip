@@ -1492,6 +1492,7 @@ def run(args):
             print >> ctg_paths, "%6d" % ctg_id, "ctg_circular", s + "~" + v + "~" + t, t, length, score, s + "~" + v + "~" + t
             ctg_id += 1
 
+
 ######
 import argparse
 import sys
@@ -1534,5 +1535,5 @@ def main(argv=sys.argv):
     run(args)
 
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':  # pragma: no cover
     main()

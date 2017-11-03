@@ -6,6 +6,7 @@ from falcon_kit.FastaReader import FastaReader
 
 LOG = logging.getLogger(__name__)
 
+
 def run(ctg_id):
     fn = "h_ctg_all.{ctg_id}.fa".format(ctg_id=ctg_id)
     if not io.exists_and_not_empty(fn):
@@ -71,6 +72,7 @@ def run(ctg_id):
                 print >>f, r.sequence
                 print >> h_ids, r.name
 
+
 ######
 import argparse
 import sys
@@ -93,5 +95,5 @@ def main(argv=sys.argv):
     run(**vars(args))
 
 
-if __name__ == "__main__": # pragma: no cover
+if __name__ == "__main__":  # pragma: no cover
     main()

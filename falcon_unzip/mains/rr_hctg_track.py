@@ -234,10 +234,11 @@ def run1(n_core, phased_read_file, read_to_contig_map, rawread_ids, min_len, bes
 def run2(read_to_contig_map, bestn, output):
     TrackReads().try_finish_track_reads(read_to_contig_map, bestn, output)
 
+
 ######
 import argparse
 import sys
-import falcon_kit.util.io as io # We modify the global LOG().
+import falcon_kit.util.io as io  # We modify the global LOG().
 from multiprocessing import cpu_count
 
 
@@ -287,19 +288,20 @@ def setup(debug, silent, stream, **kwds):
         global Reader
         Reader = io.StreamedProcessReaderContext
 
+
 def main(argv=sys.argv):
     args = parse_args(argv)
-    args.n_core = 0 ### REMOVE ######################################
+    args.n_core = 0  # REMOVE ######################################
     setup(**vars(args))
     if args.debug:
         args.n_core = 0
     kwds = dict(
-            read_to_contig_map=args.read_to_contig_map,
-            bestn=args.bestn,
-            phased_read_file=args.phased_read_file,
-            rawread_ids=args.rawread_ids,
-            min_len=args.min_len,
-            n_core=args.n_core,
+        read_to_contig_map=args.read_to_contig_map,
+        bestn=args.bestn,
+        phased_read_file=args.phased_read_file,
+        rawread_ids=args.rawread_ids,
+        min_len=args.min_len,
+        n_core=args.n_core,
     )
     run1(**kwds)
 
@@ -311,14 +313,14 @@ def main2(argv=sys.argv):
     args = parse_args(argv)
     setup(**vars(args))
     kwds = dict(
-            read_to_contig_map=args.read_to_contig_map,
-            bestn=args.bestn,
-            output=args.output,
+        read_to_contig_map=args.read_to_contig_map,
+        bestn=args.bestn,
+        output=args.output,
     )
     run2(**kwds)
 
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':  # pragma: no cover
     main()  # We do not use main2() anymore, since rr_hctg_track2.nim is much better.
     # But note that the Nim versions cannot use the 'python -m' trick anyway, so
     # we will have to register those in mobs someday.

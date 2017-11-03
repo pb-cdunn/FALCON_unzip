@@ -17,11 +17,11 @@ def run_phasing(args):
     bam_file = makePypeLocalFile(args.bam)
     fasta_file = makePypeLocalFile(args.fasta)
     kwds = dict(
-        phased_reads_file = phased_reads_file,
-        bam_file = bam_file,
-        fasta_file = fasta_file,
-        ctg_id = args.ctg_id,
-        base_dir = args.base_dir,
+        phased_reads_file=phased_reads_file,
+        bam_file=bam_file,
+        fasta_file=fasta_file,
+        ctg_id=args.ctg_id,
+        base_dir=args.base_dir,
     )
     tasks = list(tasks_unzip.get_phasing_tasks(**kwds))
     wf = PypeProcWatcherWorkflow(
@@ -60,5 +60,5 @@ def main(argv=sys.argv):
     run_phasing(args)
 
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':  # pragma: no cover
     main()

@@ -646,9 +646,11 @@ def run(args):
     exec_pool.map(generate_haplotigs_for_ctg, exe_list)
     #map( generate_haplotigs_for_ctg, exe_list)
 
+
 ######
 import argparse
 import sys
+
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(
@@ -680,5 +682,5 @@ def main(argv=sys.argv):
     run(args)
 
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':  # pragma: no cover
     main()
