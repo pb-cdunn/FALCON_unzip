@@ -6,12 +6,11 @@ from falcon_kit.FastaReader import FastaReader
 
 def run(ctg_id):
     fn = "h_ctg_all.{ctg_id}.fa".format(ctg_id=ctg_id)
-    if io.exists_and_not_empty(fn):
-        io.syscall("nucmer --mum p_ctg.{ctg_id}.fa h_ctg_all.{ctg_id}.fa -p hp_aln".format(ctg_id=ctg_id))
-        io.syscall("show-coords -T -H -l -c hp_aln.delta > hp_aln.coor")
-    else:
+    if not io.exists_and_not_empty(fn):
         print>>sys.stderr, 'No h_ctg_all.{ctg_id}.fa, but that is ok. Continue workflow.\n'
         return 0  # it is ok if there is no h_ctg_all.{ctg_id}.fa, don't want to interupt the workflow
+    io.syscall("nucmer --mum p_ctg.{ctg_id}.fa h_ctg_all.{ctg_id}.fa -p hp_aln".format(ctg_id=ctg_id))
+    io.syscall("show-coords -T -H -l -c hp_aln.delta > hp_aln.coor")
 
     if not os.path.exists("hp_aln.coor"):
         print>>sys.stderr, 'No "hp_aln.coor". Continuing.\n'
