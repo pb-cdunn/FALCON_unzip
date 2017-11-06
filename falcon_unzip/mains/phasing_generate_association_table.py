@@ -30,12 +30,14 @@ def generate_association_table(vmap_fn, atable_fn, ctg_id):
                 p2table = []
                 s1 = 0
                 list1 = vmap[(pos1, rb1)].items()
+                assert len(list1) == 2, 'len={}'.format(len(list1))
                 for b1, qids1 in list1:
                     p1table.append((b1, len(qids1)))
                     s1 += len(qids1)
 
                 s2 = 0
                 list2 = vmap[(pos2, rb2)].items()
+                assert len(list2) == 2, 'len={}'.format(len(list2))
                 for b2, qids2 in list2:
                     p2table.append((b2, len(qids2)))
                     s2 += len(qids2)
