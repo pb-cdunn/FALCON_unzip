@@ -40,14 +40,14 @@ def make_het_call_map(ref_seq, samtools_view_bam_ctg_f, vmap_f, vpos_f, q_id_map
     q_id_map is
         q_id QNAME
         ...
-    where q_id is 0, 1, 2, ...
+    where q_id is hash(QNAME)
     and QNAME is the first field of each line from samtools-view.
     """
     q_id_map = {}
     q_name_to_id = {}  # reverse of q_id_map
     pileup = {}
     q_max_id = 0
-    q_id = 0
+    #q_id = 0
     cigar_re = re.compile(r"(\d+)([MIDNSHP=X])")
 
     for l in samtools_view_bam_ctg_f:
@@ -57,9 +57,10 @@ def make_het_call_map(ref_seq, samtools_view_bam_ctg_f, vmap_f, vpos_f, q_id_map
 
         QNAME = l[0]
         if QNAME not in q_name_to_id:
-            q_id = q_max_id
+            q_id = hash(QNAME)
             q_name_to_id[QNAME] = q_id
-            q_max_id += 1
+            assert q_id not in q_id_map, 'hash collision for QNAME={} -> {}'.format(QNAME, q_id)
+            #q_max_id += 1
 
         q_id = q_name_to_id[QNAME]
         q_id_map[q_id] = QNAME
@@ -140,7 +141,7 @@ def make_het_call_map(ref_seq, samtools_view_bam_ctg_f, vmap_f, vpos_f, q_id_map
                 for q_id_ in pupmap[b1]:
                     print >> vmap_f, pos + 1, ref_base, b1, q_id_
 
-    for q_id, q_name in q_id_map.items():
+    for q_id, q_name in sorted(q_id_map.items()):
         print >> q_id_map_f, q_id, q_name
 
 
