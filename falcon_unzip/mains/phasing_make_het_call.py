@@ -29,10 +29,11 @@ def make_het_call(bam_fn, fasta_fn, vmap_fn, vpos_fn, q_id_map_fn, ctg_id):
 
     with open(vmap_fn, "w") as vmap_f, open(vpos_fn, "w") as vpos_f:
         q_id_map = make_het_call_map(ref_seq, p.stdout, vmap_f, vpos_f)
+    q_id_list = list(sorted(q_id_map.items()))
 
     # By serializing, we have a built-in check for completeness.
-    io.serialize(q_id_map_fn, q_id_map)
-    io.serialize(q_id_map_fn + '.json', q_id_map)
+    io.serialize(q_id_map_fn, q_id_list)
+    io.serialize(q_id_map_fn + '.json', q_id_list)
 
 
 def make_het_call_map(ref_seq, samtools_view_bam_ctg_f, vmap_f, vpos_f):

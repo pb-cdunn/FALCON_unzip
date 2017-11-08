@@ -3,7 +3,7 @@ import os
 
 
 def get_phased_reads(phased_reads_fn, q_id_map_fn, vmap_fn, p_variant_fn, ctg_id):
-    rid_map = io.deserialize(q_id_map_fn)
+    rid_map = dict(io.deserialize(q_id_map_fn))
 
     read_to_variants = {}
     variant_to_reads = {}
@@ -82,7 +82,7 @@ def parse_args(argv):
     )
     parser.add_argument(
         '--q-id-map-fn', required=True,
-        help='an input'
+        help='an input (actually a list of pairs)'
     )
     parser.add_argument(
         '--phased-reads-fn', required=True,
