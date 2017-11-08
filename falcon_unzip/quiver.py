@@ -22,38 +22,30 @@ def task_track_reads_h(self):
     job_done = fn(self.job_done)
     work_dir = os.getcwd()
     basedir = '../..'  # assuming we are in ./4-quiver/track_reads/
+    reldir = os.path.relpath('.', basedir)
     script_fn = 'track_reads_h.sh'
 
     # For now, in/outputs are in various directories, by convention, including '0-rawreads/m_*/*.msgpack'
-    output_fn = './2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs'
     script = """\
 set -vex
 trap 'touch {job_done}.exit' EXIT
 hostname
 date
 
-rm -f output
-ln -s {basedir}/./2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs output
-# for convenience and transparency
+python -m falcon_unzip.mains.get_read_hctg_map --base-dir={basedir} --output=read_to_contig_map
+# formerly generated ./4-quiver/read_maps/read_to_contig_map
+
+rm -f ./3-unzip/reads/dump_rawread_ids/rawread_to_contigs
+
+fc_rr_hctg_track.py --base-dir={basedir} --stream
 
 cd {basedir}
-python -m falcon_unzip.mains.get_read_hctg_map
-# generated ./4-quiver/read_maps/read_to_contig_map
-
-rm -f ./2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs
-
-fc_rr_hctg_track.py --stream
-fc_rr_hctg_track2.exe
-
-if [ ! -e "./2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs" ]; then
-    echo "Missing $(pwd)/2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs"
-    exit 1
-fi
+fc_rr_hctg_track2.exe --output={reldir}/rawread_to_contigs
+cd {work_dir}
 
 date
-cd {work_dir}
-ls -l output
-ls -lhH output
+ls -l rawread_to_contigs
+ls -lhH rawread_to_contigs
 touch {job_done}
 """.format(**locals())
 
@@ -492,7 +484,7 @@ def run(config_fn):
         parameters=parameters,
     )
     wf.addTask(make_task(task_track_reads_h))
-    # Note: The output is actually './2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs'
+    # Note: The output is actually './4-quiver/track_reads/rawread_to_contigs
 
     read2ctg_plf = makePypeLocalFile('./4-quiver/select_reads/read2ctg.msgpack')
     make_task = PypeTask(inputs={

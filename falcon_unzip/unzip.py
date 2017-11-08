@@ -23,20 +23,21 @@ def task_track_reads(self):
     #config = self.parameters['config']
     script_fn = os.path.join(wd, 'track_reads.sh')
     topdir = '../..'
-    reldir = os.path.relpath(wd, topdir)
 
     script = """\
 set -vex
 trap 'touch {job_done}.exit' EXIT
 hostname
 date
-python -m falcon_unzip.mains.get_read_ctg_map --base-dir={topdir}
-cd {topdir}
 
-python -m falcon_unzip.mains.rr_ctg_track --output={reldir}/rawread_to_contigs
-python -m falcon_unzip.mains.pr_ctg_track --output={reldir}/pread_to_contigs
+mkdir -p get_ctg_read_map
+cd get_ctg_read_map
+python -m falcon_unzip.mains.get_read_ctg_map --base-dir=../{topdir}
+cd ..
 
-cd {wd}
+python -m falcon_unzip.mains.rr_ctg_track --base-dir={topdir} --output=rawread_to_contigs
+python -m falcon_unzip.mains.pr_ctg_track --base-dir={topdir} --output=pread_to_contigs
+# Those outputs are used only by fetch_reads.
 python -m falcon_unzip.mains.fetch_reads --base-dir={topdir} --fofn={fofn_fn}
 date
 touch {job_done}

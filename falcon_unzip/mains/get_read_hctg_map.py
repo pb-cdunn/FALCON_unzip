@@ -7,12 +7,14 @@ def make_dirs(d):
 
 
 def run(
+        base_dir,
         rawread_ids_fn, pread_ids_fn,
         h_ctg_ids_fn,
         h_ctg_edges_fn,
         p_ctg_edges_fn,
-        read_to_contig_map_fn):
-    make_dirs(os.path.dirname(read_to_contig_map_fn))  # Workflow does this too.
+        output_fn,
+    ):
+    #make_dirs(os.path.dirname(output_fn))  # Workflow does this too.
 
     pread_did_to_rid = open(pread_ids_fn).read().split('\n')
     rid_to_oid = open(rawread_ids_fn).read().split('\n')
@@ -51,7 +53,7 @@ def run(
 
     assert pread_to_contigs, 'Empty p/h_ctg_edges: {!r} {!r}'.format(
         p_ctg_edges_fn, h_ctg_edges_fn)
-    with open(read_to_contig_map_fn, 'w') as f:
+    with open(output_fn, 'w') as f:
         for k in pread_to_contigs:
             pid, rid, oid = k
             for ctg in list(pread_to_contigs[k]):
@@ -64,41 +66,44 @@ import logging
 import os
 import sys
 
-#RAWREAD_DIR = './0-rawreads'
-#PREAD_DIR = './1-preads_ovl'
-ASM_DIR = './2-asm-falcon'
-HASM_DIR = './3-unzip'
-QUIVER_DIR = './4-quiver'
-
 
 def parse_args(argv):
     description = """Generate `read_to_contig_map` that contains the
 information from the chain of mapping: (contig id, last col) -> (internal p-read id) -> (internal raw-read id) -> (original read id)
 It assumes the inputs are already generated.
 """
-    epilog = """You should run this in the base run directory (where "./4-quiver/" lives) if you want to use default arguments."""
+    epilog = ''
     parser = argparse.ArgumentParser(
         description=description, epilog=epilog,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
-        '--rawread-ids-fn', default=os.path.join(ASM_DIR, 'read_maps/dump_rawread_ids/rawread_ids'),
+        '--base-dir', default='.',
+        help='Substituted as {base_dir} into default inputs.')
+    parser.add_argument(
+        '--rawread-ids-fn', default='{base_dir}/3-unzip/reads/dump_rawread_ids/rawread_ids',
         help='rawread_ids filename')
     parser.add_argument(
-        '--pread-ids-fn', default=os.path.join(ASM_DIR, 'read_maps/dump_pread_ids/pread_ids'),
+        '--pread-ids-fn', default='{base_dir}/3-unzip/reads/dump_pread_ids/pread_ids',
         help='pread ids filename')
     parser.add_argument(
-        '--p-ctg-edges-fn', default=os.path.join(HASM_DIR, 'all_p_ctg_edges'),
+        '--p-ctg-edges-fn', default='{base_dir}/3-unzip/all_p_ctg_edges',
         help='primary contig edges filename')
     parser.add_argument(
-        '--h-ctg-edges-fn', default=os.path.join(HASM_DIR, 'all_h_ctg_edges'),
+        '--h-ctg-edges-fn', default='{base_dir}/3-unzip/all_h_ctg_edges',
         help='haplotype contig edges filename')
     parser.add_argument(
-        '--h-ctg-ids-fn', default=os.path.join(HASM_DIR, 'all_h_ctg_ids'),
+        '--h-ctg-ids-fn', default='{base_dir}/3-unzip/all_h_ctg_ids',
         help='haplotype contig ids filename')
     parser.add_argument(
-        '--read-to-contig-map-fn', default=os.path.join(QUIVER_DIR, 'read_maps/read_to_contig_map'),
-        help='OUTPUT: read_to_contig_map filename')
+        '--output-fn', default='{base_dir}/4-quiver/read_maps/read_to_contig_map',
+        help='output read_to_contig_map filename')
     args = parser.parse_args(argv[1:])
+    args.rawread_ids_fn = args.rawread_ids_fn.format(**vars(args))
+    args.pread_ids_fn = args.pread_ids_fn.format(**vars(args))
+    args.h_ctg_ids_fn = args.h_ctg_ids_fn.format(**vars(args))
+    args.h_ctg_edges_fn = args.h_ctg_edges_fn.format(**vars(args))
+    args.p_ctg_edges_fn = args.p_ctg_edges_fn.format(**vars(args))
+    args.output_fn = args.output_fn.format(**vars(args))
     return args
 
 
