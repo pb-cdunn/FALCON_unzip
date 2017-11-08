@@ -118,18 +118,13 @@ for f in `cat ../reads/ctg_list `; do mkdir -p $WD/$f; cd $WD/$f; python -m falc
 
 ## prepare for quviering the haplotig
 cd $WD/..
-if [ -e "all_phased_reads" ]; then rm all_phased_reads; fi
-if [ -e "all_h_ctg_ids" ]; then rm all_h_ctg_ids; fi
-if [ -e "all_p_ctg_edges" ]; then rm all_p_ctg_edges; fi
-if [ -e "all_p_ctg.fa" ]; then rm all_p_ctg.fa; fi
-if [ -e "all_h_ctg.fa" ]; then rm all_h_ctg.fa; fi
 
-find 0-phasing -name "phased_reads" | sort | xargs cat >> all_phased_reads
-find 1-hasm -name "h_ctg_ids.*" | sort | xargs cat >> all_h_ctg_ids
-find 1-hasm -name "p_ctg_edges.*" | sort | xargs cat >> all_p_ctg_edges
-find 1-hasm -name "h_ctg_edges.*" | sort | xargs cat >> all_h_ctg_edges
-find 1-hasm -name "p_ctg.*.fa" | sort | xargs cat >> all_p_ctg.fa
-find 1-hasm -name "h_ctg.*.fa" | sort | xargs cat >> all_h_ctg.fa
+find 0-phasing -name "phased_reads" | sort | xargs cat >| all_phased_reads
+find 1-hasm -name "h_ctg_ids.*" | sort | xargs cat >| all_h_ctg_ids
+find 1-hasm -name "p_ctg_edges.*" | sort | xargs cat >| all_p_ctg_edges
+find 1-hasm -name "h_ctg_edges.*" | sort | xargs cat >| all_h_ctg_edges
+find 1-hasm -name "p_ctg.*.fa" | sort | xargs cat >| all_p_ctg.fa
+find 1-hasm -name "h_ctg.*.fa" | sort | xargs cat >| all_h_ctg.fa
 
 # Generate a GFA for only primary contigs and haplotigs.
 time python -m falcon_unzip.mains.unzip_gen_gfa_v1 --unzip-root $WD/.. --p-ctg-fasta $WD/../all_p_ctg.fa --h-ctg-fasta $WD/../all_h_ctg.fa --preads-fasta $WD/preads4falcon.fasta >| $WD/../asm.gfa
