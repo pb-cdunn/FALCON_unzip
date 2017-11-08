@@ -136,9 +136,9 @@ def make_het_call_map(ref_seq, samtools_view_bam_ctg_f, vmap_f, vpos_f, q_id_map
                 b1 = base_count[1][1]
                 ref_base = ref_seq[pos]
                 print >> vpos_f, pos + 1, ref_base, total_count, " ".join(["%s %d" % (x[1], x[0]) for x in base_count])
-                for q_id_ in pupmap[b0]:
+                for q_id_ in sorted(pupmap[b0]):
                     print >> vmap_f, pos + 1, ref_base, b0, q_id_
-                for q_id_ in pupmap[b1]:
+                for q_id_ in sorted(pupmap[b1]):
                     print >> vmap_f, pos + 1, ref_base, b1, q_id_
 
     for q_id, q_name in sorted(q_id_map.items()):
