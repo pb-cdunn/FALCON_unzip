@@ -29,11 +29,11 @@ trap 'touch {job_done}.exit' EXIT
 hostname
 date
 cd {topdir}
-python -m falcon_kit.mains.get_read_ctg_map
-python -m falcon_kit.mains.rr_ctg_track
-python -m falcon_kit.mains.pr_ctg_track
+python -m falcon_unzip.mains.get_read_ctg_map
+python -m falcon_unzip.mains.rr_ctg_track
+python -m falcon_unzip.mains.pr_ctg_track
 #mkdir -p 3-unzip/reads/
-python -m falcon_kit.mains.fetch_reads
+python -m falcon_unzip.mains.fetch_reads
 cd {wd}
 date
 touch {job_done}
