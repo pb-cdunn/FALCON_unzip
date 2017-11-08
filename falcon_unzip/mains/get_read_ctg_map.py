@@ -81,11 +81,15 @@ def get_read_ctg_map(rawread_dir, pread_dir, asm_dir):
 
 
 def parse_args(argv):
-    parser = argparse.ArgumentParser(description='generate `2-asm-falcon/read_maps/read_to_contig_map` that contains the \
-information from the chain of mapping: (contig id) -> (internal p-read id) -> (internal raw-read id) -> (original read id)',
+    description = """
+generate `2-asm-falcon/read_maps/read_to_contig_map` that contains the
+information from the chain of mapping: (contig id) -> (internal p-read id) -> (internal raw-read id) -> (original read id)
+"""
+    parser = argparse.ArgumentParser(description=description,
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--basedir', type=str, default='./',
-                        help='the base working dir of a FALCON assembly')
+    parser.add_argument(
+        '--basedir', type=str, default='./',
+        help='the base working dir of a FALCON assembly')
     args = parser.parse_args(argv[1:])
     return args
 

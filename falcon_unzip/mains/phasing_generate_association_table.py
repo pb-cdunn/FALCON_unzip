@@ -1,14 +1,15 @@
 import os
 
+
 def generate_association_table(vmap_fn, atable_fn, ctg_id):
     vmap = {}
     v_positions = []
 
     with open(vmap_fn) as f:
         for l in f:
-            if l.startswith('#EOF'): # prove file is complete
+            if l.startswith('#EOF'):  # prove file is complete
                 break
-            if l.startswith('#'): # skip comments
+            if l.startswith('#'):  # skip comments
                 continue
             l = l.strip().split()
             pos = int(l[0])

@@ -122,18 +122,24 @@ def fetch_ref_and_reads(base_dir, fofn, ctg_id, out_dir, min_ctg_lenth):
 
 
 def parse_args(argv):
-    parser = argparse.ArgumentParser(
-        description='using the read to contig mapping data to partition the reads grouped by contigs')
-    parser.add_argument('--base_dir', type=str, default='./',
-                        help='the base working dir of a falcon assembly')
-    parser.add_argument('--fofn', type=str, default='./input.fofn',
-                        help='path to the file of the list of raw read fasta files')
-    parser.add_argument('--ctg_id', type=str, default='all',
-                        help='contig identifier in the contig fasta file')
-    parser.add_argument('--out_dir', default=None, type=str,
-                        help='the output base_dir, default to `base_dir/3-unzip/reads` directory')
-    parser.add_argument('--min_ctg_lenth', default=20000, type=int,
-                        help='the minimum length of the contig for the outputs, default=20000')
+    description = 'using the read to contig mapping data to partition the reads grouped by contigs'
+    parser = argparse.ArgumentParser(description=description,
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument(
+        '--base_dir', type=str, default='./',
+        help='the base working dir of a falcon assembly')
+    parser.add_argument(
+        '--fofn', type=str, default='./input.fofn',
+        help='path to the file of the list of raw read fasta files')
+    parser.add_argument(
+        '--ctg_id', type=str, default='all',
+        help='contig identifier in the contig fasta file')
+    parser.add_argument(
+        '--out_dir', default=None, type=str,
+        help='the output base_dir, default to `base_dir/3-unzip/reads` directory')
+    parser.add_argument(
+        '--min_ctg_lenth', default=20000, type=int,
+        help='the minimum length of the contig for the outputs, default=20000')
     #parser.add_argument('--ctg_fa', type=str, default='./2-asm-falcon/p_ctg.fa', help='path to the contig fasta file')
     #parser.add_argument('--read_map_dir', type=str, default='./2-asm-falcon/read_maps', help='path to the read-contig map directory')
     # we can run this in parallel mode in the furture
