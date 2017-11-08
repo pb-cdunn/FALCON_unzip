@@ -166,6 +166,7 @@ def get_phasing_tasks(phased_reads_file, bam_file, fasta_file, ctg_id, base_dir)
 
 
 def task_phasing_readmap(self):
+    # TODO: read-map-dir/* as inputs
     job_done = fn(self.job_done)
     phased_reads_fn = fn(self.phased_reads)
     rid_to_phase_out_fn = fn(self.rid_to_phase_out)
@@ -179,7 +180,7 @@ trap 'touch {job_done}.exit' EXIT
 hostname
 date
 cd {wd}
-python -m falcon_unzip.mains.phasing_readmap --the-ctg-id {ctg_id} --read-map-dir ../../../2-asm-falcon/read_maps --phased-reads {phased_reads_fn} >| {rid_to_phase_out_fn}.tmp
+python -m falcon_unzip.mains.phasing_readmap --the-ctg-id {ctg_id} --read-map-dir ../../reads --phased-reads {phased_reads_fn} >| {rid_to_phase_out_fn}.tmp
 mv {rid_to_phase_out_fn}.tmp {rid_to_phase_out_fn}
 date
 touch {job_done}

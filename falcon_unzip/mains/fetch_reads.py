@@ -1,4 +1,5 @@
 from falcon_kit.FastaReader import open_fasta_reader
+from .. import io
 import argparse
 import contextlib
 import os
@@ -7,17 +8,18 @@ import sys
 import re
 
 
-def fetch_ref_and_reads(base_dir, fofn, ctg_id, out_dir, min_ctg_lenth):
-    read_fofn = fofn
-    if out_dir == None:
-        out_dir = os.path.join(base_dir, '3-unzip/reads')
+def fetch_ref_and_reads(
+        fofn, ctg_id, min_ctg_lenth,
+        base_dir,
+        ):
+    ctg_fa = os.path.join(base_dir, '2-asm-falcon', 'p_ctg.fa')
 
-    ctg_fa = os.path.join(base_dir, '2-asm-falcon/p_ctg.fa')
-    read_map_dir = os.path.join(base_dir, '2-asm-falcon/read_maps')
-
+    out_dir = '.'
+    read_map_dir = '.'
     rawread_id_file = os.path.join(
         read_map_dir, 'dump_rawread_ids', 'rawread_ids')
-    pread_id_file = os.path.join(read_map_dir, 'dump_pread_ids', 'pread_ids')
+    pread_id_file = os.path.join(
+        read_map_dir, 'dump_pread_ids', 'pread_ids')
 
     rid_to_oid = open(rawread_id_file).read().split(
         '\n')  # daligner raw read id to the original ids
@@ -101,10 +103,8 @@ def fetch_ref_and_reads(base_dir, fofn, ctg_id, out_dir, min_ctg_lenth):
         yield read_out
         read_out.close()
 
-    with open(read_fofn, 'r') as f:
-        for r_fn in f:
-            r_fn = r_fn.strip()
-            # will soon handle .dexta too
+    for r_fn in io.yield_abspath_from_fofn(fofn):
+            # TODO: will soon handle .dexta too
             with open_fasta_reader(r_fn) as read_fa_file:
                 for r in read_fa_file:
                     rid = r.name.split()[0]
@@ -126,22 +126,18 @@ def parse_args(argv):
     parser = argparse.ArgumentParser(description=description,
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
-        '--base_dir', type=str, default='./',
+        '--base-dir', type=str, default='../..',
         help='the base working dir of a falcon assembly')
     parser.add_argument(
-        '--fofn', type=str, default='./input.fofn',
+        '--fofn', type=str, default='../../input.fofn',
         help='path to the file of the list of raw read fasta files')
     parser.add_argument(
-        '--ctg_id', type=str, default='all',
+        '--ctg-id', type=str, default='all',
         help='contig identifier in the contig fasta file')
     parser.add_argument(
-        '--out_dir', default=None, type=str,
-        help='the output base_dir, default to `base_dir/3-unzip/reads` directory')
-    parser.add_argument(
-        '--min_ctg_lenth', default=20000, type=int,
-        help='the minimum length of the contig for the outputs, default=20000')
+        '--min-ctg-lenth', default=20000, type=int,
+        help='the minimum length of the contig for the outputs')
     #parser.add_argument('--ctg_fa', type=str, default='./2-asm-falcon/p_ctg.fa', help='path to the contig fasta file')
-    #parser.add_argument('--read_map_dir', type=str, default='./2-asm-falcon/read_maps', help='path to the read-contig map directory')
     # we can run this in parallel mode in the furture
     # parser.add_argument('--n_core', type=int, default=4,
     #                    help='number of processes used for generating consensus')

@@ -22,7 +22,7 @@ def make_dirs(d):
 
 
 def get_read_ctg_map(rawread_dir, pread_dir, asm_dir):
-    read_map_dir = os.path.abspath(os.path.join(asm_dir, 'read_maps'))
+    read_map_dir = '.' # for now
     make_dirs(read_map_dir)
 
     wf = PypeProcWatcherWorkflow(
@@ -88,7 +88,7 @@ information from the chain of mapping: (contig id) -> (internal p-read id) -> (i
     parser = argparse.ArgumentParser(description=description,
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
-        '--basedir', type=str, default='./',
+        '--base-dir', type=str, default='./',
         help='the base working dir of a FALCON assembly')
     args = parser.parse_args(argv[1:])
     return args
@@ -97,7 +97,7 @@ information from the chain of mapping: (contig id) -> (internal p-read id) -> (i
 def main(argv=sys.argv):
     logging.basicConfig()
     args = parse_args(argv)
-    basedir = args.basedir
+    basedir = args.base_dir
     rawread_dir = os.path.abspath(os.path.join(basedir, '0-rawreads'))
     pread_dir = os.path.abspath(os.path.join(basedir, '1-preads_ovl'))
     asm_dir = os.path.abspath(os.path.join(basedir, '2-asm-falcon'))
