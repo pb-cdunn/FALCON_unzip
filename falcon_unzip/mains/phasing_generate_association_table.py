@@ -1,9 +1,15 @@
+import os
+
 def generate_association_table(vmap_fn, atable_fn, ctg_id):
     vmap = {}
     v_positions = []
 
     with open(vmap_fn) as f:
         for l in f:
+            if l.startswith('#EOF'): # prove file is complete
+                break
+            if l.startswith('#'): # skip comments
+                continue
             l = l.strip().split()
             pos = int(l[0])
             ref_b = l[1]
@@ -14,6 +20,8 @@ def generate_association_table(vmap_fn, atable_fn, ctg_id):
             vmap.setdefault((pos, ref_b), {})
             vmap[(pos, ref_b)].setdefault(v_b, [])
             vmap[(pos, ref_b)][v_b].append(q_id)
+        else:
+            raise Exception('No EOF found in {!r}'.format(os.path.abspath(vmap_fn)))
 
     #xary = []
     #yary = []
