@@ -21,7 +21,6 @@ import pytest
     # These are not actually used, but we can still check them.
     'get_ctg2bam_map',
     'select_reads_from_bam',
-    'track_reads_htigs0',
 ])
 def test(mod):
     module = importlib.import_module('falcon_unzip.mains.{}'.format(mod))
