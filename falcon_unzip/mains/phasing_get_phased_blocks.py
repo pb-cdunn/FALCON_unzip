@@ -1,3 +1,5 @@
+import os
+
 def get_score(c_score, pos1, pos2, s1, s2):
     if pos1 > pos2:
         pos1, pos2 = pos2, pos1
@@ -18,12 +20,18 @@ def get_phased_blocks(vmap_fn, atable_fn, p_variant_fn):
     ref_base = {}
     with open(vmap_fn) as f:
         for l in f:
+            if l.startswith('#EOF'): # prove file is complete
+                break
+            if l.startswith('#'): # skip comments
+                continue
             l = l.strip().split()
             pos = int(l[0])
             ref_b = l[1]
             v_b = l[2]
             q_id = int(l[3])
             ref_base[pos] = ref_b
+        else:
+            raise Exception('No EOF found in {!r}'.format(os.path.abspath(vmap_fn)))
 
     with open(atable_fn) as f:
         for l in f:

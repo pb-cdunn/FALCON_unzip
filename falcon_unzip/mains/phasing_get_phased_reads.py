@@ -1,17 +1,18 @@
+from .. import io
 import os
 
 
 def get_phased_reads(phased_reads_fn, q_id_map_fn, vmap_fn, p_variant_fn, ctg_id):
-    rid_map = {}
-    with open(q_id_map_fn) as f:
-        for l in f:
-            l = l.strip().split()
-            rid_map[int(l[0])] = l[1]
+    rid_map = dict(io.deserialize(q_id_map_fn))
 
     read_to_variants = {}
     variant_to_reads = {}
     with open(vmap_fn) as f:
         for l in f:
+            if l.startswith('#EOF'): # prove file is complete
+                break
+            if l.startswith('#'): # skip comments
+                continue
             l = l.strip().split()
             variant = "_".join(l[:3])
             read_id = int(l[3])
@@ -19,6 +20,8 @@ def get_phased_reads(phased_reads_fn, q_id_map_fn, vmap_fn, p_variant_fn, ctg_id
             read_to_variants[read_id].add(variant)
             variant_to_reads.setdefault(variant, set())
             variant_to_reads[variant].add(read_id)
+        else:
+            raise Exception('No EOF found in {!r}'.format(os.path.abspath(vmap_fn)))
 
     variant_to_phase = {}
     with open(p_variant_fn) as f:
@@ -26,6 +29,7 @@ def get_phased_reads(phased_reads_fn, q_id_map_fn, vmap_fn, p_variant_fn, ctg_id
             """line format example: V 1 6854 6854_A_A 6854_A_G 6854 22781"""
             l = l.strip().split()
             if l[0] != "V":
+                # Skip P lines and comments.
                 continue
             pb_id = int(l[1])
             variant_to_phase[l[3]] = (pb_id, 0)
@@ -78,7 +82,7 @@ def parse_args(argv):
     )
     parser.add_argument(
         '--q-id-map-fn', required=True,
-        help='an input'
+        help='an input (actually a list of pairs)'
     )
     parser.add_argument(
         '--phased-reads-fn', required=True,

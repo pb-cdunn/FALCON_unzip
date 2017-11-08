@@ -1,9 +1,15 @@
+import os
+
 def generate_association_table(vmap_fn, atable_fn, ctg_id):
     vmap = {}
     v_positions = []
 
     with open(vmap_fn) as f:
         for l in f:
+            if l.startswith('#EOF'): # prove file is complete
+                break
+            if l.startswith('#'): # skip comments
+                continue
             l = l.strip().split()
             pos = int(l[0])
             ref_b = l[1]
@@ -14,6 +20,8 @@ def generate_association_table(vmap_fn, atable_fn, ctg_id):
             vmap.setdefault((pos, ref_b), {})
             vmap[(pos, ref_b)].setdefault(v_b, [])
             vmap[(pos, ref_b)][v_b].append(q_id)
+        else:
+            raise Exception('No EOF found in {!r}'.format(os.path.abspath(vmap_fn)))
 
     #xary = []
     #yary = []
@@ -30,12 +38,14 @@ def generate_association_table(vmap_fn, atable_fn, ctg_id):
                 p2table = []
                 s1 = 0
                 list1 = vmap[(pos1, rb1)].items()
+                assert len(list1) == 2, 'len={}'.format(len(list1))
                 for b1, qids1 in list1:
                     p1table.append((b1, len(qids1)))
                     s1 += len(qids1)
 
                 s2 = 0
                 list2 = vmap[(pos2, rb2)].items()
+                assert len(list2) == 2, 'len={}'.format(len(list2))
                 for b2, qids2 in list2:
                     p2table.append((b2, len(qids2)))
                     s2 += len(qids2)

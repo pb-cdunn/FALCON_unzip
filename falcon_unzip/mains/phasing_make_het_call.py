@@ -1,4 +1,5 @@
 from falcon_kit.FastaReader import FastaReader
+from .. import io
 import logging
 import re
 import shlex
@@ -26,29 +27,32 @@ def make_het_call(bam_fn, fasta_fn, vmap_fn, vpos_fn, q_id_map_fn, ctg_id):
     LOG.info('Capture `{}`'.format(cmd))
     p = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE)
 
-    vmap_f = open(vmap_fn, "w")
-    vpos_f = open(vpos_fn, "w")
-    q_id_map_f = open(q_id_map_fn, "w")
+    with open(vmap_fn, "w") as vmap_f, open(vpos_fn, "w") as vpos_f:
+        q_id_map = make_het_call_map(ref_seq, p.stdout, vmap_f, vpos_f)
+    q_id_list = list(sorted(q_id_map.items()))
 
-    make_het_call_map(ref_seq, p.stdout, vmap_f, vpos_f, q_id_map_f)
+    # By serializing, we have a built-in check for completeness.
+    io.serialize(q_id_map_fn, q_id_list)
+    io.serialize(q_id_map_fn + '.json', q_id_list)
 
 
-def make_het_call_map(ref_seq, samtools_view_bam_ctg_f, vmap_f, vpos_f, q_id_map_f):
-    """Given lines of samtools-view, lines of variant_map and variant_pos files, and a reference sequence,
-    write into q_id_map, vmap, and vpos,
+def make_het_call_map(ref_seq, samtools_view_bam_ctg_f, vmap_f, vpos_f):
+    """Given lines of samtools-view and a reference sequence,
+    stream into vmap and vpos, and return the q_id_map.
 
-    q_id_map is
-        q_id QNAME
-        ...
-    where q_id is 0, 1, 2, ...
-    and QNAME is the first field of each line from samtools-view.
+    q_id_map is q_id -> QNAME
+    where q_id is hash(QNAME)
+    and QNAME is the first field of each line from samtools-view (i.e. read names).
     """
     q_id_map = {}
     q_name_to_id = {}  # reverse of q_id_map
     pileup = {}
     q_max_id = 0
-    q_id = 0
+    #q_id = 0
     cigar_re = re.compile(r"(\d+)([MIDNSHP=X])")
+
+    print >> vmap_f, '#POS\tREFB\tB0|1\tqid'
+    print >> vpos_f, '#POS\tREFB\ttotal\t(B N)*'
 
     for l in samtools_view_bam_ctg_f:
         l = l.strip().split()
@@ -57,9 +61,10 @@ def make_het_call_map(ref_seq, samtools_view_bam_ctg_f, vmap_f, vpos_f, q_id_map
 
         QNAME = l[0]
         if QNAME not in q_name_to_id:
-            q_id = q_max_id
+            q_id = hash(QNAME)
             q_name_to_id[QNAME] = q_id
-            q_max_id += 1
+            assert q_id not in q_id_map, 'hash collision for QNAME={} -> {}'.format(QNAME, q_id)
+            #q_max_id += 1
 
         q_id = q_name_to_id[QNAME]
         q_id_map[q_id] = QNAME
@@ -134,14 +139,21 @@ def make_het_call_map(ref_seq, samtools_view_bam_ctg_f, vmap_f, vpos_f, q_id_map
                 b0 = base_count[0][1]
                 b1 = base_count[1][1]
                 ref_base = ref_seq[pos]
-                print >> vpos_f, pos + 1, ref_base, total_count, " ".join(["%s %d" % (x[1], x[0]) for x in base_count])
-                for q_id_ in pupmap[b0]:
-                    print >> vmap_f, pos + 1, ref_base, b0, q_id_
-                for q_id_ in pupmap[b1]:
-                    print >> vmap_f, pos + 1, ref_base, b1, q_id_
+                print >> vpos_f, '{}\t{}\t{}\t{}'.format(
+                    pos + 1, ref_base, total_count,
+                    " ".join(["%s %d" % (x[1], x[0]) for x in base_count]))
+                for q_id_ in sorted(pupmap[b0]):
+                    print >> vmap_f, '{}\t{}\t{}\t{}'.format(
+                            pos + 1, ref_base, b0, q_id_)
+                for q_id_ in sorted(pupmap[b1]):
+                    print >> vmap_f, '{}\t{}\t{}\t{}'.format(
+                            pos + 1, ref_base, b1, q_id_)
+    # We do not serialize variant_pos/map because those are streamed.
+    # But we can add end-of-file markers.
+    print >> vmap_f, '#EOF'
+    print >> vpos_f, '#EOF'
 
-    for q_id, q_name in q_id_map.items():
-        print >> q_id_map_f, q_id, q_name
+    return q_id_map
 
 
 ######
