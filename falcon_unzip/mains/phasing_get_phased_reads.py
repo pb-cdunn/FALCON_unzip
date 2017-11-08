@@ -9,9 +9,9 @@ def get_phased_reads(phased_reads_fn, q_id_map_fn, vmap_fn, p_variant_fn, ctg_id
     variant_to_reads = {}
     with open(vmap_fn) as f:
         for l in f:
-            if l.startswith('#EOF'): # prove file is complete
+            if l.startswith('#EOF'):  # prove file is complete
                 break
-            if l.startswith('#'): # skip comments
+            if l.startswith('#'):  # skip comments
                 continue
             l = l.strip().split()
             variant = "_".join(l[:3])

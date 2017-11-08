@@ -1,5 +1,6 @@
 import os
 
+
 def get_score(c_score, pos1, pos2, s1, s2):
     if pos1 > pos2:
         pos1, pos2 = pos2, pos1
@@ -20,9 +21,9 @@ def get_phased_blocks(vmap_fn, atable_fn, p_variant_fn):
     ref_base = {}
     with open(vmap_fn) as f:
         for l in f:
-            if l.startswith('#EOF'): # prove file is complete
+            if l.startswith('#EOF'):  # prove file is complete
                 break
-            if l.startswith('#'): # skip comments
+            if l.startswith('#'):  # skip comments
                 continue
             l = l.strip().split()
             pos = int(l[0])

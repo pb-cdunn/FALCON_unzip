@@ -144,10 +144,10 @@ def make_het_call_map(ref_seq, samtools_view_bam_ctg_f, vmap_f, vpos_f):
                     " ".join(["%s %d" % (x[1], x[0]) for x in base_count]))
                 for q_id_ in sorted(pupmap[b0]):
                     print >> vmap_f, '{}\t{}\t{}\t{}'.format(
-                            pos + 1, ref_base, b0, q_id_)
+                        pos + 1, ref_base, b0, q_id_)
                 for q_id_ in sorted(pupmap[b1]):
                     print >> vmap_f, '{}\t{}\t{}\t{}'.format(
-                            pos + 1, ref_base, b1, q_id_)
+                        pos + 1, ref_base, b1, q_id_)
     # We do not serialize variant_pos/map because those are streamed.
     # But we can add end-of-file markers.
     print >> vmap_f, '#EOF'
