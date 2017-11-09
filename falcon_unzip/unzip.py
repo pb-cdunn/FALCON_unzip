@@ -18,6 +18,7 @@ LOG = logging.getLogger(__name__)
 
 def task_track_reads(self):
     job_done = fn(self.job_done)
+    fofn_fn = os.path.relpath(fn(self.fofn))
     wd = self.parameters['wd']
     #config = self.parameters['config']
     script_fn = os.path.join(wd, 'track_reads.sh')
@@ -28,13 +29,16 @@ set -vex
 trap 'touch {job_done}.exit' EXIT
 hostname
 date
-cd {topdir}
-python -m falcon_unzip.mains.get_read_ctg_map
-python -m falcon_unzip.mains.rr_ctg_track
-python -m falcon_unzip.mains.pr_ctg_track
-#mkdir -p 3-unzip/reads/
-python -m falcon_unzip.mains.fetch_reads
-cd {wd}
+
+mkdir -p get_ctg_read_map
+cd get_ctg_read_map
+python -m falcon_unzip.mains.get_read_ctg_map --base-dir=../{topdir}
+cd ..
+
+python -m falcon_unzip.mains.rr_ctg_track --base-dir={topdir} --output=rawread_to_contigs
+python -m falcon_unzip.mains.pr_ctg_track --base-dir={topdir} --output=pread_to_contigs
+# Those outputs are used only by fetch_reads.
+python -m falcon_unzip.mains.fetch_reads --base-dir={topdir} --fofn={fofn_fn}
 date
 touch {job_done}
 """.format(**locals())
@@ -118,18 +122,13 @@ for f in `cat ../reads/ctg_list `; do mkdir -p $WD/$f; cd $WD/$f; python -m falc
 
 ## prepare for quviering the haplotig
 cd $WD/..
-if [ -e "all_phased_reads" ]; then rm all_phased_reads; fi
-if [ -e "all_h_ctg_ids" ]; then rm all_h_ctg_ids; fi
-if [ -e "all_p_ctg_edges" ]; then rm all_p_ctg_edges; fi
-if [ -e "all_p_ctg.fa" ]; then rm all_p_ctg.fa; fi
-if [ -e "all_h_ctg.fa" ]; then rm all_h_ctg.fa; fi
 
-find 0-phasing -name "phased_reads" | sort | xargs cat >> all_phased_reads
-find 1-hasm -name "h_ctg_ids.*" | sort | xargs cat >> all_h_ctg_ids
-find 1-hasm -name "p_ctg_edges.*" | sort | xargs cat >> all_p_ctg_edges
-find 1-hasm -name "h_ctg_edges.*" | sort | xargs cat >> all_h_ctg_edges
-find 1-hasm -name "p_ctg.*.fa" | sort | xargs cat >> all_p_ctg.fa
-find 1-hasm -name "h_ctg.*.fa" | sort | xargs cat >> all_h_ctg.fa
+find 0-phasing -name "phased_reads" | sort | xargs cat >| all_phased_reads
+find 1-hasm -name "h_ctg_ids.*" | sort | xargs cat >| all_h_ctg_ids
+find 1-hasm -name "p_ctg_edges.*" | sort | xargs cat >| all_p_ctg_edges
+find 1-hasm -name "h_ctg_edges.*" | sort | xargs cat >| all_h_ctg_edges
+find 1-hasm -name "p_ctg.*.fa" | sort | xargs cat >| all_p_ctg.fa
+find 1-hasm -name "h_ctg.*.fa" | sort | xargs cat >| all_h_ctg.fa
 
 # Generate a GFA for only primary contigs and haplotigs.
 time python -m falcon_unzip.mains.unzip_gen_gfa_v1 --unzip-root $WD/.. --p-ctg-fasta $WD/../all_p_ctg.fa --h-ctg-fasta $WD/../all_h_ctg.fa --preads-fasta $WD/preads4falcon.fasta >| $WD/../asm.gfa
@@ -179,16 +178,23 @@ def unzip_all(config):
 
     ctg_list_file = makePypeLocalFile('./3-unzip/reads/ctg_list')
     falcon_asm_done = makePypeLocalFile('./2-asm-falcon/falcon_asm_done')
+    fofn_file = makePypeLocalFile('./input.fofn') # TODO: Make explicit.
     wdir = os.path.abspath('./3-unzip/reads')
     parameters = {'wd': wdir, 'config': config,
                   'sge_option': config['sge_track_reads'],
                   }
     job_done = makePypeLocalFile(os.path.join(parameters['wd'], 'track_reads_done'))
-    make_track_reads_task = PypeTask(inputs={'falcon_asm_done': falcon_asm_done},
-                                     outputs={'job_done': job_done, 'ctg_list_file': ctg_list_file},
-                                     parameters=parameters,
-                                     wdir=wdir,
-                                     )
+    make_track_reads_task = PypeTask(
+            inputs={
+                'falcon_asm_done': falcon_asm_done,
+                'fofn': fofn_file,
+            },
+            outputs={
+                'job_done': job_done, 'ctg_list_file': ctg_list_file,
+            },
+            parameters=parameters,
+            wdir=wdir,
+            )
     track_reads_task = make_track_reads_task(task_track_reads)
 
     wf.addTask(track_reads_task)

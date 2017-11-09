@@ -51,14 +51,14 @@ def parse_args(argv):
     # parser.add_argument('--n_core', type=int, default=4,
     #                    help='number of processes used for generating consensus')
     parser.add_argument(
-        '--phased-reads',
-        help='path to read vs. phase map', required=True)
+        '--phased-reads', required=True,
+        help='path to read vs. phase map')
     parser.add_argument(
-        '--read-map-dir',
-        help='path to the read map directory (should have "dump_rawread_ids/rawreads_ids", "dump_pread_ids/preads_ids", and "pread_to_contigs")', required=True)
+        '--read-map-dir', required=True,
+        help='path to the read map directory (should have "dump_rawread_ids/rawreads_ids", "dump_pread_ids/preads_ids", and "pread_to_contigs")')
     parser.add_argument(
-        '--the-ctg-id',
-        help='contig identifier in the bam file', required=True)
+        '--the-ctg-id', required=True,
+        help='contig identifier in the bam file')
     args = parser.parse_args(argv[1:])
     return args
 

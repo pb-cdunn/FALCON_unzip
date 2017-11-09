@@ -83,11 +83,11 @@ def parse_args(argv):
         help='Serialized map of ctg to list of BAM which contains it.')
     parser.add_argument(
         '--rawread-to-contigs', type=str,
-        default='./2-asm-falcon/read_maps/dump_rawread_ids/rawread_to_contigs',
-        help='rawread_to_contigs file (from where?)')
+        default='./4-quiver/track_reads/rawread_to_contigs',
+        help='rawread_to_contigs file (from "fc_rr_hctg_track.py", not "fc_rr_ctg_track.py")')
     parser.add_argument(
         '--rawread-ids', type=str,
-        default='./2-asm-falcon/read_maps/dump_rawread_ids/rawread_ids', help='rawread_ids file (from where?)')
+        default='./3-unzip/reads/dump_rawread_ids/rawread_ids', help='rawread_ids file (from "fc_get_read_ctg_map.py")')
     parser.add_argument(
         'input_bam_fofn', type=str,
         help='File of BAM filenames. Paths are relative to dir of FOFN, not CWD.')

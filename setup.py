@@ -32,7 +32,6 @@ setup(name='falcon_unzip',
           'fc_rr_hctg_track.py=falcon_unzip.mains.rr_hctg_track:main',
           'fc_rr_hctg_track2.py=falcon_unzip.mains.rr_hctg_track:main2',
           'fc_select_reads_from_bam.py=falcon_unzip.mains.select_reads_from_bam:main',  # not used?
-          'fc_track_reads_htigs0.py=falcon_unzip.mains.track_reads_htigs0:main',  # not used?
           'fc_unzip.py=falcon_unzip.mains.start_unzip:main',
           'fc_unzip_gen_gfa_v1.py=falcon_unzip.mains.unzip_gen_gfa_v1:main',
       ]},
