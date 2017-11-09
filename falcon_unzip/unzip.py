@@ -30,11 +30,6 @@ trap 'touch {job_done}.exit' EXIT
 hostname
 date
 
-mkdir -p get_ctg_read_map
-cd get_ctg_read_map
-python -m falcon_unzip.mains.get_read_ctg_map --base-dir=../{topdir}
-cd ..
-
 python -m falcon_unzip.mains.rr_ctg_track --base-dir={topdir} --output=rawread_to_contigs
 python -m falcon_unzip.mains.pr_ctg_track --base-dir={topdir} --output=pread_to_contigs
 # Those outputs are used only by fetch_reads.
@@ -176,9 +171,12 @@ def unzip_all(config):
         use_tmpdir=config.get('use_tmpdir'),
     )
 
+    read_to_contig_map_file = makePypeLocalFile('3-unzip/reads/get_read_ctg_map/read_to_contig_map')
+    wf.addTasks(tasks_unzip.create_tasks_read_to_contig_map(read_to_contig_map_file))
+
     ctg_list_file = makePypeLocalFile('./3-unzip/reads/ctg_list')
-    falcon_asm_done = makePypeLocalFile('./2-asm-falcon/falcon_asm_done')
     fofn_file = makePypeLocalFile('./input.fofn') # TODO: Make explicit.
+
     wdir = os.path.abspath('./3-unzip/reads')
     parameters = {'wd': wdir, 'config': config,
                   'sge_option': config['sge_track_reads'],
@@ -186,8 +184,8 @@ def unzip_all(config):
     job_done = makePypeLocalFile(os.path.join(parameters['wd'], 'track_reads_done'))
     make_track_reads_task = PypeTask(
             inputs={
-                'falcon_asm_done': falcon_asm_done,
                 'fofn': fofn_file,
+                'read_to_contig_map': read_to_contig_map_file,
             },
             outputs={
                 'job_done': job_done, 'ctg_list_file': ctg_list_file,
