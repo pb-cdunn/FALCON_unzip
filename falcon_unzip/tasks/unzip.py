@@ -52,6 +52,55 @@ def create_tasks_read_to_contig_map(read_to_contig_map_plf):
     yield task(pype_tasks.task_generate_read_to_ctg_map)
 
 
+def task_run_blasr(self):
+    ctg_aln_out = fn(self.ctg_aln_out)
+    ref_fasta = fn(self.ref_fasta)
+    read_fasta = fn(self.read_fasta)
+
+    job_uid = self.parameters['job_uid']
+    ctg_id = self.parameters['ctg_id']
+
+    script_fn = 'aln_{ctg_id}.sh'.format(ctg_id=ctg_id)
+    script = """\
+set -vex
+hostname
+date
+time blasr {read_fasta} {ref_fasta} --noSplitSubreads --clipping subread\
+ --hitPolicy randombest --randomSeed 42 --bestn 1 --minPctIdentity 70.0\
+ --minMatch 12  --nproc 24 --bam --out tmp_aln.bam
+#samtools view -bS tmp_aln.sam | samtools sort - {ctg_id}_sorted
+samtools sort tmp_aln.bam -o {ctg_aln_out}
+samtools index {ctg_aln_out}
+rm tmp_aln.bam
+date
+""".format(**locals())
+
+    with open(script_fn, 'w') as script_file:
+        script_file.write(script)
+    self.generated_script_fn = script_fn
+
+
+def get_blasr_task(config, ctg_id, ctg_aln_out):
+        ref_fasta = makePypeLocalFile('./3-unzip/reads/{ctg_id}_ref.fa'.format(ctg_id=ctg_id))
+        read_fasta = makePypeLocalFile('./3-unzip/reads/{ctg_id}_reads.fa'.format(ctg_id=ctg_id))
+
+        parameters = {'job_uid': 'aln-' + ctg_id, 'ctg_id': ctg_id,
+                      'sge_option': config['sge_blasr_aln'],
+                      }
+        make_blasr_task = PypeTask(
+                inputs={
+                    'ref_fasta': ref_fasta,
+                    'read_fasta': read_fasta,
+                },
+                outputs={
+                    'ctg_aln_out': ctg_aln_out,
+                },
+                parameters=parameters,
+                )
+        blasr_task = make_blasr_task(task_run_blasr)
+        return blasr_task
+
+
 def task_make_het_call(self):
     bam_fn = fn(self.bam_file)
     fasta_fn = fn(self.fasta)
@@ -167,7 +216,7 @@ touch {job_done}
     self.generated_script_fn = script_fn
 
 
-def get_phasing_tasks(phased_reads_file, bam_file, fasta_file, ctg_id, base_dir):
+def yield_phasing_tasks(phased_reads_file, bam_file, fasta_file, ctg_id, base_dir):
     vmap_file = makePypeLocalFile(os.path.join(base_dir, ctg_id, 'het_call', "variant_map"))
     vpos_file = makePypeLocalFile(os.path.join(base_dir, ctg_id, 'het_call', "variant_pos"))
     q_id_map_file = makePypeLocalFile(os.path.join(base_dir, ctg_id, 'het_call', "q_id_map.msgpack"))
@@ -236,16 +285,15 @@ def task_phasing_readmap(self):
     job_done = fn(self.job_done)
     phased_reads_fn = fn(self.phased_reads)
     rid_to_phase_out_fn = fn(self.rid_to_phase_out)
-    wd = self.parameters['wd']
-    ctg_id = self.parameters['ctg_id']
-    script_fn = os.path.join(wd, 'phasing_readmap_%s.sh' % (ctg_id))
 
+    ctg_id = self.parameters['ctg_id']
+
+    script_fn = 'phasing_readmap_{}.sh'.format(ctg_id)
     script = """\
 set -vex
 trap 'touch {job_done}.exit' EXIT
 hostname
 date
-cd {wd}
 python -m falcon_unzip.mains.phasing_readmap --the-ctg-id {ctg_id} --read-map-dir ../../reads --phased-reads {phased_reads_fn} >| {rid_to_phase_out_fn}.tmp
 mv {rid_to_phase_out_fn}.tmp {rid_to_phase_out_fn}
 date
@@ -257,20 +305,32 @@ touch {job_done}
     self.generated_script_fn = script_fn
 
 
-def create_phasing_tasks(config, ctg_ids, all_ctg_out, rid_to_phase_all):
-    """Report outputs via all_ctg_out.
+def create_phasing_tasks(config, ctg_list_file, rid_to_phase_all):
     """
+    Gathered input is ctg_list_file.
+    Gathered output is rid_to_phase_all.
+    """
+    ctg_ids = []
+    with open(fn(ctg_list_file)) as f:
+        for row in f:
+            row = row.strip()
+            ctg_ids.append(row)
+
+    all_ctg_out = dict()
+
     for ctg_id in ctg_ids:
         # work-dir
-        wd = os.path.join(os.getcwd(), './3-unzip/0-phasing/{ctg_id}/'.format(ctg_id=ctg_id))
+        wd = './3-unzip/0-phasing/{ctg_id}/'.format(ctg_id=ctg_id)
+        ctg_aln_out = makePypeLocalFile(
+            '{wd}/blasr/{ctg_id}_sorted.bam'.format(wd=wd, ctg_id=ctg_id))
 
-        # inputs (by convention, for now)
+        yield get_blasr_task(config, ctg_id, ctg_aln_out)
+
+        # inputs of basic phasing tasks
         ref_fasta = makePypeLocalFile('./3-unzip/reads/{ctg_id}_ref.fa'.format(ctg_id=ctg_id))
         read_fasta = makePypeLocalFile('./3-unzip/reads/{ctg_id}_reads.fa'.format(ctg_id=ctg_id))
 
         blasr_dir = os.path.join(wd, 'blasr')
-        ctg_aln_out = makePypeLocalFile(os.path.join(
-            blasr_dir, '{ctg_id}_sorted.bam'.format(ctg_id=ctg_id)))
 
         # output of basic phasing tasks
         phased_reads_file = makePypeLocalFile(os.path.join(
@@ -283,7 +343,7 @@ def create_phasing_tasks(config, ctg_ids, all_ctg_out, rid_to_phase_all):
             ctg_id=ctg_id,
             base_dir='./3-unzip/0-phasing'
         )
-        for task in get_phasing_tasks(**kwds):
+        for task in yield_phasing_tasks(**kwds):
             yield task
 
         # final outputs

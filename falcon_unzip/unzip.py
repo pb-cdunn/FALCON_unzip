@@ -43,46 +43,6 @@ touch {job_done}
     self.generated_script_fn = script_fn
 
 
-def task_run_blasr(self):
-    job_done = fn(self.job_done)
-    ref_fasta = fn(self.ref_fasta)
-    read_fasta = fn(self.read_fasta)
-
-    job_uid = self.parameters['job_uid']
-    wd = self.parameters['wd']
-    ctg_id = self.parameters['ctg_id']
-
-    config = self.parameters['config']
-    smrt_bin = config['smrt_bin']
-    blasr = os.path.join(smrt_bin, 'blasr')
-    samtools = os.path.join(smrt_bin, 'samtools')
-
-    script_dir = os.path.join(wd)
-    script_fn = os.path.join(script_dir, 'aln_{ctg_id}.sh'.format(ctg_id=ctg_id))
-
-    script = """\
-set -vex
-trap 'touch {job_done}.exit' EXIT
-cd {wd}
-hostname
-date
-cd {wd}
-time {blasr} {read_fasta} {ref_fasta} --noSplitSubreads --clipping subread\
- --hitPolicy randombest --randomSeed 42 --bestn 1 --minPctIdentity 70.0\
- --minMatch 12  --nproc 24 --bam --out tmp_aln.bam
-#{samtools} view -bS tmp_aln.sam | {samtools} sort - {ctg_id}_sorted
-{samtools} sort tmp_aln.bam -o {ctg_id}_sorted.bam
-{samtools} index {ctg_id}_sorted.bam
-rm tmp_aln.bam
-date
-touch {job_done}
-""".format(**locals())
-
-    with open(script_fn, 'w') as script_file:
-        script_file.write(script)
-    self.generated_script_fn = script_fn
-
-
 def task_hasm(self):
     rid_to_phase_all = fn(self.rid_to_phase_all)
     las_fofn = fn(self.las_fofn)
@@ -155,7 +115,7 @@ def unzip_all(config):
     wf.addTasks(tasks_unzip.create_tasks_read_to_contig_map(read_to_contig_map_file))
 
     ctg_list_file = makePypeLocalFile('./3-unzip/reads/ctg_list')
-    fofn_file = makePypeLocalFile('./input.fofn') # TODO: Make explicit.
+    fofn_file = makePypeLocalFile('./input.fofn') # TODO: Make explicit input from user.
 
     wdir = os.path.abspath('./3-unzip/reads')
     parameters = {'wd': wdir, 'config': config,
@@ -174,46 +134,13 @@ def unzip_all(config):
             wdir=wdir,
             )
     track_reads_task = make_track_reads_task(task_track_reads)
-
     wf.addTask(track_reads_task)
-    wf.refreshTargets()  # force refresh now, will put proper dependence later
 
-    ctg_ids = []
-    with open('./3-unzip/reads/ctg_list') as f:
-        for row in f:
-            row = row.strip()
-            ctg_ids.append(row)
-
-    aln1_outs = {}
-
-    all_ctg_out = {}
-
-    for ctg_id in ctg_ids:
-        # inputs
-        ref_fasta = makePypeLocalFile('./3-unzip/reads/{ctg_id}_ref.fa'.format(ctg_id=ctg_id))
-        read_fasta = makePypeLocalFile('./3-unzip/reads/{ctg_id}_reads.fa'.format(ctg_id=ctg_id))
-
-        # outputs
-        wd = os.path.join(os.getcwd(), './3-unzip/0-phasing/{ctg_id}/'.format(ctg_id=ctg_id))
-        # io.mkdir(wd)
-        blasr_dir = os.path.join(wd, 'blasr')
-        ctg_aln_out = makePypeLocalFile(os.path.join(blasr_dir, '{ctg_id}_sorted.bam'.format(ctg_id=ctg_id)))
-        job_done = makePypeLocalFile(os.path.join(blasr_dir, 'aln_{ctg_id}_done'.format(ctg_id=ctg_id)))
-
-        parameters = {'job_uid': 'aln-' + ctg_id, 'wd': blasr_dir, 'config': config, 'ctg_id': ctg_id,
-                      'sge_option': config['sge_blasr_aln'],
-                      }
-        make_blasr_task = PypeTask(inputs={'ref_fasta': ref_fasta, 'read_fasta': read_fasta},
-                                   outputs={'ctg_aln_out': ctg_aln_out, 'job_done': job_done},
-                                   parameters=parameters,
-                                   )
-        blasr_task = make_blasr_task(task_run_blasr)
-        aln1_outs[ctg_id] = (ctg_aln_out, job_done)
-        wf.addTask(blasr_task)
+    # For refresh so that ctg_list_file is available. TODO: Proper scattering.
     wf.refreshTargets()
 
     gathered_rid_to_phase_file = makePypeLocalFile('./3-unzip/1-hasm/gathered-rid-to-phase/rid_to_phase.all')
-    phasing_tasks = list(tasks_unzip.create_phasing_tasks(config, ctg_ids, all_ctg_out, gathered_rid_to_phase_file))
+    phasing_tasks = list(tasks_unzip.create_phasing_tasks(config, ctg_list_file, gathered_rid_to_phase_file))
     wf.addTasks(phasing_tasks)
 
     parameters['sge_option'] = config['sge_hasm']
@@ -229,7 +156,6 @@ def unzip_all(config):
             parameters=parameters,
             )
     hasm_task = make_hasm_task(task_hasm)
-
     wf.addTask(hasm_task)
 
     wf.max_jobs = unzip_phasing_concurrent_jobs
