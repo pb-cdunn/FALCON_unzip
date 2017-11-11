@@ -15,15 +15,13 @@ import ConfigParser
 
 LOG = logging.getLogger(__name__)
 
-
 def task_track_reads(self):
     job_done = fn(self.job_done)
     fofn_fn = os.path.relpath(fn(self.fofn))
-    wd = self.parameters['wd']
-    #config = self.parameters['config']
-    script_fn = os.path.join(wd, 'track_reads.sh')
-    topdir = '../..'
 
+    topdir = os.path.relpath(self.parameters['topdir'])
+
+    script_fn = 'track_reads.sh'
     script = """\
 set -vex
 trap 'touch {job_done}.exit' EXIT
@@ -117,11 +115,11 @@ def unzip_all(config):
     ctg_list_file = makePypeLocalFile('./3-unzip/reads/ctg_list')
     fofn_file = makePypeLocalFile('./input.fofn') # TODO: Make explicit input from user.
 
-    wdir = os.path.abspath('./3-unzip/reads')
-    parameters = {'wd': wdir, 'config': config,
+    parameters = {'config': config,
                   'sge_option': config['sge_track_reads'],
+                  'topdir': os.getcwd(),
                   }
-    job_done = makePypeLocalFile(os.path.join(parameters['wd'], 'track_reads_done'))
+    job_done = makePypeLocalFile('./3-unzip/reads/track_reads_done')
     make_track_reads_task = PypeTask(
             inputs={
                 'fofn': fofn_file,
@@ -131,7 +129,6 @@ def unzip_all(config):
                 'job_done': job_done, 'ctg_list_file': ctg_list_file,
             },
             parameters=parameters,
-            wdir=wdir,
             )
     track_reads_task = make_track_reads_task(task_track_reads)
     wf.addTask(track_reads_task)
