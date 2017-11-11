@@ -88,6 +88,7 @@ def run(config_fn):
     parameters = {
         'sge_option': config['sge_track_reads'],  # applies to select_reads task also, for now
         'max_n_open_files': config['max_n_open_files'],
+        'topdir': os.getcwd(),
     }
     input_bam_fofn_fn = config['input_bam_fofn']
     input_bam_fofn_plf = makePypeLocalFile(input_bam_fofn_fn)

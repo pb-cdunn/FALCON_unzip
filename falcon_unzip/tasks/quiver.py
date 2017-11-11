@@ -14,9 +14,9 @@ LOG = logging.getLogger(__name__)
 def task_track_reads_h(self):
     input_bam_fofn = fn(self.input_bam_fofn)
     job_done = fn(self.job_done)
-    work_dir = os.getcwd()
-    basedir = '../..'  # assuming we are in ./4-quiver/track_reads/
-    reldir = os.path.relpath('.', basedir)
+    topdir = os.path.relpath(self.parameters['topdir'])
+    basedir = os.path.reldir(topdir)
+    reldir = os.path.relpath('.', topdir)
     script_fn = 'track_reads_h.sh'
 
     # For now, in/outputs are in various directories, by convention, including '0-rawreads/m_*/*.msgpack'
@@ -33,9 +33,9 @@ rm -f ./3-unzip/reads/dump_rawread_ids/rawread_to_contigs
 
 fc_rr_hctg_track.py --base-dir={basedir} --stream
 
-cd {basedir}
+cd {topdir}
 fc_rr_hctg_track2.exe --output={reldir}/rawread_to_contigs
-cd {work_dir}
+cd -
 
 date
 ls -l rawread_to_contigs
@@ -51,8 +51,7 @@ touch {job_done}
 def task_select_reads_h(self):
     read2ctg_fn = fn(self.read2ctg)
     input_bam_fofn = fn(self.input_bam_fofn)
-    work_dir = os.getcwd()
-    basedir = '../..'  # assuming we are in ./4-quiver/select_reads/
+    topdir = os.path.relpath(self.parameters['topdir'])
     script_fn = 'select_reads_h.sh'
 
     # For now, in/outputs are in various directories, by convention.
@@ -60,13 +59,13 @@ def task_select_reads_h(self):
 set -vex
 hostname
 date
-cd {basedir}
 
+cd {topdir}
 pwd
 python -m falcon_unzip.mains.get_read2ctg --output={read2ctg_fn} {input_bam_fofn}
 
 date
-cd {work_dir}
+cd -
 """.format(**locals())
 
     with open(script_fn, 'w') as script_file:
@@ -95,6 +94,7 @@ pwd
 python -m falcon_unzip.mains.bam_partition_and_merge --max-n-open-files={max_n_open_files} --read2ctg-fn={read2ctg_fn} --merged-fn={merged_fofn_fn} {input_bam_fofn}
 
 date
+cd -
 # Expect {merged_fofn_fn}
 """.format(**locals())
 
