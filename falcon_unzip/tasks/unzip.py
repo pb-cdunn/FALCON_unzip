@@ -228,40 +228,6 @@ date
     self.generated_script_fn = script_fn
 
 
-def task_phasing(self):
-    ref_fasta = fn(self.ref_fasta)
-    aln_bam = fn(self.aln_bam)
-
-    job_done = fn(self.job_done)
-
-    job_uid = self.parameters['job_uid']
-    wd = self.parameters['wd']
-    ctg_id = self.parameters['ctg_id']
-
-    config = self.parameters['config']
-    smrt_bin = config['smrt_bin']
-
-    script_fn = os.path.join(wd, 'p_%s.sh' % (ctg_id))
-
-    script = """\
-set -vex
-trap 'touch {job_done}.exit' EXIT
-hostname
-date
-cd {wd}
-mkdir -p phasing_subworkflow
-cd phasing_subworkflow
-python -m falcon_unzip.mains.phasing --bam {aln_bam} --fasta {ref_fasta} --ctg_id {ctg_id} --base_dir ../..
-date
-cd ..
-touch {job_done}
-""".format(**locals())
-
-    with open(script_fn, 'w') as script_file:
-        script_file.write(script)
-    self.generated_script_fn = script_fn
-
-
 def yield_phasing_tasks(phased_reads_file, bam_file, fasta_file, ctg_id, base_dir):
     vmap_file = makePypeLocalFile(os.path.join(base_dir, ctg_id, 'het_call', "variant_map"))
     vpos_file = makePypeLocalFile(os.path.join(base_dir, ctg_id, 'het_call', "variant_pos"))
