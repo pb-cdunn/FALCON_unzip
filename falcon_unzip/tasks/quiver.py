@@ -49,7 +49,7 @@ touch {job_done}
 
 
 def task_select_reads_h(self):
-    read2ctg_fn = fn(self.read2ctg)
+    read2ctg = fn(self.read2ctg)
     input_bam_fofn = fn(self.input_bam_fofn)
     topdir = os.path.relpath(self.parameters['topdir'])
     script_fn = 'select_reads_h.sh'
@@ -62,7 +62,7 @@ date
 
 cd {topdir}
 pwd
-python -m falcon_unzip.mains.get_read2ctg --output={read2ctg_fn} {input_bam_fofn}
+python -m falcon_unzip.mains.get_read2ctg --output={read2ctg} {input_bam_fofn}
 
 date
 cd -
@@ -74,8 +74,8 @@ cd -
 
 
 def task_merge_reads(self):
-    merged_fofn_fn = fn(self.merged_fofn)
-    read2ctg_fn = fn(self.read2ctg)
+    merged_fofn = fn(self.merged_fofn)
+    read2ctg = fn(self.read2ctg)
     input_bam_fofn = fn(self.input_bam_fofn)
     max_n_open_files = self.parameters['max_n_open_files']
     topdir = os.path.relpath(self.parameters['topdir'])
@@ -84,18 +84,18 @@ def task_merge_reads(self):
     # For now, in/outputs are in various directories, by convention.
     script = """\
 set -vex
-#trap 'touch {merged_fofn_fn}.exit' EXIT
+#trap 'touch {merged_fofn}.exit' EXIT
 hostname
 date
 
 cd {topdir}
 #fc_select_reads_from_bam.py --max-n-open-files={max_n_open_files} {input_bam_fofn}
 pwd
-python -m falcon_unzip.mains.bam_partition_and_merge --max-n-open-files={max_n_open_files} --read2ctg-fn={read2ctg_fn} --merged-fn={merged_fofn_fn} {input_bam_fofn}
+python -m falcon_unzip.mains.bam_partition_and_merge --max-n-open-files={max_n_open_files} --read2ctg-fn={read2ctg} --merged-fn={merged_fofn} {input_bam_fofn}
 
 date
 cd -
-# Expect {merged_fofn_fn}
+# Expect {merged_fofn}
 """.format(**locals())
 
     with open(script_fn, 'w') as script_file:
@@ -280,11 +280,11 @@ def task_segregate_scatter(self):
 
 def task_run_segregate(self):
     # max_n_open_files = 300 # Ignored for now. Should not matter here.
-    merged_bamfn_fn = self.merged_bamfn
-    segregated_bam_fofn_fn = self.segregated_bam_fofn
+    merged_bamfn = fn(self.merged_bamfn)
+    segregated_bam_fofn = fn(self.segregated_bam_fofn)
 
     script = """
-python -m falcon_unzip.mains.bam_segregate --merged-fn={merged_bamfn_fn} --output-fn={segregated_bam_fofn_fn}
+python -m falcon_unzip.mains.bam_segregate --merged-fn={merged_bamfn} --output-fn={segregated_bam_fofn}
 """.format(**locals())
 
     script_fn = 'run_bam_segregate.sh'
@@ -363,7 +363,6 @@ def create_quiver_jobs(wf, scattered_quiver_plf):
 def create_segregate_jobs(wf, parameters, scattered_segregate_plf):
     jn2segregated_bam_fofn = dict()  # job_name -> FOFN_plf
 
-    #cwd = os.getcwd()
     scattered_segregate_fn = fn(scattered_segregate_plf)
     jobs = io.deserialize(scattered_segregate_fn)
     basedir = os.path.dirname(scattered_segregate_fn)  # Should this be relative to cwd?
