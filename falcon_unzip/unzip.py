@@ -212,11 +212,9 @@ def unzip_all(config):
         wf.addTask(blasr_task)
     wf.refreshTargets()
 
-    gathered_rid_to_phase_file = makePypeLocalFile('./3-unzip/1-hasm/rid-to-phase-all/rid_to_phase.all')
+    gathered_rid_to_phase_file = makePypeLocalFile('./3-unzip/1-hasm/gathered-rid-to-phase/rid_to_phase.all')
     phasing_tasks = list(tasks_unzip.create_phasing_tasks(config, ctg_ids, all_ctg_out, gathered_rid_to_phase_file))
     wf.addTasks(phasing_tasks)
-    wf.max_jobs = unzip_phasing_concurrent_jobs
-    wf.refreshTargets()
 
     parameters['sge_option'] = config['sge_hasm']
     job_done = makePypeLocalFile('./3-unzip/1-hasm/hasm_done')
@@ -234,6 +232,7 @@ def unzip_all(config):
 
     wf.addTask(hasm_task)
 
+    wf.max_jobs = unzip_phasing_concurrent_jobs
     wf.refreshTargets()
 
 

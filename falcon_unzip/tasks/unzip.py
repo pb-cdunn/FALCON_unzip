@@ -3,7 +3,10 @@ from pypeflow.simple_pwatcher_bridge import (
     PypeTask,
 )
 from falcon_kit import pype_tasks
+import logging
 import os
+
+LOG = logging.getLogger(__name__)
 
 
 def create_tasks_read_to_contig_map(read_to_contig_map_plf):
@@ -210,19 +213,22 @@ def get_phasing_tasks(phased_reads_file, bam_file, fasta_file, ctg_id, base_dir)
 
 
 def task_get_rid_to_phase_all(self):
-    # Tasks must be at module scope now.
-    # TODO: Make this a script.
-    rid_to_phase_all_fn = fn(self.rid_to_phase_all)
+    rid_to_phase_all = fn(self.rid_to_phase_all)
     inputs_fn = [fn(f) for f in self.inputs.values()]
     inputs_fn.sort()
-    output = []
+    input = ' '.join(i for i in inputs_fn)
     LOG.info('Generate {!r} from {!r}'.format(
-        rid_to_phase_all_fn, inputs_fn))
-    for fname in inputs_fn:
-        output.extend(open(fname).read())
-
-    with open(rid_to_phase_all_fn, 'w') as out:
-        out.write(''.join(output))
+        rid_to_phase_all, input))
+    script = """
+rm -f {rid_to_phase_all}
+for fn in {input}; do
+  cat $fn >> {rid_to_phase_all}
+done
+""".format(**locals())
+    script_fn = 'gather_rid_to_phase.sh'
+    with open(script_fn, 'w') as script_file:
+        script_file.write(script)
+    self.generated_script_fn = script_fn
 
 
 def task_phasing_readmap(self):
