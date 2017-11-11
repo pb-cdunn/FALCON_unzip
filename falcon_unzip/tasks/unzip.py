@@ -209,6 +209,22 @@ def get_phasing_tasks(phased_reads_file, bam_file, fasta_file, ctg_id, base_dir)
     yield get_phased_reads_task
 
 
+def task_get_rid_to_phase_all(self):
+    # Tasks must be at module scope now.
+    # TODO: Make this a script.
+    rid_to_phase_all_fn = fn(self.rid_to_phase_all)
+    inputs_fn = [fn(f) for f in self.inputs.values()]
+    inputs_fn.sort()
+    output = []
+    LOG.info('Generate {!r} from {!r}'.format(
+        rid_to_phase_all_fn, inputs_fn))
+    for fname in inputs_fn:
+        output.extend(open(fname).read())
+
+    with open(rid_to_phase_all_fn, 'w') as out:
+        out.write(''.join(output))
+
+
 def task_phasing_readmap(self):
     # TODO: read-map-dir/* as inputs
     job_done = fn(self.job_done)
@@ -235,7 +251,7 @@ touch {job_done}
     self.generated_script_fn = script_fn
 
 
-def create_phasing_tasks(config, ctg_ids, all_ctg_out):
+def create_phasing_tasks(config, ctg_ids, all_ctg_out, rid_to_phase_all):
     """Report outputs via all_ctg_out.
     """
     for ctg_id in ctg_ids:
@@ -285,3 +301,11 @@ def create_phasing_tasks(config, ctg_ids, all_ctg_out):
         )
         task = make_task(task_phasing_readmap)
         yield task
+
+    task = PypeTask(
+            inputs=all_ctg_out,
+            outputs={
+                'rid_to_phase_all': rid_to_phase_all,
+            },
+            )(task_get_rid_to_phase_all)
+    yield task

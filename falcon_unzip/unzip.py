@@ -138,22 +138,6 @@ touch {job_done}
     self.generated_script_fn = script_fn
 
 
-def task_get_rid_to_phase_all(self):
-    # Tasks must be at module scope now.
-    # TODO: Make this a script.
-    rid_to_phase_all_fn = fn(self.rid_to_phase_all)
-    inputs_fn = [fn(f) for f in self.inputs.values()]
-    inputs_fn.sort()
-    output = []
-    LOG.info('Generate {!r} from {!r}'.format(
-        rid_to_phase_all_fn, inputs_fn))
-    for fname in inputs_fn:
-        output.extend(open(fname).read())
-
-    with open(rid_to_phase_all_fn, 'w') as out:
-        out.write(''.join(output))
-
-
 def unzip_all(config):
     unzip_blasr_concurrent_jobs = config['unzip_blasr_concurrent_jobs']
     unzip_phasing_concurrent_jobs = config['unzip_phasing_concurrent_jobs']
@@ -228,27 +212,17 @@ def unzip_all(config):
         wf.addTask(blasr_task)
     wf.refreshTargets()
 
-    phasing_tasks = list(tasks_unzip.create_phasing_tasks(config, ctg_ids, all_ctg_out))
+    gathered_rid_to_phase_file = makePypeLocalFile('./3-unzip/1-hasm/rid-to-phase-all/rid_to_phase.all')
+    phasing_tasks = list(tasks_unzip.create_phasing_tasks(config, ctg_ids, all_ctg_out, gathered_rid_to_phase_file))
     wf.addTasks(phasing_tasks)
     wf.max_jobs = unzip_phasing_concurrent_jobs
     wf.refreshTargets()
 
-    #hasm_wd = os.path.abspath('./3-unzip/1-hasm/')
-    hasm_wd = './3-unzip/1-hasm/'
-    rid_to_phase_all = makePypeLocalFile(os.path.join(hasm_wd, 'rid-to-phase-all', 'rid_to_phase.all'))
-    task = PypeTask(
-            inputs=all_ctg_out,
-            outputs={
-                'rid_to_phase_all': rid_to_phase_all,
-            },
-            )(task_get_rid_to_phase_all)
-    wf.addTask(task)
-
     parameters['sge_option'] = config['sge_hasm']
-    job_done = makePypeLocalFile(os.path.join(hasm_wd, 'hasm_done'))
+    job_done = makePypeLocalFile('./3-unzip/1-hasm/hasm_done')
     make_hasm_task = PypeTask(
             inputs={
-                'rid_to_phase_all': rid_to_phase_all,
+                'rid_to_phase_all': gathered_rid_to_phase_file,
                 'las_fofn': makePypeLocalFile('./1-preads_ovl/merge-gather/las.fofn'), #'2-asm-falcon/las.fofn',
             },
             outputs={
