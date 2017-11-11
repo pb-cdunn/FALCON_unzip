@@ -85,20 +85,16 @@ touch {job_done}
 
 def task_hasm(self):
     rid_to_phase_all = fn(self.rid_to_phase_all)
+    las_fofn = fn(self.las_fofn)
     job_done = fn(self.job_done)
     #config = self.parameters['config']
 
-    wd = self.parameters['wd']
-    script_fn = os.path.join(wd, 'hasm.sh')
-
-    las_fofn = '../../2-asm-falcon/las.fofn'
-    las_fofn = '../../1-preads_ovl/merge-gather/las.fofn'
+    script_fn = 'hasm.sh'
     script = """\
 set -vex
 trap 'touch {job_done}.exit' EXIT
 hostname
 date
-cd {wd}
 
 python -m falcon_unzip.mains.ovlp_filter_with_phase --fofn {las_fofn} --max_diff 120 --max_cov 120 --min_cov 1 --n_core 48 --min_len 2500 --db ../../1-preads_ovl/preads.db --rid_phase_map {rid_to_phase_all} > preads.p_ovl
 python -m falcon_unzip.mains.phased_ovlp_to_graph preads.p_ovl --min_len 2500 > fc.log
@@ -237,20 +233,29 @@ def unzip_all(config):
     wf.max_jobs = unzip_phasing_concurrent_jobs
     wf.refreshTargets()
 
-    hasm_wd = os.path.abspath('./3-unzip/1-hasm/')
-    # io.mkdir(hasm_wd)
+    #hasm_wd = os.path.abspath('./3-unzip/1-hasm/')
+    hasm_wd = './3-unzip/1-hasm/'
     rid_to_phase_all = makePypeLocalFile(os.path.join(hasm_wd, 'rid-to-phase-all', 'rid_to_phase.all'))
-    task = PypeTask(inputs=all_ctg_out, outputs={'rid_to_phase_all': rid_to_phase_all},
-                    )(task_get_rid_to_phase_all)
+    task = PypeTask(
+            inputs=all_ctg_out,
+            outputs={
+                'rid_to_phase_all': rid_to_phase_all,
+            },
+            )(task_get_rid_to_phase_all)
     wf.addTask(task)
 
-    parameters['wd'] = hasm_wd
     parameters['sge_option'] = config['sge_hasm']
     job_done = makePypeLocalFile(os.path.join(hasm_wd, 'hasm_done'))
-    make_hasm_task = PypeTask(inputs={'rid_to_phase_all': rid_to_phase_all},
-                              outputs={'job_done': job_done},
-                              parameters=parameters,
-                              )
+    make_hasm_task = PypeTask(
+            inputs={
+                'rid_to_phase_all': rid_to_phase_all,
+                'las_fofn': makePypeLocalFile('./1-preads_ovl/merge-gather/las.fofn'), #'2-asm-falcon/las.fofn',
+            },
+            outputs={
+                'job_done': job_done,
+            },
+            parameters=parameters,
+            )
     hasm_task = make_hasm_task(task_hasm)
 
     wf.addTask(hasm_task)
