@@ -3,7 +3,10 @@ from pypeflow.simple_pwatcher_bridge import (
     PypeTask,
 )
 from falcon_kit import pype_tasks
+import logging
 import os
+
+LOG = logging.getLogger(__name__)
 
 
 def create_tasks_read_to_contig_map(read_to_contig_map_plf):
@@ -47,6 +50,101 @@ def create_tasks_read_to_contig_map(read_to_contig_map_plf):
         outputs={'read_to_contig_map': read_to_contig_map_plf},
     )
     yield task(pype_tasks.task_generate_read_to_ctg_map)
+
+
+def task_track_reads(self):
+    job_done = fn(self.job_done)
+    fofn_fn = os.path.relpath(fn(self.fofn))
+
+    topdir = os.path.relpath(self.parameters['topdir'])
+
+    script_fn = 'track_reads.sh'
+    script = """\
+set -vex
+trap 'touch {job_done}.exit' EXIT
+hostname
+date
+
+python -m falcon_unzip.mains.rr_ctg_track --base-dir={topdir} --output=rawread_to_contigs
+python -m falcon_unzip.mains.pr_ctg_track --base-dir={topdir} --output=pread_to_contigs
+# Those outputs are used only by fetch_reads.
+python -m falcon_unzip.mains.fetch_reads --base-dir={topdir} --fofn={fofn_fn}
+date
+touch {job_done}
+""".format(**locals())
+
+    with open(script_fn, 'w') as script_file:
+        script_file.write(script)
+    self.generated_script_fn = script_fn
+
+
+def get_track_reads_task(config, fofn_file, read_to_contig_map_file, ctg_list_file):
+    parameters = {
+            'config': config,
+            'sge_option': config['sge_track_reads'],
+            'topdir': os.getcwd(),
+    }
+    job_done = makePypeLocalFile('./3-unzip/reads/track_reads_done')
+    make_track_reads_task = PypeTask(
+            inputs={
+                'fofn': fofn_file,
+                'read_to_contig_map': read_to_contig_map_file,
+            },
+            outputs={
+                'job_done': job_done, 'ctg_list_file': ctg_list_file,
+            },
+            parameters=parameters,
+            )
+    return make_track_reads_task(task_track_reads)
+
+
+def task_run_blasr(self):
+    ctg_aln_out = fn(self.ctg_aln_out)
+    ref_fasta = fn(self.ref_fasta)
+    read_fasta = fn(self.read_fasta)
+
+    job_uid = self.parameters['job_uid']
+    ctg_id = self.parameters['ctg_id']
+
+    script_fn = 'aln_{ctg_id}.sh'.format(ctg_id=ctg_id)
+    script = """\
+set -vex
+hostname
+date
+time blasr {read_fasta} {ref_fasta} --noSplitSubreads --clipping subread\
+ --hitPolicy randombest --randomSeed 42 --bestn 1 --minPctIdentity 70.0\
+ --minMatch 12  --nproc 24 --bam --out tmp_aln.bam
+#samtools view -bS tmp_aln.sam | samtools sort - {ctg_id}_sorted
+samtools sort tmp_aln.bam -o {ctg_aln_out}
+samtools index {ctg_aln_out}
+rm tmp_aln.bam
+date
+""".format(**locals())
+
+    with open(script_fn, 'w') as script_file:
+        script_file.write(script)
+    self.generated_script_fn = script_fn
+
+
+def get_blasr_task(config, ctg_id, ctg_aln_out):
+        ref_fasta = makePypeLocalFile('./3-unzip/reads/{ctg_id}_ref.fa'.format(ctg_id=ctg_id))
+        read_fasta = makePypeLocalFile('./3-unzip/reads/{ctg_id}_reads.fa'.format(ctg_id=ctg_id))
+
+        parameters = {'job_uid': 'aln-' + ctg_id, 'ctg_id': ctg_id,
+                      'sge_option': config['sge_blasr_aln'],
+                      }
+        make_blasr_task = PypeTask(
+                inputs={
+                    'ref_fasta': ref_fasta,
+                    'read_fasta': read_fasta,
+                },
+                outputs={
+                    'ctg_aln_out': ctg_aln_out,
+                },
+                parameters=parameters,
+                )
+        blasr_task = make_blasr_task(task_run_blasr)
+        return blasr_task
 
 
 def task_make_het_call(self):
@@ -130,41 +228,7 @@ date
     self.generated_script_fn = script_fn
 
 
-def task_phasing(self):
-    ref_fasta = fn(self.ref_fasta)
-    aln_bam = fn(self.aln_bam)
-
-    job_done = fn(self.job_done)
-
-    job_uid = self.parameters['job_uid']
-    wd = self.parameters['wd']
-    ctg_id = self.parameters['ctg_id']
-
-    config = self.parameters['config']
-    smrt_bin = config['smrt_bin']
-
-    script_fn = os.path.join(wd, 'p_%s.sh' % (ctg_id))
-
-    script = """\
-set -vex
-trap 'touch {job_done}.exit' EXIT
-hostname
-date
-cd {wd}
-mkdir -p phasing_subworkflow
-cd phasing_subworkflow
-python -m falcon_unzip.mains.phasing --bam {aln_bam} --fasta {ref_fasta} --ctg_id {ctg_id} --base_dir ../..
-date
-cd ..
-touch {job_done}
-""".format(**locals())
-
-    with open(script_fn, 'w') as script_file:
-        script_file.write(script)
-    self.generated_script_fn = script_fn
-
-
-def get_phasing_tasks(phased_reads_file, bam_file, fasta_file, ctg_id, base_dir):
+def yield_phasing_tasks(phased_reads_file, bam_file, fasta_file, ctg_id, base_dir):
     vmap_file = makePypeLocalFile(os.path.join(base_dir, ctg_id, 'het_call', "variant_map"))
     vpos_file = makePypeLocalFile(os.path.join(base_dir, ctg_id, 'het_call', "variant_pos"))
     q_id_map_file = makePypeLocalFile(os.path.join(base_dir, ctg_id, 'het_call', "q_id_map.msgpack"))
@@ -209,21 +273,39 @@ def get_phasing_tasks(phased_reads_file, bam_file, fasta_file, ctg_id, base_dir)
     yield get_phased_reads_task
 
 
+def task_get_rid_to_phase_all(self):
+    rid_to_phase_all = fn(self.rid_to_phase_all)
+    inputs_fn = [fn(f) for f in self.inputs.values()]
+    inputs_fn.sort()
+    input = ' '.join(i for i in inputs_fn)
+    LOG.info('Generate {!r} from {!r}'.format(
+        rid_to_phase_all, input))
+    script = """
+rm -f {rid_to_phase_all}
+for fn in {input}; do
+  cat $fn >> {rid_to_phase_all}
+done
+""".format(**locals())
+    script_fn = 'gather_rid_to_phase.sh'
+    with open(script_fn, 'w') as script_file:
+        script_file.write(script)
+    self.generated_script_fn = script_fn
+
+
 def task_phasing_readmap(self):
     # TODO: read-map-dir/* as inputs
     job_done = fn(self.job_done)
     phased_reads_fn = fn(self.phased_reads)
     rid_to_phase_out_fn = fn(self.rid_to_phase_out)
-    wd = self.parameters['wd']
-    ctg_id = self.parameters['ctg_id']
-    script_fn = os.path.join(wd, 'phasing_readmap_%s.sh' % (ctg_id))
 
+    ctg_id = self.parameters['ctg_id']
+
+    script_fn = 'phasing_readmap_{}.sh'.format(ctg_id)
     script = """\
 set -vex
 trap 'touch {job_done}.exit' EXIT
 hostname
 date
-cd {wd}
 python -m falcon_unzip.mains.phasing_readmap --the-ctg-id {ctg_id} --read-map-dir ../../reads --phased-reads {phased_reads_fn} >| {rid_to_phase_out_fn}.tmp
 mv {rid_to_phase_out_fn}.tmp {rid_to_phase_out_fn}
 date
@@ -235,20 +317,32 @@ touch {job_done}
     self.generated_script_fn = script_fn
 
 
-def create_phasing_tasks(config, ctg_ids, all_ctg_out):
-    """Report outputs via all_ctg_out.
+def create_phasing_tasks(config, ctg_list_file, rid_to_phase_all):
     """
+    Gathered input is ctg_list_file.
+    Gathered output is rid_to_phase_all.
+    """
+    ctg_ids = []
+    with open(fn(ctg_list_file)) as f:
+        for row in f:
+            row = row.strip()
+            ctg_ids.append(row)
+
+    all_ctg_out = dict()
+
     for ctg_id in ctg_ids:
         # work-dir
-        wd = os.path.join(os.getcwd(), './3-unzip/0-phasing/{ctg_id}/'.format(ctg_id=ctg_id))
+        wd = './3-unzip/0-phasing/{ctg_id}/'.format(ctg_id=ctg_id)
+        ctg_aln_out = makePypeLocalFile(
+            '{wd}/blasr/{ctg_id}_sorted.bam'.format(wd=wd, ctg_id=ctg_id))
 
-        # inputs (by convention, for now)
+        yield get_blasr_task(config, ctg_id, ctg_aln_out)
+
+        # inputs of basic phasing tasks
         ref_fasta = makePypeLocalFile('./3-unzip/reads/{ctg_id}_ref.fa'.format(ctg_id=ctg_id))
         read_fasta = makePypeLocalFile('./3-unzip/reads/{ctg_id}_reads.fa'.format(ctg_id=ctg_id))
 
         blasr_dir = os.path.join(wd, 'blasr')
-        ctg_aln_out = makePypeLocalFile(os.path.join(
-            blasr_dir, '{ctg_id}_sorted.bam'.format(ctg_id=ctg_id)))
 
         # output of basic phasing tasks
         phased_reads_file = makePypeLocalFile(os.path.join(
@@ -261,7 +355,7 @@ def create_phasing_tasks(config, ctg_ids, all_ctg_out):
             ctg_id=ctg_id,
             base_dir='./3-unzip/0-phasing'
         )
-        for task in get_phasing_tasks(**kwds):
+        for task in yield_phasing_tasks(**kwds):
             yield task
 
         # final outputs
@@ -285,3 +379,83 @@ def create_phasing_tasks(config, ctg_ids, all_ctg_out):
         )
         task = make_task(task_phasing_readmap)
         yield task
+
+    task = PypeTask(
+            inputs=all_ctg_out,
+            outputs={
+                'rid_to_phase_all': rid_to_phase_all,
+            },
+            )(task_get_rid_to_phase_all)
+    yield task
+
+
+def task_hasm(self):
+    rid_to_phase_all = fn(self.rid_to_phase_all)
+    las_fofn = fn(self.las_fofn)
+    job_done = fn(self.job_done)
+    #config = self.parameters['config']
+
+    script_fn = 'hasm.sh'
+    script = """\
+set -vex
+trap 'touch {job_done}.exit' EXIT
+hostname
+date
+
+python -m falcon_unzip.mains.ovlp_filter_with_phase --fofn {las_fofn} --max_diff 120 --max_cov 120 --min_cov 1 --n_core 48 --min_len 2500 --db ../../1-preads_ovl/preads.db --rid_phase_map {rid_to_phase_all} > preads.p_ovl
+python -m falcon_unzip.mains.phased_ovlp_to_graph preads.p_ovl --min_len 2500 > fc.log
+if [ -e ../../1-preads_ovl/preads4falcon.fasta ];
+then
+  ln -sf ../../1-preads_ovl/preads4falcon.fasta .
+else
+  ln -sf ../../1-preads_ovl/db2falcon/preads4falcon.fasta .
+fi
+python -m falcon_unzip.mains.graphs_to_h_tigs --fc_asm_path ../../2-asm-falcon/ --fc_hasm_path ./ --ctg_id all --rid_phase_map {rid_to_phase_all} --fasta preads4falcon.fasta
+
+# more script -- a little bit hacky here, we should improve
+
+WD=$PWD
+for f in `cat ../reads/ctg_list `; do mkdir -p $WD/$f; cd $WD/$f; python -m falcon_unzip.mains.dedup_h_tigs $f; done
+
+## prepare for quviering the haplotig
+cd $WD/..
+
+find 0-phasing -name "phased_reads" | sort | xargs cat >| all_phased_reads
+find 1-hasm -name "h_ctg_ids.*" | sort | xargs cat >| all_h_ctg_ids
+find 1-hasm -name "p_ctg_edges.*" | sort | xargs cat >| all_p_ctg_edges
+find 1-hasm -name "h_ctg_edges.*" | sort | xargs cat >| all_h_ctg_edges
+find 1-hasm -name "p_ctg.*.fa" | sort | xargs cat >| all_p_ctg.fa
+find 1-hasm -name "h_ctg.*.fa" | sort | xargs cat >| all_h_ctg.fa
+
+# Generate a GFA for only primary contigs and haplotigs.
+time python -m falcon_unzip.mains.unzip_gen_gfa_v1 --unzip-root $WD/.. --p-ctg-fasta $WD/../all_p_ctg.fa --h-ctg-fasta $WD/../all_h_ctg.fa --preads-fasta $WD/preads4falcon.fasta >| $WD/../asm.gfa
+
+# Generate a GFA of all assembly graph edges. This GFA can contain
+# edges and nodes which are not part of primary contigs and haplotigs
+time python -m falcon_unzip.mains.unzip_gen_gfa_v1 --unzip-root $WD/.. --p-ctg-fasta $WD/../all_p_ctg.fa --h-ctg-fasta $WD/../all_h_ctg.fa --preads-fasta $WD/preads4falcon.fasta --add-string-graph >| $WD/../sg.gfa
+
+cd ../
+date
+touch {job_done}
+""".format(**locals())
+
+    with open(script_fn, 'w') as script_file:
+        script_file.write(script)
+    self.generated_script_fn = script_fn
+
+
+def get_hasm_task(config, gathered_rid_to_phase_file, las_fofn_file, job_done):
+    parameters = {
+            'sge_option': config['sge_hasm'],
+    }
+    make_hasm_task = PypeTask(
+            inputs={
+                'rid_to_phase_all': gathered_rid_to_phase_file,
+                'las_fofn': las_fofn_file,
+            },
+            outputs={
+                'job_done': job_done,
+            },
+            parameters=parameters,
+            )
+    return make_hasm_task(task_hasm)

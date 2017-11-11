@@ -23,7 +23,7 @@ def run_phasing(args):
         ctg_id=args.ctg_id,
         base_dir=args.base_dir,
     )
-    tasks = list(tasks_unzip.get_phasing_tasks(**kwds))
+    tasks = list(tasks_unzip.yield_phasing_tasks(**kwds))
     wf = PypeProcWatcherWorkflow(
         max_jobs=1,
     )
