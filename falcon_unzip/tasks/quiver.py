@@ -114,26 +114,22 @@ def task_run_quiver(self):
     job_uid = self.parameters['job_uid']
     ctg_id = self.parameters['ctg_id']
 
-    smrt_bin = self.parameters['smrt_bin']
-    samtools = os.path.join(smrt_bin, 'samtools')
-    pbalign = os.path.join(smrt_bin, 'pbalign')
-    variantCaller = os.path.join(smrt_bin, 'variantCaller')
+    # TODO: tmpdir
 
     script_fn = 'cns_%s.sh' % (ctg_id)
-
     script = """\
 set -vex
 trap 'touch {job_done}.exit' EXIT
 hostname
 date
 
-{samtools} faidx {ref_fasta}
-{pbalign} --tmpDir=/localdisk/scratch/ --nproc=24 --minAccuracy=0.75 --minLength=50\
+samtools faidx {ref_fasta}
+pbalign --tmpDir=/localdisk/scratch/ --nproc=24 --minAccuracy=0.75 --minLength=50\
           --minAnchorSize=12 --maxDivergence=30 --concordant --algorithm=blasr\
           --algorithmOptions=--useQuality --maxHits=1 --hitPolicy=random --seed=1\
             {read_bam} {ref_fasta} aln-{ctg_id}.bam
 #python -c 'import ConsensusCore2 as cc2; print cc2' # So quiver likely works.
-({variantCaller} --algorithm=arrow -x 5 -X 120 -q 20 -j 24 -r {ref_fasta} aln-{ctg_id}.bam\
+(variantCaller --algorithm=arrow -x 5 -X 120 -q 20 -j 24 -r {ref_fasta} aln-{ctg_id}.bam\
             -o {cns_fasta} -o {cns_fastq}) || echo WARNING quiver failed. Maybe no reads for this block.
 date
 touch {job_done}
