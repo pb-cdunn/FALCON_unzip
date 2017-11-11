@@ -141,50 +141,29 @@ touch {job_done}
 
 
 def task_cns_zcat(self):
-    gathered_p_ctg_fn = fn(self.gathered_p_ctg)
-    gathered_h_ctg_fn = fn(self.gathered_h_ctg)
+    gathered_p_ctg = fn(self.gathered_p_ctg)
+    gathered_h_ctg = fn(self.gathered_h_ctg)
+    cns_p_ctg_fasta = fn(self.cns_p_ctg_fasta)
+    cns_p_ctg_fastq = fn(self.cns_p_ctg_fastq)
+    cns_h_ctg_fasta = fn(self.cns_h_ctg_fasta)
+    cns_h_ctg_fastq = fn(self.cns_h_ctg_fastq)
+    job_done = fn(self.job_done)
 
-    cns_p_ctg_fasta_fn = fn(self.cns_p_ctg_fasta)
-    cns_p_ctg_fastq_fn = fn(self.cns_p_ctg_fastq)
-    cns_h_ctg_fasta_fn = fn(self.cns_h_ctg_fasta)
-    cns_h_ctg_fastq_fn = fn(self.cns_h_ctg_fastq)
-    job_done_fn = fn(self.job_done)
+    script_fn = 'cns_zcat.sh'
+    script = """\
+python -m falcon_unzip.mains.cns_zcat \
+    --gathered-p-ctg-fn={gathered_p_ctg} \
+    --gathered-h-ctg-fn={gathered_h_ctg} \
+    --cns-p-ctg-fasta-fn={cns_p_ctg_fasta} \
+    --cns-p-ctg-fastq-fn={cns_p_ctg_fastq} \
+    --cns-h-ctg-fasta-fn={cns_h_ctg_fasta} \
+    --cns-h-ctg-fastq-fn={cns_h_ctg_fastq} \
+    --job-done-fn={job_done}
+""".format(**locals())
 
-    io.rm(cns_p_ctg_fasta_fn)
-    io.touch(cns_p_ctg_fasta_fn)
-    io.rm(cns_p_ctg_fastq_fn)
-    io.touch(cns_p_ctg_fastq_fn)
-    with open(gathered_p_ctg_fn) as ifs:
-        for line in ifs:
-            cns_fasta_fn, cns_fastq_fn = line.split()
-            io.syscall('zcat {cns_fasta_fn} >> {cns_p_ctg_fasta_fn}'.format(**locals()))
-            io.syscall('zcat {cns_fastq_fn} >> {cns_p_ctg_fastq_fn}'.format(**locals()))
-
-    # comment out this for now for recovering purpose
-    # with open(gathered_p_ctg_fn) as ifs:
-    #    for line in ifs:
-    #        cns_fasta_fn, cns_fastq_fn = line.split()
-    #        io.rm(cns_fasta_fn)
-    #        io.rm(cns_fasta_fn)
-
-    io.rm(cns_h_ctg_fasta_fn)
-    io.touch(cns_h_ctg_fasta_fn)
-    io.rm(cns_h_ctg_fastq_fn)
-    io.touch(cns_h_ctg_fastq_fn)
-    with open(gathered_h_ctg_fn) as ifs:
-        for line in ifs:
-            cns_fasta_fn, cns_fastq_fn = line.split()
-            io.syscall('zcat {cns_fasta_fn} >> {cns_h_ctg_fasta_fn}'.format(**locals()))
-            io.syscall('zcat {cns_fastq_fn} >> {cns_h_ctg_fastq_fn}'.format(**locals()))
-
-    # comment out this for now for recovering purpose
-    # with open(gathered_h_ctg_fn) as ifs:
-    #    for line in ifs:
-    #        cns_fasta_fn, cns_fastq_fn = line.split()
-    #        io.rm(cns_fasta_fn)
-    #        io.rm(cns_fasta_fn)
-
-    io.touch(job_done_fn)
+    with open(script_fn, 'w') as script_file:
+        script_file.write(script)
+    self.generated_script_fn = script_fn
 
 
 def task_scatter_quiver(self):
