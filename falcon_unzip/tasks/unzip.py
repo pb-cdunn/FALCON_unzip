@@ -1,5 +1,5 @@
 from pypeflow.simple_pwatcher_bridge import (
-    PypeLocalFile, makePypeLocalFile, fn,
+    makePypeLocalFile, fn,
     PypeTask,
 )
 from falcon_kit import pype_tasks
