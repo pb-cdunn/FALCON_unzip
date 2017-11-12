@@ -93,128 +93,52 @@ def run(config_fn):
     input_bam_fofn_fn = config['input_bam_fofn']
     input_bam_fofn_plf = makePypeLocalFile(input_bam_fofn_fn)
     hasm_done_plf = makePypeLocalFile('./3-unzip/1-hasm/hasm_done')  # by convention
-
     track_reads_h_done_plf = makePypeLocalFile('./4-quiver/track_reads/track_reads_h_done')
-    make_task = PypeTask(inputs={
-        'input_bam_fofn': input_bam_fofn_plf,
-        'hasm_done': hasm_done_plf},
-        outputs={'job_done': track_reads_h_done_plf},
-        parameters=parameters,
-    )
-    wf.addTask(make_task(tasks_quiver.task_track_reads_h))
-    # Note: The output is actually './4-quiver/track_reads/rawread_to_contigs
+    track_reads_rr2c_plf = makePypeLocalFile('./4-quiver/track_reads/rawread_to_contigs')
+    wf.addTask(tasks_quiver.get_track_reads_h_task(
+        parameters, input_bam_fofn_plf, hasm_done_plf,
+        track_reads_h_done_plf, track_reads_rr2c_plf))
 
     read2ctg_plf = makePypeLocalFile('./4-quiver/select_reads/read2ctg.msgpack')
-    make_task = PypeTask(inputs={
-        # Some implicit inputs, plus these deps:
-        'track_reads_h_done': track_reads_h_done_plf,
-        'input_bam_fofn': input_bam_fofn_plf,
-        'hasm_done': hasm_done_plf},
-        outputs={
-        'read2ctg': read2ctg_plf},
-        parameters=parameters,
-    )
-    wf.addTask(make_task(tasks_quiver.task_select_reads_h))
+    wf.addTask(tasks_quiver.get_select_reads_h_task(
+        parameters, track_reads_h_done_plf, input_bam_fofn_plf, hasm_done_plf,
+        read2ctg_plf))
 
     merged_fofn_plf = makePypeLocalFile('./4-quiver/merge_reads/merged.fofn')
-    make_task = PypeTask(inputs={
-        'input_bam_fofn': input_bam_fofn_plf,
-        'read2ctg': read2ctg_plf},
-        outputs={
-        'merged_fofn': merged_fofn_plf},
-        parameters=parameters,
-    )
-    wf.addTask(make_task(tasks_quiver.task_merge_reads))
+    wf.addTask(tasks_quiver.get_merge_reads_task(
+        parameters, input_bam_fofn_plf, read2ctg_plf, merged_fofn_plf))
 
     scattered_segregate_plf = makePypeLocalFile('./4-quiver/segregate_scatter/scattered.json')
-    make_task = PypeTask(
-        inputs={
-            'merged_fofn': merged_fofn_plf,
-        },
-        outputs={
-            'scattered_segregate_json': scattered_segregate_plf,
-        },
-        parameters=parameters,
-    )
-    wf.addTask(make_task(tasks_quiver.task_segregate_scatter))
+    wf.addTask(tasks_quiver.get_segregate_scatter_task(
+        parameters, merged_fofn_plf, scattered_segregate_plf))
     wf.refreshTargets()
-
-    # Segregate reads from merged BAM files in parallel.
-    # (If this were not done in Python, it could probably be in serial.)
-    jn2segregated_bam_fofn = tasks_quiver.create_segregate_jobs(wf, parameters, scattered_segregate_plf)
-    # ctg is encoded into each filepath within each FOFN.
 
     ctg2segregated_bamfn_plf = makePypeLocalFile('./4-quiver/segregate_gather/ctg2segregated_bamfn.msgpack')
-    make_task = PypeTask(
-        inputs=jn2segregated_bam_fofn,
-        outputs={
-            'ctg2segregated_bamfn': ctg2segregated_bamfn_plf,
-        },
-        parameters=parameters,
-    )
-    wf.addTask(make_task(tasks_quiver.task_segregate_gather))
-    wf.refreshTargets()
+    wf.addTasks(list(tasks_quiver.yield_segregate_bam_tasks(
+        parameters, scattered_segregate_plf, ctg2segregated_bamfn_plf)))
 
     scattered_quiver_plf = makePypeLocalFile('4-quiver/quiver_scatter/scattered.json')
     parameters = {
         'config': config,
     }
-    make_task = PypeTask(
-        inputs={
-            'p_ctg_fa': makePypeLocalFile('3-unzip/all_p_ctg.fa'),
-            'h_ctg_fa': makePypeLocalFile('3-unzip/all_h_ctg.fa'),
-            'ctg2bamfn': ctg2segregated_bamfn_plf,
-        },
-        outputs={
-            'scattered_quiver_json': scattered_quiver_plf,
-        },
-        parameters=parameters,
-    )
-    wf.addTask(make_task(tasks_quiver.task_scatter_quiver))
+    wf.addTask(tasks_quiver.get_scatter_quiver_task(
+        parameters, ctg2segregated_bamfn_plf,
+        scattered_quiver_plf,
+        ))
     wf.refreshTargets()
-
-    p_ctg_out, h_ctg_out, job_done_plfs = tasks_quiver.create_quiver_jobs(wf, scattered_quiver_plf)
 
     gathered_p_ctg_plf = makePypeLocalFile('4-quiver/cns_gather/p_ctg.txt')
     gathered_h_ctg_plf = makePypeLocalFile('4-quiver/cns_gather/h_ctg.txt')
     gather_done_plf = makePypeLocalFile('4-quiver/cns_gather/job_done')
-    io.mkdirs('4-quiver/cns_gather')
-    with open(fn(gathered_p_ctg_plf), 'w') as ifs:
-        for cns_fasta_fn, cns_fastq_fn in sorted(p_ctg_out):
-            ifs.write('{} {}\n'.format(cns_fasta_fn, cns_fastq_fn))
-    with open(fn(gathered_h_ctg_plf), 'w') as ifs:
-        for cns_fasta_fn, cns_fastq_fn in sorted(h_ctg_out):
-            ifs.write('{} {}\n'.format(cns_fasta_fn, cns_fastq_fn))
 
-    make_task = PypeTask(
-        inputs=job_done_plfs,
-        outputs={
-            'job_done': gather_done_plf,
-        },
-        parameters={},
-    )
-    wf.addTask(make_task(tasks_quiver.task_gather_quiver))
-    wf.refreshTargets()
+    wf.addTasks(list(tasks_quiver.yield_quiver_tasks(
+        scattered_quiver_plf,
+        gathered_p_ctg_plf, gathered_h_ctg_plf, gather_done_plf)))
 
-    cns_p_ctg_fasta_plf = makePypeLocalFile('4-quiver/cns_output/cns_p_ctg.fasta')
-    cns_p_ctg_fastq_plf = makePypeLocalFile('4-quiver/cns_output/cns_p_ctg.fastq')
-    cns_h_ctg_fasta_plf = makePypeLocalFile('4-quiver/cns_output/cns_h_ctg.fasta')
-    cns_h_ctg_fastq_plf = makePypeLocalFile('4-quiver/cns_output/cns_h_ctg.fastq')
     zcat_done_plf = makePypeLocalFile('4-quiver/cns_output/job_done')
-    make_task = PypeTask(
-        inputs={
-            'gathered_p_ctg': gathered_p_ctg_plf,
-            'gathered_h_ctg': gathered_h_ctg_plf,
-            'gather_done': gather_done_plf,
-        },
-        outputs={
-            'cns_p_ctg_fasta': cns_p_ctg_fasta_plf,
-            'cns_p_ctg_fastq': cns_p_ctg_fastq_plf,
-            'cns_h_ctg_fasta': cns_h_ctg_fasta_plf,
-            'cns_h_ctg_fastq': cns_h_ctg_fastq_plf,
-            'job_done': zcat_done_plf,
-        },
-    )
-    wf.addTask(make_task(tasks_quiver.task_cns_zcat))
+
+    wf.addTask(tasks_quiver.get_cns_zcat_task(
+        gathered_p_ctg_plf, gathered_h_ctg_plf, gather_done_plf,
+        zcat_done_plf))
 
     wf.refreshTargets()
