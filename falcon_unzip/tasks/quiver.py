@@ -147,7 +147,6 @@ def task_cns_zcat(self):
     cns_p_ctg_fastq = fn(self.cns_p_ctg_fastq)
     cns_h_ctg_fasta = fn(self.cns_h_ctg_fasta)
     cns_h_ctg_fastq = fn(self.cns_h_ctg_fastq)
-    job_done = fn(self.job_done)
 
     script_fn = 'cns_zcat.sh'
     script = """\
@@ -158,7 +157,7 @@ python -m falcon_unzip.mains.cns_zcat \
     --cns-p-ctg-fastq-fn={cns_p_ctg_fastq} \
     --cns-h-ctg-fasta-fn={cns_h_ctg_fasta} \
     --cns-h-ctg-fastq-fn={cns_h_ctg_fastq} \
-    --job-done-fn={job_done}
+
 """.format(**locals())
 
     with open(script_fn, 'w') as script_file:
@@ -475,7 +474,7 @@ def yield_quiver_tasks(
 
 
 def get_cns_zcat_task(
-        gathered_p_ctg_plf, gathered_h_ctg_plf, gather_done_plf,
+        gathered_p_ctg_plf, gathered_h_ctg_plf,
         zcat_done_plf,
 ):
     cns_p_ctg_fasta_plf = makePypeLocalFile('4-quiver/cns_output/cns_p_ctg.fasta')
@@ -486,7 +485,6 @@ def get_cns_zcat_task(
         inputs={
             'gathered_p_ctg': gathered_p_ctg_plf,
             'gathered_h_ctg': gathered_h_ctg_plf,
-            'gather_done': gather_done_plf,
         },
         outputs={
             'cns_p_ctg_fasta': cns_p_ctg_fasta_plf,

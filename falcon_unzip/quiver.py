@@ -129,11 +129,10 @@ def run(config_fn):
 
     gathered_p_ctg_plf = makePypeLocalFile('4-quiver/cns_gather/p_ctg.txt')
     gathered_h_ctg_plf = makePypeLocalFile('4-quiver/cns_gather/h_ctg.txt')
-    gather_done_plf = makePypeLocalFile('4-quiver/cns_gather/job_done')
 
     wf.addTasks(list(tasks_quiver.yield_quiver_tasks(
         scattered_quiver_plf,
-        gathered_p_ctg_plf, gathered_h_ctg_plf, gather_done_plf)))
+        gathered_p_ctg_plf, gathered_h_ctg_plf)))
 
     zcat_done_plf = makePypeLocalFile('4-quiver/cns_output/job_done')
 
