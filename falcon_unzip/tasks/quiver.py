@@ -14,9 +14,9 @@ LOG = logging.getLogger(__name__)
 def task_track_reads_h(self):
     input_bam_fofn = fn(self.input_bam_fofn)
     job_done = fn(self.job_done)
-    work_dir = os.getcwd()
-    basedir = '../..'  # assuming we are in ./4-quiver/track_reads/
-    reldir = os.path.relpath('.', basedir)
+    topdir = os.path.relpath(self.parameters['topdir'])
+    basedir = os.path.reldir(topdir)
+    reldir = os.path.relpath('.', topdir)
     script_fn = 'track_reads_h.sh'
 
     # For now, in/outputs are in various directories, by convention, including '0-rawreads/m_*/*.msgpack'
@@ -33,9 +33,9 @@ rm -f ./3-unzip/reads/dump_rawread_ids/rawread_to_contigs
 
 fc_rr_hctg_track.py --base-dir={basedir} --stream
 
-cd {basedir}
+cd {topdir}
 fc_rr_hctg_track2.exe --output={reldir}/rawread_to_contigs
-cd {work_dir}
+cd -
 
 date
 ls -l rawread_to_contigs
@@ -49,10 +49,9 @@ touch {job_done}
 
 
 def task_select_reads_h(self):
-    read2ctg_fn = fn(self.read2ctg)
+    read2ctg = fn(self.read2ctg)
     input_bam_fofn = fn(self.input_bam_fofn)
-    work_dir = os.getcwd()
-    basedir = '../..'  # assuming we are in ./4-quiver/select_reads/
+    topdir = os.path.relpath(self.parameters['topdir'])
     script_fn = 'select_reads_h.sh'
 
     # For now, in/outputs are in various directories, by convention.
@@ -60,13 +59,13 @@ def task_select_reads_h(self):
 set -vex
 hostname
 date
-cd {basedir}
 
+cd {topdir}
 pwd
-python -m falcon_unzip.mains.get_read2ctg --output={read2ctg_fn} {input_bam_fofn}
+python -m falcon_unzip.mains.get_read2ctg --output={read2ctg} {input_bam_fofn}
 
 date
-cd {work_dir}
+cd -
 """.format(**locals())
 
     with open(script_fn, 'w') as script_file:
@@ -75,8 +74,8 @@ cd {work_dir}
 
 
 def task_merge_reads(self):
-    merged_fofn_fn = fn(self.merged_fofn)
-    read2ctg_fn = fn(self.read2ctg)
+    merged_fofn = fn(self.merged_fofn)
+    read2ctg = fn(self.read2ctg)
     input_bam_fofn = fn(self.input_bam_fofn)
     max_n_open_files = self.parameters['max_n_open_files']
     topdir = os.path.relpath(self.parameters['topdir'])
@@ -85,17 +84,18 @@ def task_merge_reads(self):
     # For now, in/outputs are in various directories, by convention.
     script = """\
 set -vex
-#trap 'touch {merged_fofn_fn}.exit' EXIT
+#trap 'touch {merged_fofn}.exit' EXIT
 hostname
 date
 
 cd {topdir}
 #fc_select_reads_from_bam.py --max-n-open-files={max_n_open_files} {input_bam_fofn}
 pwd
-python -m falcon_unzip.mains.bam_partition_and_merge --max-n-open-files={max_n_open_files} --read2ctg-fn={read2ctg_fn} --merged-fn={merged_fofn_fn} {input_bam_fofn}
+python -m falcon_unzip.mains.bam_partition_and_merge --max-n-open-files={max_n_open_files} --read2ctg-fn={read2ctg} --merged-fn={merged_fofn} {input_bam_fofn}
 
 date
-# Expect {merged_fofn_fn}
+cd -
+# Expect {merged_fofn}
 """.format(**locals())
 
     with open(script_fn, 'w') as script_file:
@@ -114,26 +114,22 @@ def task_run_quiver(self):
     job_uid = self.parameters['job_uid']
     ctg_id = self.parameters['ctg_id']
 
-    smrt_bin = self.parameters['smrt_bin']
-    samtools = os.path.join(smrt_bin, 'samtools')
-    pbalign = os.path.join(smrt_bin, 'pbalign')
-    variantCaller = os.path.join(smrt_bin, 'variantCaller')
+    # TODO: tmpdir
 
     script_fn = 'cns_%s.sh' % (ctg_id)
-
     script = """\
 set -vex
 trap 'touch {job_done}.exit' EXIT
 hostname
 date
 
-{samtools} faidx {ref_fasta}
-{pbalign} --tmpDir=/localdisk/scratch/ --nproc=24 --minAccuracy=0.75 --minLength=50\
+samtools faidx {ref_fasta}
+pbalign --tmpDir=/localdisk/scratch/ --nproc=24 --minAccuracy=0.75 --minLength=50\
           --minAnchorSize=12 --maxDivergence=30 --concordant --algorithm=blasr\
           --algorithmOptions=--useQuality --maxHits=1 --hitPolicy=random --seed=1\
             {read_bam} {ref_fasta} aln-{ctg_id}.bam
 #python -c 'import ConsensusCore2 as cc2; print cc2' # So quiver likely works.
-({variantCaller} --algorithm=arrow -x 5 -X 120 -q 20 -j 24 -r {ref_fasta} aln-{ctg_id}.bam\
+(variantCaller --algorithm=arrow -x 5 -X 120 -q 20 -j 24 -r {ref_fasta} aln-{ctg_id}.bam\
             -o {cns_fasta} -o {cns_fastq}) || echo WARNING quiver failed. Maybe no reads for this block.
 date
 touch {job_done}
@@ -145,50 +141,29 @@ touch {job_done}
 
 
 def task_cns_zcat(self):
-    gathered_p_ctg_fn = fn(self.gathered_p_ctg)
-    gathered_h_ctg_fn = fn(self.gathered_h_ctg)
+    gathered_p_ctg = fn(self.gathered_p_ctg)
+    gathered_h_ctg = fn(self.gathered_h_ctg)
+    cns_p_ctg_fasta = fn(self.cns_p_ctg_fasta)
+    cns_p_ctg_fastq = fn(self.cns_p_ctg_fastq)
+    cns_h_ctg_fasta = fn(self.cns_h_ctg_fasta)
+    cns_h_ctg_fastq = fn(self.cns_h_ctg_fastq)
+    job_done = fn(self.job_done)
 
-    cns_p_ctg_fasta_fn = fn(self.cns_p_ctg_fasta)
-    cns_p_ctg_fastq_fn = fn(self.cns_p_ctg_fastq)
-    cns_h_ctg_fasta_fn = fn(self.cns_h_ctg_fasta)
-    cns_h_ctg_fastq_fn = fn(self.cns_h_ctg_fastq)
-    job_done_fn = fn(self.job_done)
+    script_fn = 'cns_zcat.sh'
+    script = """\
+python -m falcon_unzip.mains.cns_zcat \
+    --gathered-p-ctg-fn={gathered_p_ctg} \
+    --gathered-h-ctg-fn={gathered_h_ctg} \
+    --cns-p-ctg-fasta-fn={cns_p_ctg_fasta} \
+    --cns-p-ctg-fastq-fn={cns_p_ctg_fastq} \
+    --cns-h-ctg-fasta-fn={cns_h_ctg_fasta} \
+    --cns-h-ctg-fastq-fn={cns_h_ctg_fastq} \
+    --job-done-fn={job_done}
+""".format(**locals())
 
-    io.rm(cns_p_ctg_fasta_fn)
-    io.touch(cns_p_ctg_fasta_fn)
-    io.rm(cns_p_ctg_fastq_fn)
-    io.touch(cns_p_ctg_fastq_fn)
-    with open(gathered_p_ctg_fn) as ifs:
-        for line in ifs:
-            cns_fasta_fn, cns_fastq_fn = line.split()
-            io.syscall('zcat {cns_fasta_fn} >> {cns_p_ctg_fasta_fn}'.format(**locals()))
-            io.syscall('zcat {cns_fastq_fn} >> {cns_p_ctg_fastq_fn}'.format(**locals()))
-
-    # comment out this for now for recovering purpose
-    # with open(gathered_p_ctg_fn) as ifs:
-    #    for line in ifs:
-    #        cns_fasta_fn, cns_fastq_fn = line.split()
-    #        io.rm(cns_fasta_fn)
-    #        io.rm(cns_fasta_fn)
-
-    io.rm(cns_h_ctg_fasta_fn)
-    io.touch(cns_h_ctg_fasta_fn)
-    io.rm(cns_h_ctg_fastq_fn)
-    io.touch(cns_h_ctg_fastq_fn)
-    with open(gathered_h_ctg_fn) as ifs:
-        for line in ifs:
-            cns_fasta_fn, cns_fastq_fn = line.split()
-            io.syscall('zcat {cns_fasta_fn} >> {cns_h_ctg_fasta_fn}'.format(**locals()))
-            io.syscall('zcat {cns_fastq_fn} >> {cns_h_ctg_fastq_fn}'.format(**locals()))
-
-    # comment out this for now for recovering purpose
-    # with open(gathered_h_ctg_fn) as ifs:
-    #    for line in ifs:
-    #        cns_fasta_fn, cns_fastq_fn = line.split()
-    #        io.rm(cns_fasta_fn)
-    #        io.rm(cns_fasta_fn)
-
-    io.touch(job_done_fn)
+    with open(script_fn, 'w') as script_file:
+        script_file.write(script)
+    self.generated_script_fn = script_fn
 
 
 def task_scatter_quiver(self):
@@ -284,11 +259,11 @@ def task_segregate_scatter(self):
 
 def task_run_segregate(self):
     # max_n_open_files = 300 # Ignored for now. Should not matter here.
-    merged_bamfn_fn = self.merged_bamfn
-    segregated_bam_fofn_fn = self.segregated_bam_fofn
+    merged_bamfn = fn(self.merged_bamfn)
+    segregated_bam_fofn = fn(self.segregated_bam_fofn)
 
     script = """
-python -m falcon_unzip.mains.bam_segregate --merged-fn={merged_bamfn_fn} --output-fn={segregated_bam_fofn_fn}
+python -m falcon_unzip.mains.bam_segregate --merged-fn={merged_bamfn} --output-fn={segregated_bam_fofn}
 """.format(**locals())
 
     script_fn = 'run_bam_segregate.sh'
@@ -367,7 +342,6 @@ def create_quiver_jobs(wf, scattered_quiver_plf):
 def create_segregate_jobs(wf, parameters, scattered_segregate_plf):
     jn2segregated_bam_fofn = dict()  # job_name -> FOFN_plf
 
-    #cwd = os.getcwd()
     scattered_segregate_fn = fn(scattered_segregate_plf)
     jobs = io.deserialize(scattered_segregate_fn)
     basedir = os.path.dirname(scattered_segregate_fn)  # Should this be relative to cwd?
