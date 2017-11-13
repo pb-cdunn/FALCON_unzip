@@ -28,29 +28,10 @@ ls -l {rawread_to_contigs}
 """
 
 
-def task_select_reads_h(self):
-    read2ctg = fn(self.read2ctg)
-    input_bam_fofn = fn(self.input_bam_fofn)
-    topdir = os.path.relpath(self.parameters['topdir'])
-    script_fn = 'select_reads_h.sh'
-
-    # For now, in/outputs are in various directories, by convention.
-    script = """\
-set -vex
-hostname
-date
-
-cd {topdir}
-pwd
+# For now, in/outputs are in various directories, by convention.
+TASK_SELECT_READS_H_SCRIPT = """\
 python -m falcon_unzip.mains.get_read2ctg --output={read2ctg} {input_bam_fofn}
-
-date
-cd -
-""".format(**locals())
-
-    with open(script_fn, 'w') as script_file:
-        script_file.write(script)
-    self.generated_script_fn = script_fn
+"""
 
 
 def task_merge_reads(self):
@@ -303,24 +284,6 @@ def task_segregate_gather(self):
     # Do not generate a script. This is light and fast, so do it locally.
 
 
-def get_select_reads_h_task(
-        parameters, track_reads_h_done_plf, input_bam_fofn_plf,
-        read2ctg_plf,
-):
-    make_task = PypeTask(
-        inputs={
-            # Some implicit inputs, plus these deps:
-            'track_reads_h_done': track_reads_h_done_plf,
-            'input_bam_fofn': input_bam_fofn_plf,
-        },
-        outputs={
-            'read2ctg': read2ctg_plf,
-        },
-        parameters=parameters,
-    )
-    return make_task(task_select_reads_h)
-
-
 def get_merge_reads_task(
         parameters, input_bam_fofn_plf, read2ctg_plf, merged_fofn_plf):
     make_task = PypeTask(inputs={
@@ -514,13 +477,23 @@ def run_workflow(wf, config):
         parameters=parameters,
     ))
 
+    read2ctg = './4-quiver/select_reads/read2ctg.msgpack'
+    wf.addTask(gen_task(
+        script=TASK_SELECT_READS_H_SCRIPT,
+        inputs={
+            # Some implicit inputs, plus these deps:
+            'track_reads_h_done': track_reads_h_done,
+            'input_bam_fofn': input_bam_fofn,
+            #'rawread_to_contigs': track_reads_rr2c, # TODO: Check, and make explicit, maybe.
+        },
+        outputs={
+            'read2ctg': read2ctg,
+        },
+        parameters=parameters,
+    ))
+
+    read2ctg_plf = makePypeLocalFile(read2ctg)
     input_bam_fofn_plf = makePypeLocalFile(input_bam_fofn)
-    track_reads_h_done_plf = makePypeLocalFile(track_reads_h_done)
-    track_reads_rr2c_plf = makePypeLocalFile(track_reads_rr2c)
-    read2ctg_plf = makePypeLocalFile('./4-quiver/select_reads/read2ctg.msgpack')
-    wf.addTask(get_select_reads_h_task(
-        parameters, track_reads_h_done_plf, input_bam_fofn_plf,
-        read2ctg_plf))
 
     merged_fofn_plf = makePypeLocalFile('./4-quiver/merge_reads/merged.fofn')
     wf.addTask(get_merge_reads_task(
