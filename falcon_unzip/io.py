@@ -52,6 +52,8 @@ def update_env_from_config(config, fn):
 
 def mkdirs(*dirnames):
     for dirname in dirnames:
+        if not dirname:
+            continue # '' => curdir
         if not os.path.isdir(dirname):
             os.makedirs(dirname)
             if len(dirnames) == 1:
