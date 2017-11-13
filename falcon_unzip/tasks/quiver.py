@@ -147,7 +147,6 @@ def task_cns_zcat(self):
     cns_p_ctg_fastq = fn(self.cns_p_ctg_fastq)
     cns_h_ctg_fasta = fn(self.cns_h_ctg_fasta)
     cns_h_ctg_fastq = fn(self.cns_h_ctg_fastq)
-    job_done = fn(self.job_done)
 
     script_fn = 'cns_zcat.sh'
     script = """\
@@ -158,7 +157,7 @@ python -m falcon_unzip.mains.cns_zcat \
     --cns-p-ctg-fastq-fn={cns_p_ctg_fastq} \
     --cns-h-ctg-fasta-fn={cns_h_ctg_fasta} \
     --cns-h-ctg-fastq-fn={cns_h_ctg_fastq} \
-    --job-done-fn={job_done}
+
 """.format(**locals())
 
     with open(script_fn, 'w') as script_file:
@@ -475,7 +474,7 @@ def yield_quiver_tasks(
 
 
 def get_cns_zcat_task(
-        gathered_p_ctg_plf, gathered_h_ctg_plf, gather_done_plf,
+        gathered_p_ctg_plf, gathered_h_ctg_plf,
         zcat_done_plf,
 ):
     cns_p_ctg_fasta_plf = makePypeLocalFile('4-quiver/cns_output/cns_p_ctg.fasta')
@@ -486,7 +485,6 @@ def get_cns_zcat_task(
         inputs={
             'gathered_p_ctg': gathered_p_ctg_plf,
             'gathered_h_ctg': gathered_h_ctg_plf,
-            'gather_done': gather_done_plf,
         },
         outputs={
             'cns_p_ctg_fasta': cns_p_ctg_fasta_plf,
@@ -497,3 +495,64 @@ def get_cns_zcat_task(
         },
     )
     return make_task(task_cns_zcat)
+
+
+def run_workflow(wf, config):
+    abscwd = os.path.abspath('.')
+    parameters = {
+        'sge_option': config['sge_track_reads'],  # applies to select_reads task also, for now
+        'max_n_open_files': config['max_n_open_files'],
+        'topdir': os.getcwd(),
+    }
+    input_bam_fofn_fn = config['input_bam_fofn']
+    input_bam_fofn_plf = makePypeLocalFile(input_bam_fofn_fn)
+    hasm_done_plf = makePypeLocalFile('./3-unzip/1-hasm/hasm_done')  # by convention
+    track_reads_h_done_plf = makePypeLocalFile('./4-quiver/track_reads/track_reads_h_done')
+    track_reads_rr2c_plf = makePypeLocalFile('./4-quiver/track_reads/rawread_to_contigs')
+    wf.addTask(get_track_reads_h_task(
+        parameters, input_bam_fofn_plf, hasm_done_plf,
+        track_reads_h_done_plf, track_reads_rr2c_plf))
+
+    read2ctg_plf = makePypeLocalFile('./4-quiver/select_reads/read2ctg.msgpack')
+    wf.addTask(get_select_reads_h_task(
+        parameters, track_reads_h_done_plf, input_bam_fofn_plf, hasm_done_plf,
+        read2ctg_plf))
+
+    merged_fofn_plf = makePypeLocalFile('./4-quiver/merge_reads/merged.fofn')
+    wf.addTask(get_merge_reads_task(
+        parameters, input_bam_fofn_plf, read2ctg_plf, merged_fofn_plf))
+
+    scattered_segregate_plf = makePypeLocalFile('./4-quiver/segregate_scatter/scattered.json')
+    wf.addTask(get_segregate_scatter_task(
+        parameters, merged_fofn_plf, scattered_segregate_plf))
+    wf.refreshTargets()
+
+    ctg2segregated_bamfn_plf = makePypeLocalFile('./4-quiver/segregate_gather/ctg2segregated_bamfn.msgpack')
+    wf.addTasks(list(yield_segregate_bam_tasks(
+        parameters, scattered_segregate_plf, ctg2segregated_bamfn_plf)))
+
+    scattered_quiver_plf = makePypeLocalFile('4-quiver/quiver_scatter/scattered.json')
+    parameters = {
+        'config': config,
+    }
+    wf.addTask(get_scatter_quiver_task(
+        parameters, ctg2segregated_bamfn_plf,
+        scattered_quiver_plf,
+        ))
+    wf.refreshTargets()
+
+    gathered_p_ctg_plf = makePypeLocalFile('4-quiver/cns_gather/p_ctg.txt')
+    gathered_h_ctg_plf = makePypeLocalFile('4-quiver/cns_gather/h_ctg.txt')
+    gather_done_plf = makePypeLocalFile('4-quiver/cns_gather/job_done')
+
+    wf.addTasks(list(yield_quiver_tasks(
+        scattered_quiver_plf,
+        gathered_p_ctg_plf, gathered_h_ctg_plf, gather_done_plf)))
+
+    zcat_done_plf = makePypeLocalFile('4-quiver/cns_output/job_done')
+
+    wf.addTask(get_cns_zcat_task(
+        gathered_p_ctg_plf, gathered_h_ctg_plf,
+        zcat_done_plf))
+
+    wf.refreshTargets()

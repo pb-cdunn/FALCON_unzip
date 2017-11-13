@@ -13,7 +13,6 @@ def run(rm_intermediates,
         cns_p_ctg_fastq_fn,
         cns_h_ctg_fasta_fn,
         cns_h_ctg_fastq_fn,
-        job_done_fn,
 ):
     io.rm(cns_p_ctg_fasta_fn)
     io.touch(cns_p_ctg_fasta_fn)
@@ -34,8 +33,6 @@ def run(rm_intermediates,
             cns_fasta_fn, cns_fastq_fn = line.split()
             io.syscall('zcat {cns_fasta_fn} >> {cns_h_ctg_fasta_fn}'.format(**locals()))
             io.syscall('zcat {cns_fastq_fn} >> {cns_h_ctg_fastq_fn}'.format(**locals()))
-
-    io.touch(job_done_fn)
 
     if rm_intermediates:
       with open(gathered_p_ctg_fn) as ifs:
@@ -91,11 +88,6 @@ def parse_args(argv):
     )
     parser.add_argument(
         '--cns-h-ctg-fastq-fn',
-        required=True,
-        help='output',
-    )
-    parser.add_argument(
-        '--job-done-fn',
         required=True,
         help='output',
     )
