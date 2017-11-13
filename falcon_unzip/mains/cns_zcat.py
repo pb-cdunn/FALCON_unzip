@@ -7,44 +7,38 @@ from .. import io
 
 
 def run(rm_intermediates,
-        gathered_p_ctg_fn,
-        gathered_h_ctg_fn,
+        gathered_quiver_fn,
         cns_p_ctg_fasta_fn,
         cns_p_ctg_fastq_fn,
         cns_h_ctg_fasta_fn,
         cns_h_ctg_fastq_fn,
 ):
+    gathered_dict = io.deserialize(gathered_quiver_fn)
+    # 'p_ctg': list(sorted(p_ctg_out)), # cns_fasta_fn, cns_fastq_fn
+    # 'h_ctg': list(sorted(h_ctg_out)), # cns_fasta_fn, cns_fastq_fn
+
+    used_files = list()
+
     io.rm(cns_p_ctg_fasta_fn)
     io.touch(cns_p_ctg_fasta_fn)
     io.rm(cns_p_ctg_fastq_fn)
     io.touch(cns_p_ctg_fastq_fn)
-    with open(gathered_p_ctg_fn) as ifs:
-        for line in ifs:
-            cns_fasta_fn, cns_fastq_fn = line.split()
+    for cns_fasta_fn, cns_fastq_fn in gathered_dict['p_ctg']:
             io.syscall('zcat {cns_fasta_fn} >> {cns_p_ctg_fasta_fn}'.format(**locals()))
             io.syscall('zcat {cns_fastq_fn} >> {cns_p_ctg_fastq_fn}'.format(**locals()))
+            used_files.append(cns_fasta_fn)
+            used_files.append(cns_fastq_fn)
 
     io.rm(cns_h_ctg_fasta_fn)
     io.touch(cns_h_ctg_fasta_fn)
     io.rm(cns_h_ctg_fastq_fn)
     io.touch(cns_h_ctg_fastq_fn)
-    with open(gathered_h_ctg_fn) as ifs:
-        for line in ifs:
-            cns_fasta_fn, cns_fastq_fn = line.split()
+    for cns_fasta_fn, cns_fastq_fn in gathered_dict['h_ctg']:
             io.syscall('zcat {cns_fasta_fn} >> {cns_h_ctg_fasta_fn}'.format(**locals()))
             io.syscall('zcat {cns_fastq_fn} >> {cns_h_ctg_fastq_fn}'.format(**locals()))
 
     if rm_intermediates:
-      with open(gathered_p_ctg_fn) as ifs:
-         for line in ifs:
-             cns_fasta_fn, cns_fastq_fn = line.split()
-             io.rm(cns_fasta_fn)
-             io.rm(cns_fasta_fn)
-      with open(gathered_h_ctg_fn) as ifs:
-         for line in ifs:
-             cns_fasta_fn, cns_fastq_fn = line.split()
-             io.rm(cns_fasta_fn)
-             io.rm(cns_fasta_fn)
+        io.rm(*used_files)
 
 class HelpF(argparse.RawTextHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
     pass
@@ -62,14 +56,9 @@ def parse_args(argv):
         '--rm-intermediates', action='store_true',
     )
     parser.add_argument(
-        '--gathered-p-ctg-fn',
+        '--gathered-quiver-fn',
         required=True,
-        help='FOFN',
-    )
-    parser.add_argument(
-        '--gathered-h-ctg-fn',
-        required=True,
-        help='FOFN',
+        help='A very specific format. See yield_quiver_tasks() in this repo.',
     )
     parser.add_argument(
         '--cns-p-ctg-fasta-fn',

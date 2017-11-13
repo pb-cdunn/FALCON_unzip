@@ -7,6 +7,7 @@ from .. import io
 import json
 import logging
 import os
+import re
 
 LOG = logging.getLogger(__name__)
 
@@ -141,8 +142,7 @@ touch {job_done}
 
 
 def task_cns_zcat(self):
-    gathered_p_ctg = fn(self.gathered_p_ctg)
-    gathered_h_ctg = fn(self.gathered_h_ctg)
+    gathered_quiver = fn(self.gathered_quiver)
     cns_p_ctg_fasta = fn(self.cns_p_ctg_fasta)
     cns_p_ctg_fastq = fn(self.cns_p_ctg_fastq)
     cns_h_ctg_fasta = fn(self.cns_h_ctg_fasta)
@@ -151,8 +151,7 @@ def task_cns_zcat(self):
     script_fn = 'cns_zcat.sh'
     script = """\
 python -m falcon_unzip.mains.cns_zcat \
-    --gathered-p-ctg-fn={gathered_p_ctg} \
-    --gathered-h-ctg-fn={gathered_h_ctg} \
+    --gathered-quiver-fn={gathered_quiver} \
     --cns-p-ctg-fasta-fn={cns_p_ctg_fasta} \
     --cns-p-ctg-fastq-fn={cns_p_ctg_fastq} \
     --cns-h-ctg-fasta-fn={cns_h_ctg_fasta} \
@@ -233,8 +232,42 @@ def task_scatter_quiver(self):
 def task_gather_quiver(self):
     """We wrote the "gathered" files during task construction.
     """
-    job_done_fn = fn(self.job_done)
-    io.touch(job_done_fn)
+    p_ctg_out = list()
+    h_ctg_out = list()
+    re_done = re.compile(r'([^/]*)_([ph])_quiver_done')
+    for k,v in self.inputs.iteritems():
+        print 'items:', k, v
+        """
+        m_ctg_id = ctg_id.split('-')[0]
+        wd = os.path.join(os.getcwd(), './4-quiver/', m_ctg_id)
+        #ref_fasta = makePypeLocalFile(os.path.join(wd, '{ctg_id}_ref.fa'.format(ctg_id = ctg_id)))
+        #read_bam = makePypeLocalFile(os.path.join(os.getcwd(), './4-quiver/reads/' '{ctg_id}.sam'.format(ctg_id = ctg_id)))
+        cns_fasta = makePypeLocalFile(os.path.join(wd, 'cns-{ctg_id}.fasta.gz'.format(ctg_id=ctg_id)))
+        cns_fastq = makePypeLocalFile(os.path.join(wd, 'cns-{ctg_id}.fastq.gz'.format(ctg_id=ctg_id)))
+        job_done = makePypeLocalFile(os.path.join(wd, '{ctg_id}_quiver_done'.format(ctg_id=ctg_id)))
+        """
+        wd = os.path.dirname(fn(v))
+        basename = os.path.basename(fn(v))
+        mo = re_done.search(basename)
+        if not mo:
+            raise Exception('No match: {!r} not in {!r}'.format(
+                basename, re_done.pattern))
+        ctg_id = mo.group(1)
+        ctg_type = mo.group(2)
+        cns_fasta = '{wd}/cns-{ctg_id}.fasta.gz'.format(**locals())
+        cns_fastq = '{wd}/cns-{ctg_id}.fastq.gz'.format(**locals())
+        assert ctg_type in 'ph', 'ctg_type={!r}'.format(ctg_type)
+        if ctg_type == 'p':
+            p_ctg_out.append([cns_fasta, cns_fastq])
+        elif ctg_type == 'h':
+            h_ctg_out.append([cns_fasta, cns_fastq])
+    gathered_quiver = fn(self.gathered_quiver)
+    gathered_quiver_dict = {
+            'p_ctg': list(sorted(p_ctg_out)), # cns_fasta_fn, cns_fastq_fn
+            'h_ctg': list(sorted(h_ctg_out)), # cns_fasta_fn, cns_fastq_fn
+    }
+    io.serialize(gathered_quiver, gathered_quiver_dict)
+
 
 
 def task_segregate_scatter(self):
@@ -409,7 +442,7 @@ def get_scatter_quiver_task(
 
 def yield_quiver_tasks(
         scattered_quiver_plf,
-        gathered_p_ctg_plf, gathered_h_ctg_plf, gather_done_plf,
+        gathered_quiver_plf,
 ):
     scattered_quiver_fn = fn(scattered_quiver_plf)
     jobs = json.loads(open(scattered_quiver_fn).read())
@@ -428,45 +461,44 @@ def yield_quiver_tasks(
         wd = os.path.join(os.getcwd(), './4-quiver/', m_ctg_id)
         #ref_fasta = makePypeLocalFile(os.path.join(wd, '{ctg_id}_ref.fa'.format(ctg_id = ctg_id)))
         #read_bam = makePypeLocalFile(os.path.join(os.getcwd(), './4-quiver/reads/' '{ctg_id}.sam'.format(ctg_id = ctg_id)))
+        ctg_type = ctg_types[ctg_id]
         cns_fasta = makePypeLocalFile(os.path.join(wd, 'cns-{ctg_id}.fasta.gz'.format(ctg_id=ctg_id)))
         cns_fastq = makePypeLocalFile(os.path.join(wd, 'cns-{ctg_id}.fastq.gz'.format(ctg_id=ctg_id)))
-        job_done = makePypeLocalFile(os.path.join(wd, '{ctg_id}_quiver_done'.format(ctg_id=ctg_id)))
+        job_done = makePypeLocalFile(os.path.join(wd, '{ctg_id}_{ctg_type}_quiver_done'.format(
+            **locals())))
+        if ctg_type == 'p':
+            p_ctg_out.append((fn(cns_fasta), fn(cns_fastq)))
+        elif ctg_type == 'h':
+            h_ctg_out.append((fn(cns_fasta), fn(cns_fastq)))
+        else:
+            msg = 'Type is {!r}, not "p" or "h". Why are we running Quiver?'.format(ctg_type)
+            raise Exception(msg)
 
         if os.path.exists(fn(read_bam)):  # TODO(CD): Ask Jason what we should do if missing SAM.
-            if ctg_types[ctg_id] == 'p':
-                p_ctg_out.append((fn(cns_fasta), fn(cns_fastq)))
-            elif ctg_types[ctg_id] == 'h':
-                h_ctg_out.append((fn(cns_fasta), fn(cns_fastq)))
-            else:
-                LOG.warning('Type is {!r}, not "p" or "h". Why are we running Quiver?'.format(ctg_types[ctg_id]))
             parameters = {
                 'job_uid': 'q-' + ctg_id,
                 'ctg_id': ctg_id,
                 'smrt_bin': smrt_bin,
                 'sge_option': sge_option,
             }
-            make_quiver_task = PypeTask(inputs={'ref_fasta': ref_fasta, 'read_bam': read_bam,
-                                                'scattered_quiver': scattered_quiver_plf,
-                                                },
-                                        outputs={'cns_fasta': cns_fasta, 'cns_fastq': cns_fastq, 'job_done': job_done},
-                                        parameters=parameters,
-                                        )
+            make_quiver_task = PypeTask(
+                    inputs={
+                        'ref_fasta': ref_fasta, 'read_bam': read_bam,
+                        'scattered_quiver': scattered_quiver_plf,
+                    },
+                    outputs={
+                        'cns_fasta': cns_fasta, 'cns_fastq': cns_fastq, 'job_done': job_done,
+                    },
+                    parameters=parameters,
+                    )
             quiver_task = make_quiver_task(task_run_quiver)
             yield quiver_task
             job_done_plfs['{}'.format(ctg_id)] = job_done
 
-    io.mkdirs(os.path.dirname(fn(gather_done_plf)))
-    with open(fn(gathered_p_ctg_plf), 'w') as ifs:
-        for cns_fasta_fn, cns_fastq_fn in sorted(p_ctg_out):
-            ifs.write('{} {}\n'.format(cns_fasta_fn, cns_fastq_fn))
-    with open(fn(gathered_h_ctg_plf), 'w') as ifs:
-        for cns_fasta_fn, cns_fastq_fn in sorted(h_ctg_out):
-            ifs.write('{} {}\n'.format(cns_fasta_fn, cns_fastq_fn))
-
     make_task = PypeTask(
         inputs=job_done_plfs,
         outputs={
-            'job_done': gather_done_plf,
+            'gathered_quiver': gathered_quiver_plf,
         },
         parameters={},
     )
@@ -474,7 +506,7 @@ def yield_quiver_tasks(
 
 
 def get_cns_zcat_task(
-        gathered_p_ctg_plf, gathered_h_ctg_plf,
+        gathered_quiver_plf,
         zcat_done_plf,
 ):
     cns_p_ctg_fasta_plf = makePypeLocalFile('4-quiver/cns_output/cns_p_ctg.fasta')
@@ -483,8 +515,7 @@ def get_cns_zcat_task(
     cns_h_ctg_fastq_plf = makePypeLocalFile('4-quiver/cns_output/cns_h_ctg.fastq')
     make_task = PypeTask(
         inputs={
-            'gathered_p_ctg': gathered_p_ctg_plf,
-            'gathered_h_ctg': gathered_h_ctg_plf,
+            'gathered_quiver': gathered_quiver_plf,
         },
         outputs={
             'cns_p_ctg_fasta': cns_p_ctg_fasta_plf,
@@ -541,18 +572,16 @@ def run_workflow(wf, config):
         ))
     wf.refreshTargets()
 
-    gathered_p_ctg_plf = makePypeLocalFile('4-quiver/cns_gather/p_ctg.txt')
-    gathered_h_ctg_plf = makePypeLocalFile('4-quiver/cns_gather/h_ctg.txt')
-    gather_done_plf = makePypeLocalFile('4-quiver/cns_gather/job_done')
+    gathered_quiver_plf = makePypeLocalFile('4-quiver/cns_gather/gathered_quiver.json')
 
     wf.addTasks(list(yield_quiver_tasks(
         scattered_quiver_plf,
-        gathered_p_ctg_plf, gathered_h_ctg_plf, gather_done_plf)))
+        gathered_quiver_plf)))
 
     zcat_done_plf = makePypeLocalFile('4-quiver/cns_output/job_done')
 
     wf.addTask(get_cns_zcat_task(
-        gathered_p_ctg_plf, gathered_h_ctg_plf,
+        gathered_quiver_plf,
         zcat_done_plf))
 
     wf.refreshTargets()

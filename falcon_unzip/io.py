@@ -169,8 +169,8 @@ def capture(cmd):
     return output
 
 
-def rm(f):
-    syscall('rm -f {}'.format(f))
+def rm(*f):
+    syscall('rm -f {}'.format(' '.join(f)))
 
 
 def touch(f):
