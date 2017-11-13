@@ -1,4 +1,5 @@
 from ..io import (serialize, log)
+from .. import io
 
 
 def get_rid2oid(rawread_ids_fn):
@@ -61,7 +62,7 @@ def get_read2ctg(rawread_ids_fn, rawread_to_contigs_fn):
     return read2ctg
 
 
-def write_read2ctg(output, input_bam_fofn, rawread_to_contigs, rawread_ids):
+def write_read2ctg(output, input_bam_fofn, rawread_to_contigs, rawread_ids, base_dir):
     read2ctg = get_read2ctg(rawread_ids_fn=rawread_ids, rawread_to_contigs_fn=rawread_to_contigs)
     serialize(output, read2ctg)
     serialize(output + '.json', read2ctg)
@@ -74,34 +75,40 @@ import sys
 
 
 def parse_args(argv):
+    epilog = 'Typically run in ./4-quiver/select_reads/'
     parser = argparse.ArgumentParser(
         description='Map ctg->BAM filename.',
+        epilog=epilog,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '--output', type=str,
-        default='./4-quiver/select_reads/read2ctg.msgpack',
+        default='./read2ctg.msgpack',
         help='Serialized map of ctg to list of BAM which contains it.')
     parser.add_argument(
+        '--base-dir', type=str, default='../..',
+        help='the base working dir of a falcon assembly')
+    parser.add_argument(
         '--rawread-to-contigs', type=str,
-        default='./4-quiver/track_reads/rawread_to_contigs',
+        default='./{base_dir}/4-quiver/track_reads/rawread_to_contigs',
         help='rawread_to_contigs file (from "fc_rr_hctg_track.py", not "fc_rr_ctg_track.py")')
     parser.add_argument(
         '--rawread-ids', type=str,
-        default='./3-unzip/reads/dump_rawread_ids/rawread_ids', help='rawread_ids file (from "fc_get_read_ctg_map.py")')
+        default='./{base_dir}/3-unzip/reads/dump_rawread_ids/rawread_ids',
+        help='rawread_ids file (from "fc_get_read_ctg_map.py")')
     parser.add_argument(
         'input_bam_fofn', type=str,
         help='File of BAM filenames. Paths are relative to dir of FOFN, not CWD.')
     args = parser.parse_args(argv[1:])
-    return args
+    return io.substitute(vars(args))
 
 
 def main(argv=sys.argv):
-    args = parse_args(argv)
+    vargs = parse_args(argv)
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s %(message)s',
     )
-    write_read2ctg(**vars(args))
+    write_read2ctg(**vargs)
 
 
 if __name__ == "__main__":

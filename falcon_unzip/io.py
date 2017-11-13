@@ -190,3 +190,15 @@ def exists_and_not_empty(fn):
         LOG.debug('File {} is empty.'.format(fn))
         return False
     return True
+
+
+def substitute(yourdict):
+    """
+    >>> list(sorted(substitute({'a': '_{b}_', 'b': 'X'}).items()))
+    [('a', '_X_'), ('b', 'X')]
+    """
+    mydict = dict(yourdict)
+    for k, v in yourdict.items():
+        if '{' in v:
+            mydict[k] = v.format(**mydict)
+    return mydict
