@@ -13,9 +13,11 @@ LOG = logging.getLogger(__name__)
 
 def task_track_reads_h(self):
     input_bam_fofn = fn(self.input_bam_fofn)
+    rawread_to_contigs = fn(self.rawread_to_contigs)
+    abs_rawread_to_contigs = os.path.abspath(rawread_to_contigs)
     job_done = fn(self.job_done)
     topdir = os.path.relpath(self.parameters['topdir'])
-    basedir = os.path.reldir(topdir)
+    basedir = os.path.relpath(topdir)
     reldir = os.path.relpath('.', topdir)
     script_fn = 'track_reads_h.sh'
 
@@ -29,17 +31,15 @@ date
 python -m falcon_unzip.mains.get_read_hctg_map --base-dir={basedir} --output=read_to_contig_map
 # formerly generated ./4-quiver/read_maps/read_to_contig_map
 
-rm -f ./3-unzip/reads/dump_rawread_ids/rawread_to_contigs
-
 fc_rr_hctg_track.py --base-dir={basedir} --stream
+# That writes into 0-rawreads/m_*/
 
 cd {topdir}
-fc_rr_hctg_track2.exe --output={reldir}/rawread_to_contigs
+fc_rr_hctg_track2.exe --output={abs_rawread_to_contigs}
 cd -
 
 date
-ls -l rawread_to_contigs
-ls -lhH rawread_to_contigs
+ls -l {rawread_to_contigs}
 touch {job_done}
 """.format(**locals())
 
@@ -292,7 +292,126 @@ def task_segregate_gather(self):
     # Do not generate a script. This is light and fast, so do it locally.
 
 
-def create_quiver_jobs(wf, scattered_quiver_plf):
+def get_track_reads_h_task(
+        parameters, input_bam_fofn_plf, hasm_done_plf,
+        track_reads_h_done_plf, track_reads_rr2c_plf,
+):
+    make_task = PypeTask(
+        inputs={
+            'input_bam_fofn': input_bam_fofn_plf,
+            'hasm_done': hasm_done_plf,
+        },
+        outputs={
+            'job_done': track_reads_h_done_plf,
+            'rawread_to_contigs': track_reads_rr2c_plf,
+        },
+        parameters=parameters,
+    )
+    return make_task(task_track_reads_h)
+
+
+def get_select_reads_h_task(
+        parameters, track_reads_h_done_plf, input_bam_fofn_plf, hasm_done_plf,
+        read2ctg_plf,
+):
+    make_task = PypeTask(inputs={
+        # Some implicit inputs, plus these deps:
+        'track_reads_h_done': track_reads_h_done_plf,
+        'input_bam_fofn': input_bam_fofn_plf,
+        'hasm_done': hasm_done_plf},
+        outputs={
+        'read2ctg': read2ctg_plf},
+        parameters=parameters,
+    )
+    return make_task(task_select_reads_h)
+
+
+def get_merge_reads_task(
+        parameters, input_bam_fofn_plf, read2ctg_plf, merged_fofn_plf):
+    make_task = PypeTask(inputs={
+        'input_bam_fofn': input_bam_fofn_plf,
+        'read2ctg': read2ctg_plf},
+        outputs={
+        'merged_fofn': merged_fofn_plf},
+        parameters=parameters,
+    )
+    return make_task(task_merge_reads)
+
+
+def get_segregate_scatter_task(
+        parameters, merged_fofn_plf,
+        scattered_segregate_plf,
+):
+    make_task = PypeTask(
+        inputs={
+            'merged_fofn': merged_fofn_plf,
+        },
+        outputs={
+            'scattered_segregate_json': scattered_segregate_plf,
+        },
+        parameters=parameters,
+    )
+    return make_task(task_segregate_scatter)
+
+
+def yield_segregate_bam_tasks(parameters, scattered_segregate_plf, ctg2segregated_bamfn_plf):
+    # Segregate reads from merged BAM files in parallel.
+    # (If this were not done in Python, it could probably be in serial.)
+
+    jn2segregated_bam_fofn = dict()  # job_name -> FOFN_plf
+    # ctg is encoded into each filepath within each FOFN.
+
+    scattered_segregate_fn = fn(scattered_segregate_plf)
+    jobs = io.deserialize(scattered_segregate_fn)
+    basedir = os.path.dirname(scattered_segregate_fn)  # Should this be relative to cwd?
+    for job in jobs:
+        job_name = job['job_name']
+        merged_bamfn_plf = makePypeLocalFile(job['merged_bamfn'])
+        wd = os.path.join(basedir, job_name)
+        # ctg is encoded into each filepath within the FOFN.
+        segregated_bam_fofn_plf = makePypeLocalFile(os.path.join(wd, 'segregated_bam.fofn'))
+        make_task = PypeTask(
+            inputs={
+                # The other input is next to this one, named by convention.
+                'merged_bamfn': merged_bamfn_plf},
+            outputs={
+                'segregated_bam_fofn': segregated_bam_fofn_plf},
+            parameters=parameters,
+        )
+        yield make_task(task_run_segregate)
+        jn2segregated_bam_fofn[job_name] = segregated_bam_fofn_plf
+
+    make_task = PypeTask(
+        inputs=jn2segregated_bam_fofn,
+        outputs={
+            'ctg2segregated_bamfn': ctg2segregated_bamfn_plf,
+        },
+        parameters=parameters,
+    )
+    yield make_task(task_segregate_gather)
+
+
+def get_scatter_quiver_task(
+        parameters, ctg2segregated_bamfn_plf,
+        scattered_quiver_plf,
+):
+    make_task = PypeTask(
+        inputs={
+            'p_ctg_fa': makePypeLocalFile('3-unzip/all_p_ctg.fa'), # TODO: make explicit
+            'h_ctg_fa': makePypeLocalFile('3-unzip/all_h_ctg.fa'),
+            'ctg2bamfn': ctg2segregated_bamfn_plf,
+        },
+        outputs={
+            'scattered_quiver_json': scattered_quiver_plf,
+        },
+        parameters=parameters,
+    )
+    return make_task(task_scatter_quiver)
+
+def yield_quiver_tasks(
+        scattered_quiver_plf,
+        gathered_p_ctg_plf, gathered_h_ctg_plf, gather_done_plf,
+):
     scattered_quiver_fn = fn(scattered_quiver_plf)
     jobs = json.loads(open(scattered_quiver_fn).read())
     #ctg_ids = sorted(jobs['ref_seq_data'])
@@ -334,31 +453,47 @@ def create_quiver_jobs(wf, scattered_quiver_plf):
                                         parameters=parameters,
                                         )
             quiver_task = make_quiver_task(task_run_quiver)
-            wf.addTask(quiver_task)
+            yield quiver_task
             job_done_plfs['{}'.format(ctg_id)] = job_done
-    return p_ctg_out, h_ctg_out, job_done_plfs
+
+    io.mkdirs(os.path.dirname(fn(gather_done_plf)))
+    with open(fn(gathered_p_ctg_plf), 'w') as ifs:
+        for cns_fasta_fn, cns_fastq_fn in sorted(p_ctg_out):
+            ifs.write('{} {}\n'.format(cns_fasta_fn, cns_fastq_fn))
+    with open(fn(gathered_h_ctg_plf), 'w') as ifs:
+        for cns_fasta_fn, cns_fastq_fn in sorted(h_ctg_out):
+            ifs.write('{} {}\n'.format(cns_fasta_fn, cns_fastq_fn))
+
+    make_task = PypeTask(
+        inputs=job_done_plfs,
+        outputs={
+            'job_done': gather_done_plf,
+        },
+        parameters={},
+    )
+    yield make_task(task_gather_quiver)
 
 
-def create_segregate_jobs(wf, parameters, scattered_segregate_plf):
-    jn2segregated_bam_fofn = dict()  # job_name -> FOFN_plf
-
-    scattered_segregate_fn = fn(scattered_segregate_plf)
-    jobs = io.deserialize(scattered_segregate_fn)
-    basedir = os.path.dirname(scattered_segregate_fn)  # Should this be relative to cwd?
-    for job in jobs:
-        job_name = job['job_name']
-        merged_bamfn_plf = makePypeLocalFile(job['merged_bamfn'])
-        wd = os.path.join(basedir, job_name)
-        # ctg is encoded into each filepath within the FOFN.
-        segregated_bam_fofn_plf = makePypeLocalFile(os.path.join(wd, 'segregated_bam.fofn'))
-        make_task = PypeTask(
-            inputs={
-                # The other input is next to this one, named by convention.
-                'merged_bamfn': merged_bamfn_plf},
-            outputs={
-                'segregated_bam_fofn': segregated_bam_fofn_plf},
-            parameters=parameters,
-        )
-        wf.addTask(make_task(task_run_segregate))
-        jn2segregated_bam_fofn[job_name] = segregated_bam_fofn_plf
-    return jn2segregated_bam_fofn
+def get_cns_zcat_task(
+        gathered_p_ctg_plf, gathered_h_ctg_plf, gather_done_plf,
+        zcat_done_plf,
+):
+    cns_p_ctg_fasta_plf = makePypeLocalFile('4-quiver/cns_output/cns_p_ctg.fasta')
+    cns_p_ctg_fastq_plf = makePypeLocalFile('4-quiver/cns_output/cns_p_ctg.fastq')
+    cns_h_ctg_fasta_plf = makePypeLocalFile('4-quiver/cns_output/cns_h_ctg.fasta')
+    cns_h_ctg_fastq_plf = makePypeLocalFile('4-quiver/cns_output/cns_h_ctg.fastq')
+    make_task = PypeTask(
+        inputs={
+            'gathered_p_ctg': gathered_p_ctg_plf,
+            'gathered_h_ctg': gathered_h_ctg_plf,
+            'gather_done': gather_done_plf,
+        },
+        outputs={
+            'cns_p_ctg_fasta': cns_p_ctg_fasta_plf,
+            'cns_p_ctg_fastq': cns_p_ctg_fastq_plf,
+            'cns_h_ctg_fasta': cns_h_ctg_fasta_plf,
+            'cns_h_ctg_fastq': cns_h_ctg_fastq_plf,
+            'job_done': zcat_done_plf,
+        },
+    )
+    return make_task(task_cns_zcat)
