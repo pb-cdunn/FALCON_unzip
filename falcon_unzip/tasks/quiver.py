@@ -2,6 +2,7 @@ from pypeflow.simple_pwatcher_bridge import (
     makePypeLocalFile, fn,
     PypeTask,
 )
+from pypeflow.sample_tasks import gen_task # TODO: Better path
 from falcon_kit.FastaReader import FastaReader
 from .. import io
 import json
@@ -11,67 +12,26 @@ import re
 
 LOG = logging.getLogger(__name__)
 
-
-def task_track_reads_h(self):
-    input_bam_fofn = fn(self.input_bam_fofn)
-    rawread_to_contigs = fn(self.rawread_to_contigs)
-    abs_rawread_to_contigs = os.path.abspath(rawread_to_contigs)
-    job_done = fn(self.job_done)
-    topdir = os.path.relpath(self.parameters['topdir'])
-    basedir = os.path.relpath(topdir)
-    reldir = os.path.relpath('.', topdir)
-    script_fn = 'track_reads_h.sh'
-
-    # For now, in/outputs are in various directories, by convention, including '0-rawreads/m_*/*.msgpack'
-    script = """\
-set -vex
-trap 'touch {job_done}.exit' EXIT
-hostname
-date
-
-python -m falcon_unzip.mains.get_read_hctg_map --base-dir={basedir} --output=read_to_contig_map
+# For now, in/outputs are in various directories, by convention, including '0-rawreads/m_*/*.msgpack'
+TASK_TRACK_READS_H_SCRIPT = """\
+python -m falcon_unzip.mains.get_read_hctg_map --base-dir={topdir} --output=read_to_contig_map
 # formerly generated ./4-quiver/read_maps/read_to_contig_map
 
-fc_rr_hctg_track.py --base-dir={basedir} --stream
+fc_rr_hctg_track.py --base-dir={topdir} --stream
 # That writes into 0-rawreads/m_*/
 
+abs_rawread_to_contigs=$(readlink -f {rawread_to_contigs}) #TODO: No readlink
 cd {topdir}
-fc_rr_hctg_track2.exe --output={abs_rawread_to_contigs}
+fc_rr_hctg_track2.exe --output=${{abs_rawread_to_contigs}}
 cd -
-
-date
 ls -l {rawread_to_contigs}
-touch {job_done}
-""".format(**locals())
-
-    with open(script_fn, 'w') as script_file:
-        script_file.write(script)
-    self.generated_script_fn = script_fn
+"""
 
 
-def task_select_reads_h(self):
-    read2ctg = fn(self.read2ctg)
-    input_bam_fofn = fn(self.input_bam_fofn)
-    topdir = os.path.relpath(self.parameters['topdir'])
-    script_fn = 'select_reads_h.sh'
-
-    # For now, in/outputs are in various directories, by convention.
-    script = """\
-set -vex
-hostname
-date
-
-cd {topdir}
-pwd
+# For now, in/outputs are in various directories, by convention.
+TASK_SELECT_READS_H_SCRIPT = """\
 python -m falcon_unzip.mains.get_read2ctg --output={read2ctg} {input_bam_fofn}
-
-date
-cd -
-""".format(**locals())
-
-    with open(script_fn, 'w') as script_file:
-        script_file.write(script)
-    self.generated_script_fn = script_fn
+"""
 
 
 def task_merge_reads(self):
@@ -324,40 +284,6 @@ def task_segregate_gather(self):
     # Do not generate a script. This is light and fast, so do it locally.
 
 
-def get_track_reads_h_task(
-        parameters, input_bam_fofn_plf, hasm_done_plf,
-        track_reads_h_done_plf, track_reads_rr2c_plf,
-):
-    make_task = PypeTask(
-        inputs={
-            'input_bam_fofn': input_bam_fofn_plf,
-            'hasm_done': hasm_done_plf,
-        },
-        outputs={
-            'job_done': track_reads_h_done_plf,
-            'rawread_to_contigs': track_reads_rr2c_plf,
-        },
-        parameters=parameters,
-    )
-    return make_task(task_track_reads_h)
-
-
-def get_select_reads_h_task(
-        parameters, track_reads_h_done_plf, input_bam_fofn_plf, hasm_done_plf,
-        read2ctg_plf,
-):
-    make_task = PypeTask(inputs={
-        # Some implicit inputs, plus these deps:
-        'track_reads_h_done': track_reads_h_done_plf,
-        'input_bam_fofn': input_bam_fofn_plf,
-        'hasm_done': hasm_done_plf},
-        outputs={
-        'read2ctg': read2ctg_plf},
-        parameters=parameters,
-    )
-    return make_task(task_select_reads_h)
-
-
 def get_merge_reads_task(
         parameters, input_bam_fofn_plf, read2ctg_plf, merged_fofn_plf):
     make_task = PypeTask(inputs={
@@ -535,19 +461,39 @@ def run_workflow(wf, config):
         'max_n_open_files': config['max_n_open_files'],
         'topdir': os.getcwd(),
     }
-    input_bam_fofn_fn = config['input_bam_fofn']
-    input_bam_fofn_plf = makePypeLocalFile(input_bam_fofn_fn)
-    hasm_done_plf = makePypeLocalFile('./3-unzip/1-hasm/hasm_done')  # by convention
-    track_reads_h_done_plf = makePypeLocalFile('./4-quiver/track_reads/track_reads_h_done')
-    track_reads_rr2c_plf = makePypeLocalFile('./4-quiver/track_reads/rawread_to_contigs')
-    wf.addTask(get_track_reads_h_task(
-        parameters, input_bam_fofn_plf, hasm_done_plf,
-        track_reads_h_done_plf, track_reads_rr2c_plf))
+    input_bam_fofn = config['input_bam_fofn']
+    track_reads_h_done = './4-quiver/track_reads/track_reads_h_done'
+    track_reads_rr2c = './4-quiver/track_reads/rawread_to_contigs'
+    wf.addTask(gen_task(
+        script=TASK_TRACK_READS_H_SCRIPT,
+        inputs={
+            'input_bam_fofn': input_bam_fofn,
+            'hasm_done': './3-unzip/1-hasm/hasm_done',
+        },
+        outputs={
+            'job_done': track_reads_h_done,
+            'rawread_to_contigs': track_reads_rr2c,
+        },
+        parameters=parameters,
+    ))
 
-    read2ctg_plf = makePypeLocalFile('./4-quiver/select_reads/read2ctg.msgpack')
-    wf.addTask(get_select_reads_h_task(
-        parameters, track_reads_h_done_plf, input_bam_fofn_plf, hasm_done_plf,
-        read2ctg_plf))
+    read2ctg = './4-quiver/select_reads/read2ctg.msgpack'
+    wf.addTask(gen_task(
+        script=TASK_SELECT_READS_H_SCRIPT,
+        inputs={
+            # Some implicit inputs, plus these deps:
+            'track_reads_h_done': track_reads_h_done,
+            'input_bam_fofn': input_bam_fofn,
+            #'rawread_to_contigs': track_reads_rr2c, # TODO: Check, and make explicit, maybe.
+        },
+        outputs={
+            'read2ctg': read2ctg,
+        },
+        parameters=parameters,
+    ))
+
+    read2ctg_plf = makePypeLocalFile(read2ctg)
+    input_bam_fofn_plf = makePypeLocalFile(input_bam_fofn)
 
     merged_fofn_plf = makePypeLocalFile('./4-quiver/merge_reads/merged.fofn')
     wf.addTask(get_merge_reads_task(
