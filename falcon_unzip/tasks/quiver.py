@@ -27,20 +27,6 @@ cd -
 ls -l {rawread_to_contigs}
 """
 
-def task_track_reads_h(self):
-    input_bam_fofn = fn(self.input_bam_fofn)
-    rawread_to_contigs = fn(self.rawread_to_contigs)
-    abs_rawread_to_contigs = os.path.abspath(rawread_to_contigs)
-    job_done = fn(self.job_done)
-    topdir = os.path.relpath(self.parameters['topdir'])
-    basedir = os.path.relpath(topdir)
-    reldir = os.path.relpath('.', topdir)
-    script_fn = 'track_reads_h.sh'
-    script = TASK_TRACK_READS_H_SCRIPT.format(**locals())
-    with open(script_fn, 'w') as script_file:
-        script_file.write(script)
-    self.generated_script_fn = script_fn
-
 
 def task_select_reads_h(self):
     read2ctg = fn(self.read2ctg)
@@ -315,24 +301,6 @@ def task_segregate_gather(self):
     io.serialize(ctg2segregated_bamfn_fn, ctg2segregated_bamfn)
     io.serialize(ctg2segregated_bamfn_fn + '.json', ctg2segregated_bamfn)  # for debugging
     # Do not generate a script. This is light and fast, so do it locally.
-
-
-def get_track_reads_h_task(
-        parameters, input_bam_fofn_plf, hasm_done_plf,
-        track_reads_h_done_plf, track_reads_rr2c_plf,
-):
-    make_task = PypeTask(
-        inputs={
-            'input_bam_fofn': input_bam_fofn_plf,
-            'hasm_done': hasm_done_plf,
-        },
-        outputs={
-            'job_done': track_reads_h_done_plf,
-            'rawread_to_contigs': track_reads_rr2c_plf,
-        },
-        parameters=parameters,
-    )
-    return make_task(task_track_reads_h)
 
 
 def get_select_reads_h_task(
