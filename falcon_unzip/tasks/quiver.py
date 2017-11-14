@@ -284,34 +284,6 @@ def task_segregate_gather(self):
     # Do not generate a script. This is light and fast, so do it locally.
 
 
-def get_merge_reads_task(
-        parameters, input_bam_fofn_plf, read2ctg_plf, merged_fofn_plf):
-    make_task = PypeTask(inputs={
-        'input_bam_fofn': input_bam_fofn_plf,
-        'read2ctg': read2ctg_plf},
-        outputs={
-        'merged_fofn': merged_fofn_plf},
-        parameters=parameters,
-    )
-    return make_task(task_merge_reads)
-
-
-def get_segregate_scatter_task(
-        parameters, merged_fofn_plf,
-        scattered_segregate_plf,
-):
-    make_task = PypeTask(
-        inputs={
-            'merged_fofn': merged_fofn_plf,
-        },
-        outputs={
-            'scattered_segregate_json': scattered_segregate_plf,
-        },
-        parameters=parameters,
-    )
-    return make_task(task_segregate_scatter)
-
-
 def yield_segregate_bam_tasks(parameters, scattered_segregate_plf, ctg2segregated_bamfn_plf):
     # Segregate reads from merged BAM files in parallel.
     # (If this were not done in Python, it could probably be in serial.)
@@ -496,12 +468,26 @@ def run_workflow(wf, config):
     input_bam_fofn_plf = makePypeLocalFile(input_bam_fofn)
 
     merged_fofn_plf = makePypeLocalFile('./4-quiver/merge_reads/merged.fofn')
-    wf.addTask(get_merge_reads_task(
-        parameters, input_bam_fofn_plf, read2ctg_plf, merged_fofn_plf))
+    task = PypeTask(inputs={
+        'input_bam_fofn': input_bam_fofn_plf,
+        'read2ctg': read2ctg_plf},
+        outputs={
+        'merged_fofn': merged_fofn_plf},
+        parameters=parameters,
+    )(task_merge_reads)
+    wf.addTask(task)
 
     scattered_segregate_plf = makePypeLocalFile('./4-quiver/segregate_scatter/scattered.json')
-    wf.addTask(get_segregate_scatter_task(
-        parameters, merged_fofn_plf, scattered_segregate_plf))
+    task = PypeTask(
+        inputs={
+            'merged_fofn': merged_fofn_plf,
+        },
+        outputs={
+            'scattered_segregate_json': scattered_segregate_plf,
+        },
+        parameters=parameters,
+    )(task_segregate_scatter)
+    wf.addTask(task)
     wf.refreshTargets()
 
     ctg2segregated_bamfn_plf = makePypeLocalFile('./4-quiver/segregate_gather/ctg2segregated_bamfn.msgpack')
