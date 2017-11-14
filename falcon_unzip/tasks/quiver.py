@@ -2,7 +2,7 @@ from pypeflow.simple_pwatcher_bridge import (
     makePypeLocalFile, fn,
     PypeTask,
 )
-from pypeflow.sample_tasks import gen_task # TODO: Better path
+#from pypeflow.sample_tasks import gen_task # TODO: Better path
 from falcon_kit.FastaReader import FastaReader
 from .. import io
 import json
@@ -11,6 +11,46 @@ import os
 import re
 
 LOG = logging.getLogger(__name__)
+
+import collections
+def task_generic_bash_script(self):
+    """Generic script task.
+    The script template should be in
+    self.parameters['_bash_'].
+    The template will be substituted by
+    the content of "self" and of "self.parameters".
+    (That is a little messy, but good enough for now.)
+    """
+    self_dict = dict()
+    self_dict.update(self.__dict__)
+    self_dict.update(self.parameters)
+    script_unsub = self.parameters['_bash_']
+    script = script_unsub.format(**self_dict)
+    script_fn = 'script.sh'
+    with open(script_fn, 'w') as ofs:
+        ofs.write(script)
+    self.generated_script_fn = script_fn
+def gen_task(script, inputs, outputs, parameters={}):
+    # For now, we need abspath, to link file with its producer.
+    # TODO: Move back into pypeflow.
+    parameters = dict(parameters) # copy
+    def validate_dict(mydict):
+        "Python identifiers are illegal as keys."
+        try:
+            collections.namedtuple('validate', mydict.keys())
+        except ValueError as exc:
+            LOG.exception('Bad key name in task definition dict {!r}'.format(mydict))
+            raise
+    validate_dict(inputs)
+    validate_dict(outputs)
+    validate_dict(parameters)
+    parameters['_bash_'] = script
+    make_task = PypeTask(
+            inputs={k: os.path.abspath(v) for k,v in inputs.iteritems()},
+            outputs={k: os.path.abspath(v) for k,v in outputs.iteritems()},
+            parameters=parameters,
+            )
+    return make_task(task_generic_bash_script)
 
 # For now, in/outputs are in various directories, by convention, including '0-rawreads/m_*/*.msgpack'
 TASK_TRACK_READS_H_SCRIPT = """\
@@ -33,35 +73,17 @@ TASK_SELECT_READS_H_SCRIPT = """\
 python -m falcon_unzip.mains.get_read2ctg --output={read2ctg} {input_bam_fofn}
 """
 
-
-def task_merge_reads(self):
-    merged_fofn = fn(self.merged_fofn)
-    read2ctg = fn(self.read2ctg)
-    input_bam_fofn = fn(self.input_bam_fofn)
-    max_n_open_files = self.parameters['max_n_open_files']
-    topdir = os.path.relpath(self.parameters['topdir'])
-    script_fn = 'merge_reads.sh'
-
-    # For now, in/outputs are in various directories, by convention.
-    script = """\
-set -vex
-#trap 'touch {merged_fofn}.exit' EXIT
-hostname
-date
-
+# For now, in/outputs are in various directories, by convention.
+TASK_MERGE_READS_SCRIPT = """\
+abs_merged_fofn=$(readlink -f {merged_fofn})
+rm -f {merged_fofn}
 cd {topdir}
-#fc_select_reads_from_bam.py --max-n-open-files={max_n_open_files} {input_bam_fofn}
 pwd
-python -m falcon_unzip.mains.bam_partition_and_merge --max-n-open-files={max_n_open_files} --read2ctg-fn={read2ctg} --merged-fn={merged_fofn} {input_bam_fofn}
-
-date
+#fc_select_reads_from_bam.py --max-n-open-files={max_n_open_files} {input_bam_fofn}
+python -m falcon_unzip.mains.bam_partition_and_merge --max-n-open-files={max_n_open_files} --read2ctg-fn={read2ctg} --merged-fn=${{abs_merged_fofn}} {input_bam_fofn}
 cd -
-# Expect {merged_fofn}
-""".format(**locals())
-
-    with open(script_fn, 'w') as script_file:
-        script_file.write(script)
-    self.generated_script_fn = script_fn
+ls -l {merged_fofn}
+"""
 
 
 def task_run_quiver(self):
@@ -434,7 +456,6 @@ def run_workflow(wf, config):
         'topdir': os.getcwd(),
     }
     input_bam_fofn = config['input_bam_fofn']
-    track_reads_h_done = './4-quiver/track_reads/track_reads_h_done'
     track_reads_rr2c = './4-quiver/track_reads/rawread_to_contigs'
     wf.addTask(gen_task(
         script=TASK_TRACK_READS_H_SCRIPT,
@@ -443,7 +464,6 @@ def run_workflow(wf, config):
             'hasm_done': './3-unzip/1-hasm/hasm_done',
         },
         outputs={
-            'job_done': track_reads_h_done,
             'rawread_to_contigs': track_reads_rr2c,
         },
         parameters=parameters,
@@ -454,9 +474,8 @@ def run_workflow(wf, config):
         script=TASK_SELECT_READS_H_SCRIPT,
         inputs={
             # Some implicit inputs, plus these deps:
-            'track_reads_h_done': track_reads_h_done,
             'input_bam_fofn': input_bam_fofn,
-            #'rawread_to_contigs': track_reads_rr2c, # TODO: Check, and make explicit, maybe.
+            'rawread_to_contigs': track_reads_rr2c,
         },
         outputs={
             'read2ctg': read2ctg,
@@ -464,23 +483,26 @@ def run_workflow(wf, config):
         parameters=parameters,
     ))
 
-    read2ctg_plf = makePypeLocalFile(read2ctg)
-    input_bam_fofn_plf = makePypeLocalFile(input_bam_fofn)
+    #read2ctg_plf = makePypeLocalFile(read2ctg)
+    #input_bam_fofn_plf = makePypeLocalFile(input_bam_fofn)
 
-    merged_fofn_plf = makePypeLocalFile('./4-quiver/merge_reads/merged.fofn')
-    task = PypeTask(inputs={
-        'input_bam_fofn': input_bam_fofn_plf,
-        'read2ctg': read2ctg_plf},
+    merged_fofn = './4-quiver/merge_reads/merged.fofn'
+    wf.addTask(gen_task(
+        script=TASK_MERGE_READS_SCRIPT,
+        inputs={
+            'input_bam_fofn': input_bam_fofn,
+            'read2ctg': read2ctg,
+        },
         outputs={
-        'merged_fofn': merged_fofn_plf},
+            'merged_fofn': merged_fofn,
+        },
         parameters=parameters,
-    )(task_merge_reads)
-    wf.addTask(task)
+    ))
 
     scattered_segregate_plf = makePypeLocalFile('./4-quiver/segregate_scatter/scattered.json')
     task = PypeTask(
         inputs={
-            'merged_fofn': merged_fofn_plf,
+            'merged_fofn': os.path.abspath(merged_fofn),
         },
         outputs={
             'scattered_segregate_json': scattered_segregate_plf,
