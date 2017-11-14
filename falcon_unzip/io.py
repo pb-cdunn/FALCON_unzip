@@ -26,7 +26,8 @@ def validate_config(config):
         'blasr', 'samtools', 'pbalign', 'variantCaller',
     ]
     path_cmds = [
-        'nucmer', 'show-coords',
+        'nucmer',
+        'show-coords',
         'fc_rr_hctg_track2.exe',
     ]
     LOG.info('PATH={}'.format(os.environ['PATH']))
@@ -37,8 +38,8 @@ def validate_config(config):
         return
     for cmd in smrt_bin_cmds + path_cmds:
         syscall('which ' + cmd)
-    syscall('nucmer --help')
-    # Note: 'show-coords --help' returns non-zero, so we cannot check that so easily.
+    syscall('show-coords -h')
+    syscall('nucmer --version')
 
 
 def update_env_from_config(config, fn):
