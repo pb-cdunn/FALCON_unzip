@@ -4,6 +4,7 @@ from pypeflow.simple_pwatcher_bridge import (
     PypeTask,
     PypeProcWatcherWorkflow, MyFakePypeThreadTaskBase)
 from .tasks import quiver as tasks_quiver
+from .tasks import snakemake
 from . import io
 import glob
 import logging
@@ -15,9 +16,9 @@ import ConfigParser
 LOG = logging.getLogger(__name__)
 
 
-def run(config_fn):
+def run(config_fn, logging_config_fn):
     global LOG
-    LOG = support.setup_logger(None)
+    LOG = support.setup_logger(logging_config_fn)
 
     config_absbasedir = os.path.dirname(os.path.abspath(config_fn))
 
@@ -83,4 +84,6 @@ def run(config_fn):
         #watcher_directory=config.get('pwatcher_directory', 'mypwatcher'),
         use_tmpdir=config.get('use_tmpdir'),
     )
-    tasks_quiver.run_workflow(wf, config)
+    with open('foo.snake', 'w') as snakemake_writer:
+        rule_writer = snakemake.SnakemakeRuleWriter(snakemake_writer)
+        tasks_quiver.run_workflow(wf, config, rule_writer)
