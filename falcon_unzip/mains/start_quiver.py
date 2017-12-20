@@ -13,6 +13,10 @@ def parse_args(argv):
         formatter_class=HelpF,
     )
     parser.add_argument(
+        '--logging-config-fn',
+        help='Optional standard Python logging config',
+    )
+    parser.add_argument(
         'config_fn', type=str,
         help='Configuration file. (This needs its own help section. Note: smrt_bin is deprecated, but if supplied will be appended to PATH.)',
     )

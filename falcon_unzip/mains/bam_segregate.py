@@ -81,12 +81,17 @@ def get_ctg2samfn(read2ctg, basedir):
     ctg2samfn = dict()
     ctgs = set(read2ctg.values())
     for ctg in ctgs:
-        fn = os.path.join(basedir, ctg, '{}.bam'.format(ctg))
+        fn = os.path.join(basedir, '..', 'segregated', ctg, '{}.bam'.format(ctg))
         ctg2samfn[ctg] = fn
     return ctg2samfn
 
 
 def run(output_fn, merged_fn):
+    if os.path.islink(merged_fn):
+        # If it was symlinked, we need to resolve the symlink first, for the implicit dep below.
+        # This is kinda hacky. When we make this extra dep explicit, we can drop this hack.
+        merged_fn = os.path.realpath(merged_fn)
+    # We have (for now) an implicit input next to each merged_fn.
     read2ctg_fn = merged_fn + '.read2ctg.msgpack'  # by convention
     read2ctg = io.deserialize(read2ctg_fn)
     ctg2samfn = get_ctg2samfn(read2ctg, os.path.dirname(output_fn))
@@ -116,6 +121,7 @@ def parse_args(argv):
     parser.add_argument(
         '--output-fn', type=str,
         help='A FOFN of BAM for segregated reads. The paths must encode each ctg somehow (by convention).',
+        # The FOFNs must have a fasta and a fastq filename on each line, I think.
     )
     parser.add_argument(
         '--merged-fn', type=str,

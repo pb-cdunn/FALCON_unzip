@@ -114,6 +114,7 @@ def serialize(fn, val):
             write_as_msgpack(ofs, val)
         elif fn.endswith('.json'):
             write_as_json(ofs, val)
+            ofs.write('\n') # for vim
         else:
             raise Exception('Unknown extension for {!r}'.format(fn))
 
@@ -135,12 +136,16 @@ def yield_abspath_from_fofn(fofn_fn):
     """Yield each filename.
     Relative paths are resolved from the FOFN directory.
     """
-    basedir = os.path.dirname(fofn_fn)
-    for line in open(fofn_fn):
-        fn = line.strip()
-        if not os.path.isabs(fn):
-            fn = os.path.abspath(os.path.join(basedir, fn))
-        yield fn
+    try:
+        basedir = os.path.dirname(fofn_fn)
+        for line in open(fofn_fn):
+            fn = line.strip()
+            if not os.path.isabs(fn):
+                fn = os.path.abspath(os.path.join(basedir, fn))
+            yield fn
+    except Exception:
+        LOG.error('Problem resolving paths in FOFN {!r}'.format(fofn_fn))
+        raise
 
 
 def syscall(call, nocheck=False):

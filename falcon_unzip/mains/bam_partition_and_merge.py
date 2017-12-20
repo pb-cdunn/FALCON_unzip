@@ -139,7 +139,7 @@ def open_sam_writers(header, sam_fns):
         # log-logging
         n += 1
         if n == n_next:
-            log('{} Opening samfile:{!r}'.format(n, samfn))
+            log('{} Opened (wb) samfile:{!r}'.format(n, samfn))
             n_next = n_next * 2
     return samfn2writer
 
