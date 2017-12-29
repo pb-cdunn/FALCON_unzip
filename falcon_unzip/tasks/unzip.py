@@ -11,30 +11,15 @@ import os
 LOG = logging.getLogger(__name__)
 
 
-def task_track_reads(self):
-    job_done = fn(self.job_done)
-    fofn_fn = os.path.relpath(fn(self.fofn))
-
-    topdir = os.path.relpath(self.parameters['topdir'])
-
-    script_fn = 'track_reads.sh'
-    script = """\
-set -vex
-trap 'touch {job_done}.exit' EXIT
-hostname
-date
-
-python -m falcon_unzip.mains.rr_ctg_track --base-dir={topdir} --output=rawread_to_contigs
-python -m falcon_unzip.mains.pr_ctg_track --base-dir={topdir} --output=pread_to_contigs
+TASK_TRACK_READS_SCRIPT = """\
+# Also require read_to_contig_map.
+python -m falcon_unzip.mains.rr_ctg_track --base-dir={params.topdir} --output=rawread_to_contigs
+python -m falcon_unzip.mains.pr_ctg_track --base-dir={params.topdir} --output=pread_to_contigs
 # Those outputs are used only by fetch_reads.
-python -m falcon_unzip.mains.fetch_reads --base-dir={topdir} --fofn={fofn_fn}
-date
-touch {job_done}
-""".format(**locals())
-
-    with open(script_fn, 'w') as script_file:
-        script_file.write(script)
-    self.generated_script_fn = script_fn
+python -m falcon_unzip.mains.fetch_reads --base-dir={params.topdir} --fofn={output.fofn}
+touch {output.job_done}
+# Also produce ctg_list_file.
+"""
 
 
 def task_run_blasr(self):
@@ -294,26 +279,6 @@ def create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file):
     ))
 
 
-def get_track_reads_task(config, fofn_file, read_to_contig_map_file, ctg_list_file):
-    parameters = {
-            'config': config,
-            'sge_option': config['sge_track_reads'],
-            'topdir': os.getcwd(),
-    }
-    job_done = makePypeLocalFile('./3-unzip/reads/track_reads_done')
-    make_track_reads_task = PypeTask(
-            inputs={
-                'fofn': fofn_file,
-                'read_to_contig_map': read_to_contig_map_file,
-            },
-            outputs={
-                'job_done': job_done, 'ctg_list_file': ctg_list_file,
-            },
-            parameters=parameters,
-            )
-    return make_track_reads_task(task_track_reads)
-
-
 def get_blasr_task(config, ctg_id, ctg_aln_out):
         ref_fasta = makePypeLocalFile('./3-unzip/reads/{ctg_id}_ref.fa'.format(ctg_id=ctg_id))
         read_fasta = makePypeLocalFile('./3-unzip/reads/{ctg_id}_reads.fa'.format(ctg_id=ctg_id))
@@ -470,15 +435,30 @@ def get_hasm_task(config, gathered_rid_to_phase_file, las_fofn_file, job_done):
 
 
 def run_workflow(wf, config, rule_writer):
+    parameters = {
+        'sge_option': config['sge_track_reads'],
+        #'topdir': os.getcwd(),
+    }
     read_to_contig_map_file = '3-unzip/reads/get_read_ctg_map/read_to_contig_map'
     # This has lots of inputs from falcon stages 0, 1, and 2.
     create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file)
 
-    ctg_list_file = makePypeLocalFile('./3-unzip/reads/ctg_list')
-    fofn_file = makePypeLocalFile(config.get('input_fofn', './input.fofn')) # from user config, usually
+    ctg_list_file = './3-unzip/reads/ctg_list'
+    fofn_file = config.get('input_fofn', './input.fofn') # from user config, usually
 
-    track_reads_task = get_track_reads_task(config, fofn_file, read_to_contig_map_file, ctg_list_file)
-    wf.addTask(track_reads_task)
+    wf.addTask(gen_task(
+            script=TASK_TRACK_READS_SCRIPT,
+            inputs={
+                'fofn': fofn_file,
+                'read_to_contig_map': read_to_contig_map_file,
+            },
+            outputs={
+                'job_done': './3-unzip/reads/track_reads_done', # TODO: Depend directly on ctg_list_file instead.
+                'ctg_list_file': ctg_list_file,
+            },
+            parameters=parameters,
+            rule_writer=rule_writer,
+    ))
 
     # Refresh so that ctg_list_file is available. TODO: Proper scattering.
     wf.refreshTargets()
