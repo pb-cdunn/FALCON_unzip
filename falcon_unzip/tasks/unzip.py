@@ -2,6 +2,8 @@ from pypeflow.simple_pwatcher_bridge import (
     makePypeLocalFile, fn,
     PypeTask,
 )
+from .pype import (gen_task, gen_parallel_tasks)
+from .. import io
 from falcon_kit import pype_tasks
 import logging
 import os
@@ -243,47 +245,53 @@ touch {job_done}
     self.generated_script_fn = script_fn
 
 
-def create_tasks_read_to_contig_map(read_to_contig_map_plf):
-    falcon_asm_done = makePypeLocalFile('./2-asm-falcon/falcon_asm_done')
+def create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file):
+    falcon_asm_done = './2-asm-falcon/falcon_asm_done'
 
-    rawread_db = makePypeLocalFile('0-rawreads/raw_reads.db')
-    rawread_ids = makePypeLocalFile('3-unzip/reads/dump_rawread_ids/rawread_ids')
+    rawread_db = '0-rawreads/raw_reads.db'
+    rawread_ids = '3-unzip/reads/dump_rawread_ids/rawread_ids'
 
-    task = PypeTask(
+    wf.addTask(gen_task(
+        script=pype_tasks.TASK_DUMP_RAWREAD_IDS_SCRIPT,
         inputs={'rawread_db': rawread_db,
                 'falcon_asm_done': falcon_asm_done,
         },
         outputs={'rawread_id_file': rawread_ids,
         },
-    )
-    yield task(pype_tasks.task_dump_rawread_ids)
+        parameters={},
+        rule_writer=rule_writer,
+    ))
 
-    pread_db = makePypeLocalFile('1-preads_ovl/preads.db')
-    pread_ids = makePypeLocalFile('3-unzip/reads/dump_pread_ids/pread_ids')
+    pread_db = '1-preads_ovl/preads.db'
+    pread_ids = '3-unzip/reads/dump_pread_ids/pread_ids'
 
-    task = PypeTask(
+    wf.addTask(gen_task(
+        script=pype_tasks.TASK_DUMP_PREAD_IDS_SCRIPT,
         inputs={'pread_db': pread_db,
                 'falcon_asm_done': falcon_asm_done,
         },
         outputs={'pread_id_file': pread_ids,
         },
-    )
-    yield task(pype_tasks.task_dump_pread_ids)
+        parameters={},
+        rule_writer=rule_writer,
+    ))
 
-    sg_edges_list = makePypeLocalFile('2-asm-falcon/sg_edges_list')
-    utg_data = makePypeLocalFile('2-asm-falcon/utg_data')
-    ctg_paths = makePypeLocalFile('2-asm-falcon/ctg_paths')
+    sg_edges_list = '2-asm-falcon/sg_edges_list'
+    utg_data = '2-asm-falcon/utg_data'
+    ctg_paths = '2-asm-falcon/ctg_paths'
 
     inputs = {'rawread_id_file': rawread_ids,
               'pread_id_file': pread_ids,
               'sg_edges_list': sg_edges_list,
               'utg_data': utg_data,
               'ctg_paths': ctg_paths}
-    task = PypeTask(
+    wf.addTask(gen_task(
+        script=pype_tasks.TASK_GENERATE_READ_TO_CTG_MAP_SCRIPT,
         inputs=inputs,
-        outputs={'read_to_contig_map': read_to_contig_map_plf},
-    )
-    yield task(pype_tasks.task_generate_read_to_ctg_map)
+        outputs={'read_to_contig_map': read_to_contig_map_file},
+        parameters={},
+        rule_writer=rule_writer,
+    ))
 
 
 def get_track_reads_task(config, fofn_file, read_to_contig_map_file, ctg_list_file):
@@ -462,9 +470,9 @@ def get_hasm_task(config, gathered_rid_to_phase_file, las_fofn_file, job_done):
 
 
 def run_workflow(wf, config, rule_writer):
-    read_to_contig_map_file = makePypeLocalFile('3-unzip/reads/get_read_ctg_map/read_to_contig_map')
+    read_to_contig_map_file = '3-unzip/reads/get_read_ctg_map/read_to_contig_map'
     # This has lots of inputs from falcon stages 0, 1, and 2.
-    wf.addTasks(create_tasks_read_to_contig_map(read_to_contig_map_file))
+    create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file)
 
     ctg_list_file = makePypeLocalFile('./3-unzip/reads/ctg_list')
     fofn_file = makePypeLocalFile(config.get('input_fofn', './input.fofn')) # from user config, usually
