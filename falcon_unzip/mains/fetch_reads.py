@@ -10,7 +10,7 @@ import re
 
 def fetch_ref_and_reads(
         fofn, ctg_id, min_ctg_lenth,
-        base_dir,
+        base_dir, ctg_list_fn,
         ):
     ctg_fa = os.path.join(base_dir, '2-asm-falcon', 'p_ctg.fa')
 
@@ -45,11 +45,13 @@ def fetch_ref_and_reads(
             if len(s.sequence) < min_ctg_lenth:
                 continue
 
+            io.mkdirs(os.path.join(out_dir, ctg_id))
             if ctg_id != 'all':
-                ref_out = open(os.path.join(
-                    out_dir, '%s_ref.fa' % ctg_id), 'w')
+                ref_out = open(os.path.join(out_dir, ctg_id, 'ref.fa'), 'w')
             else:
-                ref_out = open(os.path.join(out_dir, '%s_ref.fa' % s_id), 'w')
+                # TODO(CD): Check when s_id != ctg_id
+                io.mkdirs(os.path.join(out_dir, s_id))
+                ref_out = open(os.path.join(out_dir, s_id, 'ref.fa'), 'w')
 
             print >>ref_out, '>%s' % s_id
             print >>ref_out, s.sequence
@@ -81,7 +83,7 @@ def fetch_ref_and_reads(
                 read_set[o_id] = hit_ctg
                 ctg_id_hits[hit_ctg] = ctg_id_hits.get(hit_ctg, 0) + 1
 
-    with open(os.path.join(out_dir, 'ctg_list'), 'w') as f:
+    with open(os.path.join(out_dir, ctg_list_fn), 'w') as f:
         for ctg_id in sorted(list(all_ctg_ids)):
             if ctg_id_hits.get(ctg_id, 0) < 5:
                 continue
@@ -94,12 +96,13 @@ def fetch_ref_and_reads(
 
     @contextlib.contextmanager
     def reopened_fasta_out(ctg_id):
-                # A convenient closure, with a contextmanager.
+        """A convenient closure, with a contextmanager."""
+        io.mkdirs(os.path.join(out_dir, ctg_id))
         if ctg_id not in read_out_files:
-            read_out = open(os.path.join(out_dir, '%s_reads.fa' % ctg_id), 'w')
+            read_out = open(os.path.join(out_dir, ctg_id, 'reads.fa'), 'w')
             read_out_files[ctg_id] = 1
         else:
-            read_out = open(os.path.join(out_dir, '%s_reads.fa' % ctg_id), 'a')
+            read_out = open(os.path.join(out_dir, ctg_id, 'reads.fa'), 'a')
         yield read_out
         read_out.close()
 
@@ -125,6 +128,9 @@ def parse_args(argv):
     description = 'Using the read to contig mapping data, to partition the reads (into {ctg_id}_reads.fa and {ctg_id}_ref.fa) grouped by contigs.'
     parser = argparse.ArgumentParser(description=description,
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument(
+        '--ctg-list-fn', type=str, default='ctg_list',
+        help='Output. List of ctg_id names.')
     parser.add_argument(
         '--base-dir', type=str, default='../..',
         help='the base working dir of a falcon assembly')
