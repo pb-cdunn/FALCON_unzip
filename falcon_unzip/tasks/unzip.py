@@ -459,3 +459,31 @@ def get_hasm_task(config, gathered_rid_to_phase_file, las_fofn_file, job_done):
             parameters=parameters,
             )
     return make_hasm_task(task_hasm)
+
+
+def run_workflow(wf, config, rule_writer):
+    read_to_contig_map_file = makePypeLocalFile('3-unzip/reads/get_read_ctg_map/read_to_contig_map')
+    # This has lots of inputs from falcon stages 0, 1, and 2.
+    wf.addTasks(create_tasks_read_to_contig_map(read_to_contig_map_file))
+
+    ctg_list_file = makePypeLocalFile('./3-unzip/reads/ctg_list')
+    fofn_file = makePypeLocalFile(config.get('input_fofn', './input.fofn')) # from user config, usually
+
+    track_reads_task = get_track_reads_task(config, fofn_file, read_to_contig_map_file, ctg_list_file)
+    wf.addTask(track_reads_task)
+
+    # Refresh so that ctg_list_file is available. TODO: Proper scattering.
+    wf.refreshTargets()
+
+    gathered_rid_to_phase_file = makePypeLocalFile('./3-unzip/1-hasm/gathered-rid-to-phase/rid_to_phase.all')
+    phasing_tasks = list(create_phasing_tasks(config, ctg_list_file, gathered_rid_to_phase_file))
+    wf.addTasks(phasing_tasks)
+
+    las_fofn_file = makePypeLocalFile('./1-preads_ovl/merge-gather/las.fofn') #'2-asm-falcon/las.fofn'
+    job_done = makePypeLocalFile('./3-unzip/1-hasm/hasm_done')
+    hasm_task = get_hasm_task(config, gathered_rid_to_phase_file, las_fofn_file, job_done)
+    wf.addTask(hasm_task)
+
+    unzip_phasing_concurrent_jobs = config['unzip_phasing_concurrent_jobs']
+    wf.max_jobs = unzip_phasing_concurrent_jobs
+    wf.refreshTargets()
