@@ -33,9 +33,10 @@ def unzip_all(config):
         tasks_unzip.run_workflow(wf, config, rule_writer)
 
 
-def run(config_fn):
+def run(config_fn, logging_config_fn):
     global LOG
-    LOG = support.setup_logger(None)
+    LOG = support.setup_logger(logging_config_fn)
+
 
     config = ConfigParser.ConfigParser()
     config.read(config_fn)
