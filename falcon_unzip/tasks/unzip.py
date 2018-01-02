@@ -19,9 +19,9 @@ python -m falcon_unzip.mains.pr_ctg_track --base-dir={params.topdir} --output=pr
 python -m falcon_unzip.mains.fetch_reads --base-dir={params.topdir} --fofn={input.fofn} --ctg-list={output.ctg_list_file}
 touch {output.job_done}
 """
+# TODO: Proper scattering (currently in fetch_reads.py)
 
-
-# wd = 3-unzip/0-phasing/(ctg_id)/
+# This will run in 3-unzip/0-phasing/(ctg_id)/
 TASK_RUN_PHASING_SCRIPT = """\
 
 # BLASR
@@ -66,20 +66,24 @@ python -m falcon_unzip.mains.phasing_readmap --the-ctg-id={params.ctg_id} --read
 mv {output.rid_to_phase_out}.tmp {output.rid_to_phase_out}
 """
 
-def task_hasm(self):
-    rid_to_phase_all = fn(self.rid_to_phase_all)
-    las_fofn = fn(self.las_fofn)
-    job_done = fn(self.job_done)
-    #config = self.parameters['config']
+TASK_PHASING_SCATTER_SCRIPT = """\
+python -m falcon_unzip.mains.phasing_scatter --ctg-list-fn={input.ctg_list} --scattered-fn={output.scattered}
+"""
 
-    script_fn = 'hasm.sh'
-    script = """\
-set -vex
-trap 'touch {job_done}.exit' EXIT
-hostname
-date
+TASK_GET_RID_TO_PHASE_ALL_SCRIPT = """\
+rm -f {output.rid_to_phase_all}
+for fn in {input}; do
+  cat $fn >> {output.rid_to_phase_all}
+done
+"""
 
-python -m falcon_unzip.mains.ovlp_filter_with_phase --fofn {las_fofn} --max_diff 120 --max_cov 120 --min_cov 1 --n_core 48 --min_len 2500 --db ../../1-preads_ovl/preads.db --rid_phase_map {rid_to_phase_all} > preads.p_ovl
+TASK_PHASING_GATHER_SCRIPT = """\
+python -m falcon_unzip.mains.phasing_gather --gathered={input.gathered} --rid-to-phase-all={output.rid_to_phase_all}
+"""
+
+
+TASK_HASM_SCRIPT = """\
+python -m falcon_unzip.mains.ovlp_filter_with_phase --fofn {input.las_fofn} --max_diff 120 --max_cov 120 --min_cov 1 --n_core 48 --min_len 2500 --db ../../1-preads_ovl/preads.db --rid_phase_map {input.rid_to_phase_all} > preads.p_ovl
 python -m falcon_unzip.mains.phased_ovlp_to_graph preads.p_ovl --min_len 2500 > fc.log
 if [ -e ../../1-preads_ovl/preads4falcon.fasta ];
 then
@@ -87,7 +91,7 @@ then
 else
   ln -sf ../../1-preads_ovl/db2falcon/preads4falcon.fasta .
 fi
-python -m falcon_unzip.mains.graphs_to_h_tigs --fc_asm_path ../../2-asm-falcon/ --fc_hasm_path ./ --ctg_id all --rid_phase_map {rid_to_phase_all} --fasta preads4falcon.fasta
+python -m falcon_unzip.mains.graphs_to_h_tigs --fc_asm_path ../../2-asm-falcon/ --fc_hasm_path ./ --ctg_id all --rid_phase_map {input.rid_to_phase_all} --fasta preads4falcon.fasta
 
 # more script -- a little bit hacky here, we should improve
 
@@ -111,14 +115,9 @@ time python -m falcon_unzip.mains.unzip_gen_gfa_v1 --unzip-root $WD/.. --p-ctg-f
 # edges and nodes which are not part of primary contigs and haplotigs
 time python -m falcon_unzip.mains.unzip_gen_gfa_v1 --unzip-root $WD/.. --p-ctg-fasta $WD/../all_p_ctg.fa --h-ctg-fasta $WD/../all_h_ctg.fa --preads-fasta $WD/preads4falcon.fasta --add-string-graph >| $WD/../sg.gfa
 
-cd ../
-date
-touch {job_done}
-""".format(**locals())
-
-    with open(script_fn, 'w') as script_file:
-        script_file.write(script)
-    self.generated_script_fn = script_fn
+cd $WD
+touch {output.job_done}
+"""
 
 
 def create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file):
@@ -169,36 +168,6 @@ def create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file):
         rule_writer=rule_writer,
     ))
 
-def get_hasm_task(config, gathered_rid_to_phase_file, las_fofn_file, job_done):
-    parameters = {
-            'sge_option': config['sge_hasm'],
-    }
-    make_hasm_task = PypeTask(
-            inputs={
-                'rid_to_phase_all': gathered_rid_to_phase_file,
-                'las_fofn': las_fofn_file,
-            },
-            outputs={
-                'job_done': job_done,
-            },
-            parameters=parameters,
-            )
-    return make_hasm_task(task_hasm)
-
-
-TASK_PHASING_SCATTER_SCRIPT = """\
-python -m falcon_unzip.mains.phasing_scatter --ctg-list-fn={input.ctg_list} --scattered-fn={output.scattered}
-"""
-TASK_GET_RID_TO_PHASE_ALL_SCRIPT = """\
-rm -f {output.rid_to_phase_all}
-for fn in {input}; do
-  cat $fn >> {output.rid_to_phase_all}
-done
-"""
-TASK_PHASING_GATHER_SCRIPT = """\
-python -m falcon_unzip.mains.phasing_gather --gathered={input.gathered} --rid-to-phase-all={output.rid_to_phase_all}
-"""
-
 
 def run_workflow(wf, config, rule_writer):
     parameters = {
@@ -226,10 +195,8 @@ def run_workflow(wf, config, rule_writer):
             rule_writer=rule_writer,
     ))
 
-    # Refresh so that ctg_list_file is available. TODO: Proper scattering (currently in fetch_reads.py)
-    wf.refreshTargets()
-
     scattered = './3-unzip/1-hasm/scattered/scattered.json'
+
     wf.addTask(gen_task(
         script=TASK_PHASING_SCATTER_SCRIPT,
         inputs=dict(
@@ -242,11 +209,11 @@ def run_workflow(wf, config, rule_writer):
         rule_writer=rule_writer,
     ))
 
-    gathered = './3-unzip/1-hasm/gathered-rid-to-phase/gathered.json'
-    #all_ctg_out['r2p.{ctg_id}'.format(ctg_id=ctg_id)] = rid_to_phase_out
     parameters = {#'job_uid': 'aln-' + ctg_id, 'ctg_id': ctg_id,
                     'sge_option': config['sge_blasr_aln'],
     }
+    gathered = './3-unzip/1-hasm/gathered-rid-to-phase/gathered.json'
+
     gen_parallel_tasks(
         wf, rule_writer,
         scattered, gathered,
@@ -262,7 +229,9 @@ def run_workflow(wf, config, rule_writer):
             parameters=parameters,
         ),
     )
+
     concatenated_rid_to_phase_file = './3-unzip/1-hasm/concatenated-rid-to-phase/rid_to_phase.all'
+
     wf.addTask(gen_task(
         script=TASK_PHASING_GATHER_SCRIPT,
         inputs={'gathered': gathered,
@@ -272,21 +241,26 @@ def run_workflow(wf, config, rule_writer):
         parameters={},
         rule_writer=rule_writer,
     ))
-    wf.refreshTargets() # TEMP for testing only
-    raise Exception('HENRY')
-    # Finally?
-    PypeTask(
-            inputs=all_ctg_out,
-            outputs={
-                'rid_to_phase_all': rid_to_phase_all,
+
+    parameters = {
+            'sge_option': config['sge_hasm'],
+    }
+    las_fofn_file = './1-preads_ovl/merge-gather/las.fofn' #'2-asm-falcon/las.fofn'
+    job_done = './3-unzip/1-hasm/hasm_done'
+
+    wf.addTask(gen_task(
+            script=TASK_HASM_SCRIPT,
+            inputs={
+                'rid_to_phase_all': concatenated_rid_to_phase_file,
+                'las_fofn': las_fofn_file,
             },
-            )(task_get_rid_to_phase_all)
-
-    las_fofn_file = makePypeLocalFile('./1-preads_ovl/merge-gather/las.fofn') #'2-asm-falcon/las.fofn'
-    job_done = makePypeLocalFile('./3-unzip/1-hasm/hasm_done')
-    hasm_task = get_hasm_task(config, gathered_rid_to_phase_file, las_fofn_file, job_done)
-    wf.addTask(hasm_task)
-
+            outputs={
+                'job_done': job_done,
+            },
+            parameters=parameters,
+            rule_writer=rule_writer,
+    ))
     unzip_phasing_concurrent_jobs = config['unzip_phasing_concurrent_jobs']
     wf.max_jobs = unzip_phasing_concurrent_jobs
+
     wf.refreshTargets()
