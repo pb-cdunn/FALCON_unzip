@@ -122,7 +122,7 @@ def fetch_ref_and_reads(
 
 
 def parse_args(argv):
-    description = 'using the read to contig mapping data to partition the reads grouped by contigs'
+    description = 'Using the read to contig mapping data, to partition the reads (into {ctg_id}_reads.fa and {ctg_id}_ref.fa) grouped by contigs.'
     parser = argparse.ArgumentParser(description=description,
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(

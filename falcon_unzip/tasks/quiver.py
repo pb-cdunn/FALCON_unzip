@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from pypeflow.simple_pwatcher_bridge import (
     makePypeLocalFile, fn,
     PypeTask,
