@@ -53,12 +53,20 @@ def filter_stage1(input_):
                 left_count = overlap_data["5p"]
                 right_count = overlap_data["3p"]
 
-                if abs(left_count - right_count) > max_diff:
-                    ignore_rtn.append(current_q_id)
-                elif left_count > max_ovlp or right_count > max_ovlp:
-                    ignore_rtn.append(current_q_id)
-                elif left_count < min_ovlp or right_count < min_ovlp:
-                    ignore_rtn.append(current_q_id)
+                if (left_count == 0 and min_ovlp <= right_count <= max_ovlp) or \
+                    (min_ovlp <= left_count <= max_ovlp and right_count == 0):
+                    # This is a good case. When a query has 0-count on one end
+                    # it's actually the left-most or right-most read sequenced
+                    # from a linear chromosome.
+                    pass
+
+                else:
+                    if abs(left_count - right_count) > max_diff:
+                        ignore_rtn.append(current_q_id)
+                    elif left_count > max_ovlp or right_count > max_ovlp:
+                        ignore_rtn.append(current_q_id)
+                    elif left_count < min_ovlp or right_count < min_ovlp:
+                        ignore_rtn.append(current_q_id)
 
                 # remove unphased reads if they are sandwiched by the reads from the same phase
                 if current_q_id not in arid2phase:
@@ -99,12 +107,22 @@ def filter_stage1(input_):
         if q_id != None:
             left_count = overlap_data["5p"]
             right_count = overlap_data["3p"]
-            if abs(left_count - right_count) > max_diff:
-                ignore_rtn.append(current_q_id)
-            elif left_count > max_ovlp or right_count > max_ovlp:
-                ignore_rtn.append(current_q_id)
-            elif left_count < min_ovlp or right_count < min_ovlp:
-                ignore_rtn.append(current_q_id)
+
+            if (left_count == 0 and min_ovlp <= right_count <= max_ovlp) or \
+                (min_ovlp <= left_count <= max_ovlp and right_count == 0):
+                # This is a good case. When a query has 0-count on one end
+                # it's actually the left-most or right-most read sequenced
+                # from a linear chromosome.
+                pass
+
+            else:
+
+                if abs(left_count - right_count) > max_diff:
+                    ignore_rtn.append(current_q_id)
+                elif left_count > max_ovlp or right_count > max_ovlp:
+                    ignore_rtn.append(current_q_id)
+                elif left_count < min_ovlp or right_count < min_ovlp:
+                    ignore_rtn.append(current_q_id)
 
             # remove unphased reads if they are sandwiched by the reads from the same phase
             if current_q_id not in arid2phase:
