@@ -276,6 +276,12 @@ def generate_haplotigs_for_ctg(input_):
     s_node = p_asm_G.ctg_data[ctg_id][5][0][0]
     t_node = p_asm_G.ctg_data[ctg_id][5][-1][-1]
 
+    s_phase = sg.node[s_node]["phase"].split("_")
+    t_phase = sg.node[t_node]["phase"].split("_")
+
+    if s_phase[0] == t_phase[0] and s_phase[1] != t_phase[1]:
+        s_node, t_node = find_phased_neighbors(sg, p_asm_G, h_asm_G, s_node, t_node, s_phase, t_phase)
+
     for v, w in sg.edges():
         phase0 = sg.node[v]["phase"].split("_")
         phase1 = sg.node[w]["phase"].split("_")
@@ -575,6 +581,78 @@ def generate_haplotigs_for_ctg(input_):
 
         nx.write_gexf(sg, "%s_0.gexf" % ctg_id)
 
+def find_phased_neighbors(sg, p_asm_graph, h_asm_graph, s_node, t_node, s_phase, t_phase):
+    # If the phase is identical, the job is already done.
+    if s_phase == t_phase:
+        return s_node, t_node
+
+    # Check if these are different phasing blocks, if so
+    # there is nothing to do here.
+    if s_phase[0] != t_phase[0]:
+        return s_node, t_node
+
+    def calc_overlap_len(v, w):
+        if sg.edge[v][w]["src"] == "OP":
+            edge_data = p_asm_graph.sg_edges[(v, w)]
+        else:
+            edge_data = h_asm_graph.sg_edges[(v, w)]
+        seq_id, s, t = edge_data[0]
+        overlap_len = abs(s - t)
+        return overlap_len
+    def find_max_phased_in_edge(node, phase):
+        max_overlap_len = 0
+        candidate = None
+        for v, w in sg.in_edges(node):
+            phase_v = sg.node[v]["phase"].split("_")
+            if phase_v == phase:
+                overlap_len = calc_overlap_len(v, w)
+                if candidate == None or overlap_len > max_overlap_len:
+                    max_overlap_len = overlap_len
+                    candidate = v
+        return candidate
+    def find_max_phased_out_edge(node, phase):
+        max_overlap_len = 0
+        candidate = None
+        for v, w in sg.out_edges(node):
+            phase_w = sg.node[w]["phase"].split("_")
+            if phase_w == phase:
+                overlap_len = calc_overlap_len(v, w)
+                if candidate == None or overlap_len > max_overlap_len:
+                    max_overlap_len = overlap_len
+                    candidate = w
+        return candidate
+
+    ret_s_node = None
+    ret_t_node = None
+
+    # Attempt to find a replacement for the source node,
+    # which is in phase with the sink node.
+    # Try to find a predecessor first if possible, to
+    # extend the phased contig, if possible.
+    if ret_s_node == None:
+        ret_s_node = find_max_phased_in_edge(s_node, t_phase)
+    # If there is no predecessor of the correct phase,
+    # try to find a successor.
+    if ret_s_node == None:
+        ret_s_node = find_max_phased_out_edge(s_node, t_phase)
+
+    # Source node could not be replaced, attempt to find a replacement
+    # for the sink which is in phase with the source node.
+    # Check the out edges first to see if the phased contig
+    # can be extended slightly.
+    if ret_s_node == None:
+        ret_t_node = find_max_phased_out_edge(t_node, s_phase)
+    # No out-edge was good enough, look for candidates on
+    # the in-edges.
+    if ret_s_node == None and ret_t_node == None:
+        ret_t_node = find_max_phased_in_edge(t_node, s_phase)
+
+    # For the nodes that weren't updated, default to the
+    # original nodes.
+    if ret_s_node == None: ret_s_node = s_node
+    if ret_t_node == None: ret_t_node = t_node
+
+    return ret_s_node, ret_t_node
 
 def run(args):
     # make life easier for now. will refactor it out if possible
