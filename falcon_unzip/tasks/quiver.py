@@ -22,8 +22,9 @@ fc_rr_hctg_track.py --base-dir={params.topdir} --stream
 # That writes into 0-rawreads/m_*/
 
 abs_rawread_to_contigs=$(readlink -f {output.rawread_to_contigs}) #TODO: No readlink
+cwd=$(pwd)
 cd {params.topdir}
-fc_rr_hctg_track2.exe --output=${{abs_rawread_to_contigs}}
+fc_rr_hctg_track2.exe --read-to-contig-map=${{cwd}}/read_to_contig_map --output=${{abs_rawread_to_contigs}}
 cd -
 ls -l {output.rawread_to_contigs}
 """
