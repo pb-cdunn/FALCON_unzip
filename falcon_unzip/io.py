@@ -1,8 +1,10 @@
+import commands
 import json
 import logging
 import msgpack
 import os
 import pprint
+import re
 import subprocess
 
 try:
@@ -17,6 +19,25 @@ LOG = logging.getLogger()
 
 def log(*msgs):
     LOG.info(' '.join(repr(m) for m in msgs))
+
+
+def validate_samtools(samtools_output):
+    """Given the result of a bare call to 'samtools',
+    prove our $PATH is using at least version 1.3.0
+    """
+    re_Version = re.compile(r'Version: (?P<major>\d+)\.(?P<minor>\d+)\.(?P<subminor>\d+)')
+    mo = re_Version.search(samtools_output)
+    if not mo:
+        msg = samtools_output + '\n---\nCould not discern version of samtools. We need at least 1.3.0. Good luck!'
+        LOG.warning(msg)
+        return
+    major = int(mo.group('major'))
+    minor = int(mo.group('minor'))
+    if major < 1 or (major == 1 and minor < 3):
+        msg = 'samtools is version {}.{}.{}'.format(
+                major, minor, mo.group('subminor'))
+        msg += ', but we require >= 1.3.0'
+        raise Exception(msg)
 
 
 def validate_config(config):
@@ -40,6 +61,9 @@ def validate_config(config):
         syscall('which ' + cmd)
     syscall('show-coords -h')
     syscall('nucmer --version')
+
+    samtools_output = commands.getoutput('samtools')
+    validate_samtools(samtools_output)
 
 
 def update_env_from_config(config, fn):

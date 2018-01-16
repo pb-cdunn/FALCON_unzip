@@ -55,3 +55,12 @@ def test_update_env_from_config(tmpdir, monkeypatch):
         'smrt_bin': str(tmpdir)
     }
     M.update_env_from_config(config, None)
+
+
+def test_valid_samtools():
+    with pytest.raises(Exception) as excinfo:
+        M.validate_samtools('Version: 1.2.11')
+    assert 'but we require' in str(excinfo.value)
+
+    M.validate_samtools('Version: 1.3.1')
+    M.validate_samtools('Version: 2.1.0')
