@@ -60,7 +60,7 @@ hostname
 date
 
 samtools faidx {input.ref_fasta}
-pbalign --tmpDir=/localdisk/scratch/ --nproc=24 --minAccuracy=0.75 --minLength=50\
+pbalign --tmpDir=/scratch/ --nproc=24 --minAccuracy=0.75 --minLength=50\
           --minAnchorSize=12 --maxDivergence=30 --concordant --algorithm=blasr\
           --algorithmOptions=--useQuality --maxHits=1 --hitPolicy=random --seed=1\
             {input.read_bam} {input.ref_fasta} aln-{params.ctg_id}.bam
@@ -111,7 +111,7 @@ def run_workflow(wf, config, rule_writer):
     parameters = {
         'sge_option': config['sge_track_reads'],  # applies to select_reads task also, for now
         'max_n_open_files': config['max_n_open_files'],
-        'topdir': os.getcwd(),
+        #'topdir': os.getcwd(),
     }
     input_bam_fofn = os.path.relpath(config['input_bam_fofn']) # All input paths should be relative, for snakemake.
     track_reads_rr2c = './4-quiver/track_reads/rawread_to_contigs'

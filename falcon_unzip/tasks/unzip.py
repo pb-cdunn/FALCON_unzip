@@ -172,7 +172,7 @@ def create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file):
 def run_workflow(wf, config, rule_writer):
     parameters = {
         'sge_option': config['sge_track_reads'],
-        'topdir': os.getcwd(),
+        #'topdir': os.getcwd(),
     }
     read_to_contig_map_file = '3-unzip/reads/get_read_ctg_map/read_to_contig_map'
     # This has lots of inputs from falcon stages 0, 1, and 2.

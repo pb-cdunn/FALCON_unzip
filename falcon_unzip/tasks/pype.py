@@ -1,5 +1,7 @@
 from pypeflow.sample_tasks import gen_task as pype_gen_task
 from .. import io
+import os
+
 
 TASK_GENERIC_GATHER_SCRIPT = """
 python -m falcon_unzip.mains.generic_gather --scattered-fn={input.scattered} --gathered-fn={output.gathered}
@@ -7,9 +9,13 @@ python -m falcon_unzip.mains.generic_gather --scattered-fn={input.scattered} --g
 
 
 def gen_task(rule_writer, script, inputs, outputs, parameters={}):
-    pt = pype_gen_task(script, inputs, outputs, parameters)
+    first_output_dir = os.path.normpath(os.path.dirname(outputs.values()[0]))
+    rel_topdir = os.path.relpath('.', first_output_dir)
+    params = dict(parameters)
+    params['topdir'] = rel_topdir
+    pt = pype_gen_task(script, inputs, outputs, params)
     # Run pype_gen_task first because it can valid some stuff.
-    rule_writer(inputs, outputs, parameters, script)
+    rule_writer(inputs, outputs, params, script)
     return pt
 
 
