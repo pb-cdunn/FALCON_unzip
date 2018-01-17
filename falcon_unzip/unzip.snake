@@ -64,6 +64,7 @@ rule static_3_unzip_reads_dump_rawread_ids:
     input:  rawread_db='0-rawreads/raw_reads.db', falcon_asm_done='2-asm-falcon/falcon_asm_done'
     output: rawread_id_file='3-unzip/reads/dump_rawread_ids/rawread_ids'
     params:
+        topdir="../../.."
     shell:
         '''
 outdir=$(dirname {output[0]})
@@ -80,6 +81,7 @@ rule static_3_unzip_reads_dump_pread_ids:
     input:  pread_db='1-preads_ovl/preads.db', falcon_asm_done='2-asm-falcon/falcon_asm_done'
     output: pread_id_file='3-unzip/reads/dump_pread_ids/pread_ids'
     params:
+        topdir="../../.."
     shell:
         '''
 outdir=$(dirname {output[0]})
@@ -96,6 +98,7 @@ rule static_3_unzip_reads_get_read_ctg_map:
     input:  rawread_id_file='3-unzip/reads/dump_rawread_ids/rawread_ids', pread_id_file='3-unzip/reads/dump_pread_ids/pread_ids', ctg_paths='2-asm-falcon/ctg_paths', utg_data='2-asm-falcon/utg_data', sg_edges_list='2-asm-falcon/sg_edges_list'
     output: read_to_contig_map='3-unzip/reads/get_read_ctg_map/read_to_contig_map'
     params:
+        topdir="../../.."
     shell:
         '''
 outdir=$(dirname {output[0]})
@@ -112,7 +115,7 @@ rule static___3_unzip_reads:
     input:  fofn='input.fofn', read_to_contig_map='3-unzip/reads/get_read_ctg_map/read_to_contig_map'
     output: ctg_list_file='3-unzip/reads/ctg_list', job_done='3-unzip/reads/track_reads_done'
     params:
-        topdir="/localdisk/scratch/cdunn/src/fe/run/greg200k-sv2",
+        topdir="../..",
         sge_option="-pe smp 12 -q default"
     shell:
         '''
@@ -135,6 +138,7 @@ rule static___3_unzip_1_hasm_scattered:
     input:  ctg_list='3-unzip/reads/ctg_list'
     output: scattered='3-unzip/1-hasm/scattered/scattered.json'
     params:
+        topdir="../../.."
     shell:
         '''
 outdir=$(dirname {output[0]})
@@ -226,6 +230,7 @@ rule static___3_unzip_1_hasm_concatenated_rid_to_phase:
     input:  gathered='3-unzip/1-hasm/gathered-rid-to-phase/gathered.json'
     output: rid_to_phase_all='3-unzip/1-hasm/concatenated-rid-to-phase/rid_to_phase.all'
     params:
+        topdir="../../.."
     shell:
         '''
 outdir=$(dirname {output[0]})
@@ -242,6 +247,7 @@ rule static___3_unzip_1_hasm:
     input:  las_fofn='1-preads_ovl/merge-gather/las.fofn', rid_to_phase_all='3-unzip/1-hasm/concatenated-rid-to-phase/rid_to_phase.all'
     output: job_done='3-unzip/1-hasm/hasm_done'
     params:
+        topdir="../..",
         sge_option="-pe smp 48 -q bigmem"
     shell:
         '''

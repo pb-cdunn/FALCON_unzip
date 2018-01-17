@@ -1,4 +1,4 @@
-# snakemake -j -T --reason --printshellcmds  --latency-wait=1 -s quiver.snake static_4_quiver_cns_output
+
 import json
 import os
 #import snakemake.utils
@@ -65,7 +65,7 @@ rule static___4_quiver_track_reads:
     output: rawread_to_contigs='4-quiver/track_reads/rawread_to_contigs'
     params:
         max_n_open_files="1000",
-        topdir="/localdisk/scratch/cdunn/src/fe/run/greg200k-sv2",
+        topdir="../..",
         sge_option="-pe smp 12 -q default"
     shell:
         '''
@@ -81,8 +81,9 @@ fc_rr_hctg_track.py --base-dir={params.topdir} --stream
 # That writes into 0-rawreads/m_*/
 
 abs_rawread_to_contigs=$(readlink -f ../../{output.rawread_to_contigs}) #TODO: No readlink
+cwd=$(pwd)
 cd {params.topdir}
-fc_rr_hctg_track2.exe --output=${{abs_rawread_to_contigs}}
+fc_rr_hctg_track2.exe --read-to-contig-map=${{cwd}}/read_to_contig_map --output=${{abs_rawread_to_contigs}}
 cd -
 ls -l ../../{output.rawread_to_contigs}
 
@@ -94,7 +95,7 @@ rule static___4_quiver_select_reads:
     output: read2ctg='4-quiver/select_reads/read2ctg.msgpack'
     params:
         max_n_open_files="1000",
-        topdir="/localdisk/scratch/cdunn/src/fe/run/greg200k-sv2",
+        topdir="../..",
         sge_option="-pe smp 12 -q default"
     shell:
         '''
@@ -113,7 +114,7 @@ rule static___4_quiver_merge_reads:
     output: merged_fofn='4-quiver/merge_reads/merged.fofn'
     params:
         max_n_open_files="1000",
-        topdir="/localdisk/scratch/cdunn/src/fe/run/greg200k-sv2",
+        topdir="../..",
         sge_option="-pe smp 12 -q default"
     shell:
         '''
@@ -140,6 +141,7 @@ rule static___4_quiver_segregate_scatter:
     input:  merged_fofn='4-quiver/merge_reads/merged.fofn'
     output: scattered='4-quiver/segregate_scatter/scattered.json'
     params:
+        topdir="../.."
     shell:
         '''
 outdir=$(dirname {output[0]})
@@ -163,7 +165,6 @@ rule static___4_quiver_segregate_scatter__segr_:
     output: segregated_bam_fofn='4-quiver/segregate_scatter/{segr}/segregated_bam.fofn'
     params:
         max_n_open_files="1000",
-        topdir="/localdisk/scratch/cdunn/src/fe/run/greg200k-sv2",
         sge_option="-pe smp 12 -q default",
         segr="{segr}"
     shell:
@@ -198,7 +199,7 @@ rule static___4_quiver_segregate_bam:
     output: ctg2segregated_bamfn='4-quiver/segregate_bam/ctg2segregated_bamfn.msgpack'
     params:
         max_n_open_files="1000",
-        topdir="/localdisk/scratch/cdunn/src/fe/run/greg200k-sv2",
+        topdir="../..",
         sge_option="-pe smp 12 -q default"
     shell:
         '''
@@ -217,6 +218,7 @@ rule static_4_quiver_quiver_scatter:
     input:  h_ctg_fa='3-unzip/all_h_ctg.fa', p_ctg_fa='3-unzip/all_p_ctg.fa', ctg2bamfn='4-quiver/segregate_bam/ctg2segregated_bamfn.msgpack'
     output: scattered='4-quiver/quiver_scatter/scattered.json'
     params:
+        topdir="../.."
     shell:
         '''
 outdir=$(dirname {output[0]})
@@ -239,7 +241,6 @@ rule static_4_quiver_quiver_run__ctg_id_:
     output: cns_fasta='4-quiver/quiver_run/{ctg_id}/cns.fasta.gz', job_done='4-quiver/quiver_run/{ctg_id}/quiver_done', ctg_type_again='4-quiver/quiver_run/{ctg_id}/ctg_type', cns_fastq='4-quiver/quiver_run/{ctg_id}/cns.fastq.gz'
     params:
         max_n_open_files="1000",
-        topdir="/localdisk/scratch/cdunn/src/fe/run/greg200k-sv2",
         sge_option="-pe smp 12 -q default",
         ctg_id="{ctg_id}"
     shell:
@@ -255,7 +256,7 @@ hostname
 date
 
 samtools faidx ../../../{input.ref_fasta}
-pbalign --tmpDir=/localdisk/scratch/ --nproc=24 --minAccuracy=0.75 --minLength=50          --minAnchorSize=12 --maxDivergence=30 --concordant --algorithm=blasr          --algorithmOptions=--useQuality --maxHits=1 --hitPolicy=random --seed=1            ../../../{input.read_bam} ../../../{input.ref_fasta} aln-{params.ctg_id}.bam
+pbalign --tmpDir=/scratch/ --nproc=24 --minAccuracy=0.75 --minLength=50          --minAnchorSize=12 --maxDivergence=30 --concordant --algorithm=blasr          --algorithmOptions=--useQuality --maxHits=1 --hitPolicy=random --seed=1            ../../../{input.read_bam} ../../../{input.ref_fasta} aln-{params.ctg_id}.bam
 #python -c 'import ConsensusCore2 as cc2; print cc2' # So quiver likely works.
 (variantCaller --algorithm=arrow -x 5 -X 120 -q 20 -j 24 -r ../../../{input.ref_fasta} aln-{params.ctg_id}.bam            -o ../../../{output.cns_fasta} -o ../../../{output.cns_fastq}) || echo WARNING quiver failed. Maybe no reads for this block.
 touch ../../../{output.cns_fasta}
@@ -291,6 +292,7 @@ rule static_4_quiver_cns_gather:
     input:  gathered='4-quiver/cns_gather/intermediate/int.gathered.json'
     output: separated='4-quiver/cns_gather/gathered_quiver.json'
     params:
+        topdir="../.."
     shell:
         '''
 outdir=$(dirname {output[0]})
@@ -307,6 +309,7 @@ rule static_4_quiver_cns_output:
     input:  gathered_quiver='4-quiver/cns_gather/gathered_quiver.json'
     output: job_done='4-quiver/cns_output/job_done', cns_p_ctg_fastq='4-quiver/cns_output/cns_p_ctg.fastq', cns_h_ctg_fasta='4-quiver/cns_output/cns_h_ctg.fasta', cns_h_ctg_fastq='4-quiver/cns_output/cns_h_ctg.fastq', cns_p_ctg_fasta='4-quiver/cns_output/cns_p_ctg.fasta'
     params:
+        topdir="../.."
     shell:
         '''
 outdir=$(dirname {output[0]})
