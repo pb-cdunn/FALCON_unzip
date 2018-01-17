@@ -5,7 +5,7 @@ set -vex
 python setup.py -v bdist_wheel
 
 WHEELHOUSE=/home/cdunn/wheelhouse/gcc-6/
-pip install -v --user --find-links=${WHEELHOUSE} pytest networkx pysam msgpack-python pylint
+pip install -v --user --find-links=${WHEELHOUSE} pytest networkx==1.11 pysam msgpack-python pylint
 # We could try to avoid slow internet checks/downloads by using our local WHEELHOUSE, with
 #   --no-index
 
