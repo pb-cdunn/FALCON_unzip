@@ -3,6 +3,7 @@ import subprocess as sp
 import shlex
 import os
 import re
+from .. import io
 
 arid2phase = {}
 
@@ -304,11 +305,9 @@ def run(args):
     assert arid2phase, 'Empty rid_phase_map: {!r}'.format(args.rid_phase_map)
     exe_pool = Pool(args.n_core)
 
-    file_list = open(args.fofn).read().split("\n")
+    file_list = list(io.yield_abspath_from_fofn(args.fofn))
     inputs = []
     for fn in file_list:
-        if not fn:
-            continue
         assert_exists(fn)
         inputs.append((db_fn, fn, max_diff, max_cov, min_cov, min_len))
 
