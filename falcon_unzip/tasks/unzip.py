@@ -245,7 +245,7 @@ def run_workflow(wf, config, rule_writer):
     parameters = {
             'sge_option': config['sge_hasm'],
     }
-    las_fofn_file = './1-preads_ovl/merge-gather/las.fofn' #'2-asm-falcon/las.fofn'
+    las_fofn_file = './1-preads_ovl/merged-las-fofn/las.fofn' #'2-asm-falcon/las.fofn'
     job_done = './3-unzip/1-hasm/hasm_done'
 
     wf.addTask(gen_task(
