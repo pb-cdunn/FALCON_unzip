@@ -1336,7 +1336,10 @@ def run(args):
                 ug_edge_to_remove.add((s, t, v))
                 ug_edge_to_remove.add((rs, rt, rv))
     for s, t, v in list(ug_edge_to_remove):
-        ug2.remove_edge(s, t, key=v)
+        try:
+            ug2.remove_edge(s, t, key=v)
+        except Exception:
+            pass
         length, score, edges, type_ = u_edge_data[(s, t, v)]
         u_edge_data[(s, t, v)] = length, score, edges, "repeat_bridge"
 
