@@ -244,7 +244,7 @@ date
 '''
 
 rule static___3_unzip_1_hasm:
-    input:  las_fofn='1-preads_ovl/merge-gather/las.fofn', rid_to_phase_all='3-unzip/1-hasm/concatenated-rid-to-phase/rid_to_phase.all'
+    input:  las_fofn='1-preads_ovl/merged-las-fofn/las.fofn', rid_to_phase_all='3-unzip/1-hasm/concatenated-rid-to-phase/rid_to_phase.all'
     output: job_done='3-unzip/1-hasm/hasm_done'
     params:
         topdir="../..",
