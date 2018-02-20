@@ -62,6 +62,35 @@ python -m falcon_unzip.mains.phasing_get_phased_reads --ctg-id={params.ctg_id} -
 # PHASING READMAP
 # TODO: read-map-dir/* as inputs
 python -m falcon_unzip.mains.phasing_readmap --the-ctg-id={params.ctg_id} --read-map-dir=../../reads --phased-reads=${{phased_reads_fn}} >| {output.rid_to_phase_out}.tmp
+mv {output.rid_to_phase_out}.tmp {output.rid_to_phase_out}.true
+
+mkdir -p proto
+preads_ovl_dir=$(pwd)'/../../../1-preads_ovl'
+falcon_asm_dir=$(pwd)'/../../../2-asm-falcon'
+unzip_dir=$(pwd)'/../../../3-unzip'
+
+python -m falcon_unzip.proto.extract_phased_preads \
+    --ctg-id {params.ctg_id} \
+    --preads ${{preads_ovl_dir}}/db2falcon/preads4falcon.fasta \
+    --rid-phase-map {output.rid_to_phase_out}.true \
+    --out proto/preads.fasta
+
+ln -sf {input.ref_fasta} proto/ref.fa
+minimap2 -a -x map-pb proto/ref.fa proto/preads.fasta > proto/preads.sam
+
+python -m falcon_unzip.proto.main_augment_pb \
+    --wd ./proto/ \
+    --ctg-id {params.ctg_id} \
+    --p-ctg ${{falcon_asm_dir}}/p_ctg.fa \
+    --p-ctg-tiling-path ${{falcon_asm_dir}}/p_ctg_tiling_path \
+    --a-ctg ${{falcon_asm_dir}}/a_ctg.fa \
+    --a-ctg-tiling-path ${{falcon_asm_dir}}/a_ctg_tiling_path \
+    --p-variant-fn get_phased_blocks/phased_variants \
+    --preads-sam proto/preads.sam \
+    --extracted-ctg-fasta ${{unzip_dir}}/reads/{params.ctg_id}/ref.fa \
+    --rawread-bam ${{ctg_aln_out}} \
+    --rid-phase-map {output.rid_to_phase_out}.true \
+    --out-updated-rid-phase_map {output.rid_to_phase_out}.tmp
 mv {output.rid_to_phase_out}.tmp {output.rid_to_phase_out}
 """
 
@@ -82,20 +111,48 @@ python -m falcon_unzip.mains.phasing_gather --gathered={input.gathered} --rid-to
 
 
 TASK_HASM_SCRIPT = """\
-python -m falcon_unzip.mains.ovlp_filter_with_phase --fofn {input.las_fofn} --max-diff 120 --max-cov 120 --min-cov 1 --n-core 48 --min-len 2500 --db ../../1-preads_ovl/preads.db --rid-phase-map {input.rid_to_phase_all} > preads.p_ovl
+python -m falcon_unzip.mains.ovlp_filter_with_phase_strict --fofn {input.las_fofn} --max-diff 120 --max-cov 120 --min-cov 1 --n-core 48 --min-len 2500 --db ../../1-preads_ovl/preads.db --rid-phase-map {input.rid_to_phase_all} > preads.p_ovl
 python -m falcon_unzip.mains.phased_ovlp_to_graph preads.p_ovl --min-len 2500 > fc.log
+
 if [ -e ../../1-preads_ovl/preads4falcon.fasta ];
 then
   ln -sf ../../1-preads_ovl/preads4falcon.fasta .
 else
   ln -sf ../../1-preads_ovl/db2falcon/preads4falcon.fasta .
 fi
-python -m falcon_unzip.mains.graphs_to_h_tigs --fc-asm-path ../../2-asm-falcon/ --fc-hasm-path ./ --ctg-id all --rid-phase-map {input.rid_to_phase_all} --fasta preads4falcon.fasta
+
+#WD=$PWD
+
+# Create haplotigs in a safe manner.
+mkdir -p asm-falcon
+pushd asm-falcon
+# Given sg_edges_list, utg_data, ctg_paths, preads4falcon.fasta,
+# write p_ctg.fa and a_ctg_all.fa,
+# plus a_ctg_base.fa, p_ctg_tiling_path, a_ctg_tiling_path, a_ctg_base_tiling_path:
+ln -sf ../sg_edges_list
+ln -sf ../utg_data
+ln -sf ../ctg_paths
+ln -sf ../preads4falcon.fasta
+time python -m falcon_kit.mains.graph_to_contig
+popd
+
+python -m falcon_unzip.mains.graphs_to_h_tigs_2 --fc-asm-path ../../2-asm-falcon/ --fc-hasm-path ./ --ctg-id all --rid-phase-map {input.rid_to_phase_all} --fasta preads4falcon.fasta
 
 # more script -- a little bit hacky here, we should improve
 
 WD=$PWD
-for f in `cat ../reads/ctg_list `; do mkdir -p $WD/$f; cd $WD/$f; python -m falcon_unzip.mains.dedup_h_tigs $f; done
+# for f in `cat ../reads/ctg_list `; do mkdir -p $WD/$f; cd $WD/$f; python -m falcon_unzip.mains.dedup_h_tigs $f; done
+for f in `cat ../reads/ctg_list `
+do
+    mkdir -p $WD/$f; cd $WD/$f;
+    if [ -s $WD/$f/h_ctg.$f.fa ]
+    then
+        grep ">" $WD/$f/h_ctg.$f.fa | sed "s/^>//" >| $WD/$f/h_ctg_ids.$f
+    else
+        rm -rf $WD/$f/h_ctg_ids.$f
+        touch $WD/$f/h_ctg_ids.$f
+    fi
+done
 
 ## prepare for quviering the haplotig
 cd $WD/..
@@ -107,12 +164,12 @@ find 1-hasm -name "h_ctg_edges.*" | sort | xargs cat >| all_h_ctg_edges
 find 1-hasm -name "p_ctg.*.fa" | sort | xargs cat >| all_p_ctg.fa
 find 1-hasm -name "h_ctg.*.fa" | sort | xargs cat >| all_h_ctg.fa
 
-# Generate a GFA for only primary contigs and haplotigs.
-time python -m falcon_unzip.mains.unzip_gen_gfa_v1 --unzip-root $WD/.. --p-ctg-fasta $WD/../all_p_ctg.fa --h-ctg-fasta $WD/../all_h_ctg.fa --preads-fasta $WD/preads4falcon.fasta >| $WD/../asm.gfa
+# # Generate a GFA for only primary contigs and haplotigs.
+# time python -m falcon_unzip.mains.unzip_gen_gfa_v1 --unzip-root $WD/.. --p-ctg-fasta $WD/../all_p_ctg.fa --h-ctg-fasta $WD/../all_h_ctg.fa --preads-fasta $WD/preads4falcon.fasta >| $WD/../asm.gfa
 
-# Generate a GFA of all assembly graph edges. This GFA can contain
-# edges and nodes which are not part of primary contigs and haplotigs
-time python -m falcon_unzip.mains.unzip_gen_gfa_v1 --unzip-root $WD/.. --p-ctg-fasta $WD/../all_p_ctg.fa --h-ctg-fasta $WD/../all_h_ctg.fa --preads-fasta $WD/preads4falcon.fasta --add-string-graph >| $WD/../sg.gfa
+# # Generate a GFA of all assembly graph edges. This GFA can contain
+# # edges and nodes which are not part of primary contigs and haplotigs
+# time python -m falcon_unzip.mains.unzip_gen_gfa_v1 --unzip-root $WD/.. --p-ctg-fasta $WD/../all_p_ctg.fa --h-ctg-fasta $WD/../all_h_ctg.fa --preads-fasta $WD/preads4falcon.fasta --add-string-graph >| $WD/../sg.gfa
 
 cd $WD
 touch {output.job_done}
