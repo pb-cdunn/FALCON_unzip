@@ -201,6 +201,9 @@ def write_read2ctg_subsets(read2ctg, ctg2samfn):
 
 
 def run(input_bam_fofn, read2ctg_fn, merged_fn, max_n_open_files):
+    import pysam.version, pysam
+    LOG.warning('pysam.version={} When we switch to 0.14, we will need to use "header.to_dict()"\npysam={}'.format(pysam.version.__version__, pysam))
+
     sam_dir = os.path.dirname(merged_fn)
     log('SAM files will go into {!r}'.format(sam_dir))
     mkdirs(sam_dir)
