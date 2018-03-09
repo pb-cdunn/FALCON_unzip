@@ -120,7 +120,7 @@ touch {output.job_done}
 """
 
 
-def create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file):
+def create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file, parameters):
     falcon_asm_done = './2-asm-falcon/falcon_asm_done'
 
     rawread_db = '0-rawreads/raw_reads.db'
@@ -133,7 +133,7 @@ def create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file):
         },
         outputs={'rawread_id_file': rawread_ids,
         },
-        parameters={},
+        parameters=parameters,
         rule_writer=rule_writer,
     ))
 
@@ -147,7 +147,7 @@ def create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file):
         },
         outputs={'pread_id_file': pread_ids,
         },
-        parameters={},
+        parameters=parameters,
         rule_writer=rule_writer,
     ))
 
@@ -164,7 +164,7 @@ def create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file):
         script=pype_tasks.TASK_GENERATE_READ_TO_CTG_MAP_SCRIPT,
         inputs=inputs,
         outputs={'read_to_contig_map': read_to_contig_map_file},
-        parameters={},
+        parameters=parameters,
         rule_writer=rule_writer,
     ))
 
@@ -176,7 +176,7 @@ def run_workflow(wf, config, rule_writer):
     }
     read_to_contig_map_file = '3-unzip/reads/get_read_ctg_map/read_to_contig_map'
     # This has lots of inputs from falcon stages 0, 1, and 2.
-    create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file)
+    create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file, parameters)
 
     ctg_list_file = './3-unzip/reads/ctg_list'
     fofn_file = config.get('input_fofn', './input.fofn') # from user config, usually
@@ -205,7 +205,7 @@ def run_workflow(wf, config, rule_writer):
         outputs=dict(
             scattered=scattered,
         ),
-        parameters={},
+        parameters=parameters, #{},
         rule_writer=rule_writer,
     ))
 
@@ -238,7 +238,7 @@ def run_workflow(wf, config, rule_writer):
         },
         outputs={'rid_to_phase_all': concatenated_rid_to_phase_file,
         },
-        parameters={},
+        parameters=parameters, #{},
         rule_writer=rule_writer,
     ))
 

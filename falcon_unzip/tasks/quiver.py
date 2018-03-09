@@ -216,7 +216,7 @@ def run_workflow(wf, config, rule_writer):
         outputs={
                 'scattered': scattered_quiver,
         },
-        parameters={},
+        parameters=parameters, #{},
         rule_writer=rule_writer,
     ))
 
@@ -250,7 +250,7 @@ def run_workflow(wf, config, rule_writer):
         outputs={
             'separated': gathered_quiver,
         },
-        parameters={},
+        parameters=parameters, #{},
         rule_writer=rule_writer,
     ))
 
