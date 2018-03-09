@@ -161,9 +161,13 @@ def yield_abspath_from_fofn(fofn_fn):
     Relative paths are resolved from the FOFN directory.
     """
     try:
+        fns = deserialize(fofn_fn)
+    except:
+        #LOG('las fofn {!r} does not seem to be JSON; try to switch, so we can detect truncated files.'.format(fofn_fn))
+        fns = open(fofn_fn).read().strip().split()
+    try:
         basedir = os.path.dirname(fofn_fn)
-        for line in open(fofn_fn):
-            fn = line.strip()
+        for fn in fns:
             if not os.path.isabs(fn):
                 fn = os.path.abspath(os.path.join(basedir, fn))
             yield fn
