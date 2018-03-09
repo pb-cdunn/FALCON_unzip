@@ -183,19 +183,17 @@ def finish_track_reads(read_to_contig_map_fn, file_list, bestn, db_fn, rawread_t
 
 
 class TrackReads(object):
-    def __init__(self, base_dir):
-        """Scan for {base_dir}/0-rawreads/m*/raw_reads.*.las
+    def __init__(self, db_fn, las_fofn_fn):
+        """Deserialize FOFN for .las files.
         """
         io.LOG('TrackReads.init')
-        rawread_dir = os.path.abspath(os.path.join(base_dir, '0-rawreads'))
-        self.db_fn = os.path.join(rawread_dir, 'raw_reads.db')  # TODO: Another input
+        self.db_fn = db_fn
         if not os.path.isfile(self.db_fn):
             # It would crash eventually. Actually, it would *not* crash if there are no .las files, but
             # we still want it to crash in that case.
             msg = 'DAZZLER DB {!r} does not exist.'.format(self.db_fn)
             raise Exception(msg)
-        # TODO: Use 0-rawreads/las-gather/las_fofn.json, which are all called 'merged.las' now.
-        self.file_list = glob.glob(os.path.join(rawread_dir, "las-merge-runs/m_*/uow-*/merged.las"))
+        self.file_list = list(io.yield_validated_fns(las_fofn_fn))
         self.file_list.sort()
         io.LOG('file list: {!r}'.format(self.file_list))
 
@@ -229,12 +227,12 @@ class TrackReads(object):
             raise
 
 
-def run1(base_dir, n_core, phased_read_file, read_to_contig_map, rawread_ids, min_len, bestn):
-    TrackReads(base_dir).try_run_track_reads(n_core, phased_read_file, read_to_contig_map, rawread_ids, min_len, bestn)
+def run1(db_fn, las_fofn_fn, n_core, phased_read_file, read_to_contig_map, rawread_ids, min_len, bestn):
+    TrackReads(db_fn, las_fofn_fn).try_run_track_reads(n_core, phased_read_file, read_to_contig_map, rawread_ids, min_len, bestn)
 
 
-def run2(base_dir, read_to_contig_map, bestn, output):
-    TrackReads(base_dir).try_finish_track_reads(read_to_contig_map, bestn, output)
+def run2(db_fn, las_fofn_fn, read_to_contig_map, bestn, output):
+    TrackReads(db_fn, las_fofn_fn).try_finish_track_reads(read_to_contig_map, bestn, output)
 
 
 ######
@@ -266,6 +264,12 @@ but that is now handled in `rr_hctg_track.nim`.)
         '--base-dir', default='.',
         help='Substituted as {base_dir} into default inputs.')
     parser.add_argument(
+        '--db-fn', type=str, default='{base_dir}/0-rawreads/raw_reads.db',
+        help='Input. Filename of Dazzler DB')
+    parser.add_argument(
+        '--las-fofn-fn', type=str, default='{base_dir}/0-rawreads/las-gather/las_fofn.json',
+        help='Inputs. Filename of las filenames, to be processed in parallel. Paths are relative to location of file.')
+    parser.add_argument(
         '--phased-read-file', type=str, default="{base_dir}/3-unzip/all_phased_reads",
         help='phased-read-file (accumulated from many fc_graphs_to_h_tigs.py calls)')
     parser.add_argument(
@@ -289,6 +293,8 @@ but that is now handled in `rr_hctg_track.nim`.)
     parser.add_argument(
         '--bestn', type=int, default=30, help='keep best n hits')
     args = parser.parse_args(argv[1:])
+    args.db_fn = args.db_fn.format(**vars(args))
+    args.las_fofn_fn = args.las_fofn_fn.format(**vars(args))
     args.phased_read_file = args.phased_read_file.format(**vars(args))
     args.read_to_contig_map = args.read_to_contig_map.format(**vars(args))
     args.rawread_ids = args.rawread_ids.format(**vars(args))
@@ -313,7 +319,8 @@ def main(argv=sys.argv):
     if args.debug:
         args.n_core = 0
     kwds = dict(
-        base_dir=args.base_dir,
+        db_fn=args.db_fn,
+        las_fofn_fn=args.las_fofn_fn,
         read_to_contig_map=args.read_to_contig_map,
         bestn=args.bestn,
         phased_read_file=args.phased_read_file,
@@ -331,7 +338,8 @@ def main2(argv=sys.argv):
     args = parse_args(argv)
     setup(**vars(args))
     kwds = dict(
-        base_dir=args.base_dir,
+        db_fn=args.db_fn,
+        las_fofn_fn=args.las_fofn_fn,
         read_to_contig_map=args.read_to_contig_map,
         bestn=args.bestn,
         output=args.output,
