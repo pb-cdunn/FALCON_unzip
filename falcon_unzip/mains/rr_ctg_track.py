@@ -125,8 +125,8 @@ def try_run_track_reads(
 
     rawread_dir = os.path.abspath(os.path.join(base_dir, "0-rawreads"))
 
-    # better logic for finding the las files path or move the logic to extern (taking the --fofn option?)
-    file_list = glob.glob(os.path.join(rawread_dir, "m*/raw_reads.*.las"))
+    # TODO: Use 0-rawreads/las-gather/las_fofn.json, which are all called 'merged.las' now.
+    file_list = glob.glob(os.path.join(rawread_dir, "las-merge-runs/m_*/uow-*/merged.las"))
     io.LOG('file list: %r' % file_list)
 
     # same, shoud we decide this as a parameter

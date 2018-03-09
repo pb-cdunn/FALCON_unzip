@@ -109,6 +109,8 @@ def run_track_reads(exe_pool, file_list, min_len, bestn, db_fn):
     io.logstats()
     inputs = []
     io.LOG('num files:{}'.format(len(file_list)))
+    if 0 == len(file_list):
+        io.LOG('ERROR: No input files. Something has gone wrong. Subsequent tasks may fail.')
     for fn in file_list:
         inputs.append((run_tr_stage1, db_fn, fn, min_len, bestn))
     # For each .las input, store the returned dict in a file, named by convention.
@@ -192,8 +194,8 @@ class TrackReads(object):
             # we still want it to crash in that case.
             msg = 'DAZZLER DB {!r} does not exist.'.format(self.db_fn)
             raise Exception(msg)
-        # better logic for finding the las files path or move the logic to extern (taking the --fofn option?)
-        self.file_list = glob.glob(os.path.join(rawread_dir, 'm*/raw_reads.*.las'))  # TODO: More input
+        # TODO: Use 0-rawreads/las-gather/las_fofn.json, which are all called 'merged.las' now.
+        self.file_list = glob.glob(os.path.join(rawread_dir, "las-merge-runs/m_*/uow-*/merged.las"))
         self.file_list.sort()
         io.LOG('file list: {!r}'.format(self.file_list))
 

@@ -121,7 +121,8 @@ def try_run_track_reads(
 ):
     io.LOG('starting track_reads')
     pread_dir = os.path.abspath(os.path.join(base_dir, "1-preads_ovl"))
-    file_list = glob.glob(os.path.join(pread_dir, "m*/preads.*.las"))
+    # TODO: Use 1-preads_ovl/las-gather/las_fofn.json
+    file_list = glob.glob(os.path.join(pread_dir, "las-merge-runs/m_*/uow-*/merged.las"))
     io.LOG('file list: %r' % file_list)
     db_fn = os.path.join(pread_dir, "preads.db")
     n_core = min(n_core, len(file_list))
