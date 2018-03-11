@@ -1,10 +1,9 @@
-from pypeflow.simple_pwatcher_bridge import (
-    makePypeLocalFile, fn,
-    PypeTask,
-)
-from .pype import (gen_task, gen_parallel_tasks)
-from .. import io
+from __future__ import absolute_import
+#from falcon_kit.pype import (wrap_gen_task as gen_task, gen_parallel_tasks, Dist)
+from falcon_kit.pype import Dist
 from falcon_kit import pype_tasks
+from .pype import gen_task, gen_parallel_tasks
+from .. import io
 import logging
 import os
 
@@ -120,7 +119,7 @@ touch {output.job_done}
 """
 
 
-def create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file):
+def create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file, parameters):
     falcon_asm_done = './2-asm-falcon/falcon_asm_done'
 
     rawread_db = '0-rawreads/raw_reads.db'
@@ -133,8 +132,9 @@ def create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file):
         },
         outputs={'rawread_id_file': rawread_ids,
         },
-        parameters={},
+        parameters=parameters,
         rule_writer=rule_writer,
+        dist=Dist(local=True), # TODO: Is this ok to run locally?
     ))
 
     pread_db = '1-preads_ovl/preads.db'
@@ -147,8 +147,9 @@ def create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file):
         },
         outputs={'pread_id_file': pread_ids,
         },
-        parameters={},
+        parameters=parameters,
         rule_writer=rule_writer,
+        dist=Dist(local=True), # TODO: Is this ok to run locally?
     ))
 
     sg_edges_list = '2-asm-falcon/sg_edges_list'
@@ -164,8 +165,9 @@ def create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file):
         script=pype_tasks.TASK_GENERATE_READ_TO_CTG_MAP_SCRIPT,
         inputs=inputs,
         outputs={'read_to_contig_map': read_to_contig_map_file},
-        parameters={},
+        parameters=parameters,
         rule_writer=rule_writer,
+        dist=Dist(local=True), # TODO: Is this ok to run locally?
     ))
 
 
@@ -176,7 +178,7 @@ def run_workflow(wf, config, rule_writer):
     }
     read_to_contig_map_file = '3-unzip/reads/get_read_ctg_map/read_to_contig_map'
     # This has lots of inputs from falcon stages 0, 1, and 2.
-    create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file)
+    create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file, parameters)
 
     ctg_list_file = './3-unzip/reads/ctg_list'
     fofn_file = config.get('input_fofn', './input.fofn') # from user config, usually
@@ -193,6 +195,7 @@ def run_workflow(wf, config, rule_writer):
             },
             parameters=parameters,
             rule_writer=rule_writer,
+            dist=Dist(NPROC=4),
     ))
 
     scattered = './3-unzip/1-hasm/scattered/scattered.json'
@@ -205,8 +208,9 @@ def run_workflow(wf, config, rule_writer):
         outputs=dict(
             scattered=scattered,
         ),
-        parameters={},
+        parameters=parameters, #{},
         rule_writer=rule_writer,
+        dist=Dist(local=True),
     ))
 
     parameters = {#'job_uid': 'aln-' + ctg_id, 'ctg_id': ctg_id,
@@ -227,6 +231,7 @@ def run_workflow(wf, config, rule_writer):
                 'rid_to_phase_out': './3-unzip/0-phasing/{ctg_id}/rid_to_phase',
             },
             parameters=parameters,
+            dist=Dist(NPROC=24), # currently, we hard-code the blasr max
         ),
     )
 
@@ -238,14 +243,15 @@ def run_workflow(wf, config, rule_writer):
         },
         outputs={'rid_to_phase_all': concatenated_rid_to_phase_file,
         },
-        parameters={},
+        parameters=parameters, #{},
         rule_writer=rule_writer,
+        dist=Dist(local=True),
     ))
 
     parameters = {
             'sge_option': config['sge_hasm'],
     }
-    las_fofn_file = './1-preads_ovl/merged-las-fofn/las.fofn' #'2-asm-falcon/las.fofn'
+    las_fofn_file = './1-preads_ovl/las-gather/las_fofn.json'
     job_done = './3-unzip/1-hasm/hasm_done'
 
     wf.addTask(gen_task(
@@ -259,6 +265,7 @@ def run_workflow(wf, config, rule_writer):
             },
             parameters=parameters,
             rule_writer=rule_writer,
+            dist=Dist(NPROC=4),
     ))
     unzip_phasing_concurrent_jobs = config['unzip_phasing_concurrent_jobs']
     wf.max_jobs = unzip_phasing_concurrent_jobs
