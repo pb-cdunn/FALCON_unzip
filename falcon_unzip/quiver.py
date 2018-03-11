@@ -1,10 +1,9 @@
 from falcon_kit import run_support as support
-from pypeflow.simple_pwatcher_bridge import (
-    makePypeLocalFile, fn,
-    PypeTask,
-    PypeProcWatcherWorkflow, MyFakePypeThreadTaskBase)
-from .tasks import quiver as tasks_quiver
+#from falcon_kit import snakemake
 from .tasks import snakemake
+from pypeflow.simple_pwatcher_bridge import (
+    PypeProcWatcherWorkflow)
+from .tasks import quiver as tasks_quiver
 from . import io
 import glob
 import logging

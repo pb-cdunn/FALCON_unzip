@@ -1,11 +1,8 @@
 from __future__ import absolute_import
-from pypeflow.simple_pwatcher_bridge import (
-    makePypeLocalFile, fn,
-    PypeTask,
-)
-from .pype import (gen_task, gen_parallel_tasks)
+#from falcon_kit.pype import (wrap_gen_task as gen_task, gen_parallel_tasks, Dist)
+from falcon_kit.pype import Dist
+from .pype import gen_task, gen_parallel_tasks
 from .. import io
-import json
 import logging
 import os
 import re
@@ -20,6 +17,8 @@ python -m falcon_unzip.mains.get_read_hctg_map --base-dir={params.topdir} --outp
 
 fc_rr_hctg_track.py --base-dir={params.topdir} --stream
 # That writes into 0-rawreads/m_*/
+# n_core is actually limited by number of files, but in theory we could use whole machine,
+# Note: We also use a proc for LA4Falcon, so this is half.
 
 abs_rawread_to_contigs=$(readlink -f {output.rawread_to_contigs}) #TODO: No readlink
 cwd=$(pwd)
@@ -33,6 +32,7 @@ ls -l {output.rawread_to_contigs}
 # For now, in/outputs are in various directories, by convention.
 TASK_SELECT_READS_H_SCRIPT = """\
 python -m falcon_unzip.mains.get_read2ctg --output={output.read2ctg} {input.input_bam_fofn}
+# I think this should be memory-constrained. Only 1 proc.
 """
 
 # For now, in/outputs are in various directories, by convention.
@@ -45,6 +45,7 @@ cd {params.topdir}
 pwd
 #fc_select_reads_from_bam.py --max-n-open-files={params.max_n_open_files} ${{abs_input_input_bam_fofn}}
 python -m falcon_unzip.mains.bam_partition_and_merge --max-n-open-files={params.max_n_open_files} --read2ctg-fn=${{abs_input_read2ctg}} --merged-fn=${{abs_output_merged_fofn}} ${{abs_input_input_bam_fofn}}
+# I think this should be memory-constrained. Only 1 proc, I think.
 cd -
 ls -l {output.merged_fofn}
 """
@@ -126,6 +127,7 @@ def run_workflow(wf, config, rule_writer):
         },
         parameters=parameters,
         rule_writer=rule_writer,
+        dist=Dist(NPROC=12) # guesstimate
     ))
 
     read2ctg = './4-quiver/select_reads/read2ctg.msgpack'
@@ -141,6 +143,7 @@ def run_workflow(wf, config, rule_writer):
         },
         parameters=parameters,
         rule_writer=rule_writer,
+        dist=Dist(NPROC=4, MB=16), # actually NPROC=1, but our qsub jobs rarely report mem needs
     ))
 
     #read2ctg_plf = makePypeLocalFile(read2ctg)
@@ -158,6 +161,7 @@ def run_workflow(wf, config, rule_writer):
         },
         parameters=parameters,
         rule_writer=rule_writer,
+        dist=Dist(NPROC=4, MB=16), # actually NPROC=1, but our qsub jobs rarely report mem needs
     ))
 
     scattered ='./4-quiver/segregate_scatter/scattered.json'
@@ -171,6 +175,7 @@ def run_workflow(wf, config, rule_writer):
         ),
         parameters={},
         rule_writer=rule_writer,
+        dist=Dist(local=True),
     ))
 
     # Segregate reads from merged BAM files in parallel.
@@ -188,8 +193,8 @@ def run_workflow(wf, config, rule_writer):
                 'segregated_bam_fofn': './4-quiver/segregate_scatter/{segr}/segregated_bam.fofn',
             },
             parameters=parameters,
-        ),
-    )
+            dist=Dist(NPROC=4, MB=16), # actually NPROC=1, but our qsub jobs rarely report mem needs
+    ))
 
     ctg2segregated_bamfn = './4-quiver/segregate_bam/ctg2segregated_bamfn.msgpack'
     # This is a separate task, consuming the output of the implicit gatherer.
@@ -203,6 +208,7 @@ def run_workflow(wf, config, rule_writer):
         },
         parameters=parameters,
         rule_writer=rule_writer,
+        dist=Dist(local=True),
     ))
 
     scattered_quiver = '4-quiver/quiver_scatter/scattered.json'
@@ -218,6 +224,7 @@ def run_workflow(wf, config, rule_writer):
         },
         parameters=parameters, #{},
         rule_writer=rule_writer,
+        dist=Dist(local=True),
     ))
 
     int_gathered_fn = '4-quiver/cns_gather/intermediate/int.gathered.json'
@@ -239,6 +246,7 @@ def run_workflow(wf, config, rule_writer):
             },
             parameters=parameters, # expanded wildcards are added implicitly
             # TODO(CD): sge_quiver
+            dist=Dist(NPROC=24),
         ),
     )
     gathered_quiver = '4-quiver/cns_gather/gathered_quiver.json'
@@ -252,6 +260,7 @@ def run_workflow(wf, config, rule_writer):
         },
         parameters=parameters, #{},
         rule_writer=rule_writer,
+        dist=Dist(local=True),
     ))
 
     wf.addTask(gen_task(
@@ -267,6 +276,7 @@ def run_workflow(wf, config, rule_writer):
             'job_done': '4-quiver/cns_output/job_done',
         },
         rule_writer=rule_writer,
+        dist=Dist(NPROC=1),
     ))
 
     wf.refreshTargets()

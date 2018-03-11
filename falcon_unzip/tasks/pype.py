@@ -1,4 +1,5 @@
 from pypeflow.sample_tasks import gen_task as pype_gen_task
+from pypeflow.simple_pwatcher_bridge import Dist
 from .. import io
 import os
 
@@ -8,12 +9,12 @@ python -m falcon_unzip.mains.generic_gather --scattered-fn={input.scattered} --g
 """
 
 
-def gen_task(rule_writer, script, inputs, outputs, parameters={}):
+def gen_task(rule_writer, script, inputs, outputs, parameters={}, dist=Dist()):
     first_output_dir = os.path.normpath(os.path.dirname(outputs.values()[0]))
     rel_topdir = os.path.relpath('.', first_output_dir)
     params = dict(parameters)
     params['topdir'] = rel_topdir
-    pt = pype_gen_task(script, inputs, outputs, params)
+    pt = pype_gen_task(script, inputs, outputs, params, dist)
     # Run pype_gen_task first because it can valid some stuff.
     rule_writer(inputs, outputs, params, script)
     return pt
@@ -24,6 +25,7 @@ def gen_parallel_tasks(
         scattered_fn,
         gathered_fn,
         run_dict,
+        dist=Dist(),
 ):
     # run_dict['inputs'] should be patterns to match the inputs in scattered_fn, by convention.
 
@@ -56,6 +58,7 @@ def gen_parallel_tasks(
                 inputs=inputs,
                 outputs=outputs,
                 parameters=params,
+                dist=dist,
         ))
         wildcards_str = '_'.join(w for w in job['wildcards'].values())
         job_name = 'job{}'.format(wildcards_str)
@@ -74,4 +77,5 @@ def gen_parallel_tasks(
             'gathered': gathered_fn,
         },
         parameters={},
+        dist=dist, # should be w/ local=True
     ))

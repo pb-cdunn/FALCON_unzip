@@ -1,11 +1,10 @@
 from falcon_kit import run_support as support
-from pypeflow.simple_pwatcher_bridge import (
-    PypeLocalFile, makePypeLocalFile, fn,
-    PypeTask,
-    PypeProcWatcherWorkflow, MyFakePypeThreadTaskBase)
-from falcon_kit.FastaReader import FastaReader
-from .tasks import unzip as tasks_unzip
+#from falcon_kit import snakemake
 from .tasks import snakemake
+from falcon_kit.FastaReader import FastaReader
+from pypeflow.simple_pwatcher_bridge import (
+    PypeProcWatcherWorkflow)
+from .tasks import unzip as tasks_unzip
 from . import io
 import glob
 import logging
