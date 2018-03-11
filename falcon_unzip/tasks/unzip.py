@@ -82,15 +82,15 @@ python -m falcon_unzip.mains.phasing_gather --gathered={input.gathered} --rid-to
 
 
 TASK_HASM_SCRIPT = """\
-python -m falcon_unzip.mains.ovlp_filter_with_phase --fofn {input.las_fofn} --max_diff 120 --max_cov 120 --min_cov 1 --n_core 48 --min_len 2500 --db ../../1-preads_ovl/preads.db --rid_phase_map {input.rid_to_phase_all} > preads.p_ovl
-python -m falcon_unzip.mains.phased_ovlp_to_graph preads.p_ovl --min_len 2500 > fc.log
+python -m falcon_unzip.mains.ovlp_filter_with_phase --fofn {input.las_fofn} --max-diff 120 --max-cov 120 --min-cov 1 --n-core 48 --min-len 2500 --db ../../1-preads_ovl/preads.db --rid-phase-map {input.rid_to_phase_all} > preads.p_ovl
+python -m falcon_unzip.mains.phased_ovlp_to_graph preads.p_ovl --min-len 2500 > fc.log
 if [ -e ../../1-preads_ovl/preads4falcon.fasta ];
 then
   ln -sf ../../1-preads_ovl/preads4falcon.fasta .
 else
   ln -sf ../../1-preads_ovl/db2falcon/preads4falcon.fasta .
 fi
-python -m falcon_unzip.mains.graphs_to_h_tigs --fc_asm_path ../../2-asm-falcon/ --fc_hasm_path ./ --ctg_id all --rid_phase_map {input.rid_to_phase_all} --fasta preads4falcon.fasta
+python -m falcon_unzip.mains.graphs_to_h_tigs --fc-asm-path ../../2-asm-falcon/ --fc-hasm-path ./ --ctg-id all --rid-phase-map {input.rid_to_phase_all} --fasta preads4falcon.fasta
 
 # more script -- a little bit hacky here, we should improve
 

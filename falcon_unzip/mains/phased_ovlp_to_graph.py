@@ -1521,10 +1521,10 @@ Writes:
     parser.add_argument(
         'overlap_file', help='a file that contains the overlap information.')
     parser.add_argument(
-        '--min_len', type=int, default=4000,
+        '--min-len', type=int, default=4000,
         help='minimum length of the reads to be considered for assembling')
     parser.add_argument(
-        '--min_idt', type=float, default=96,
+        '--min-idt', type=float, default=96,
         help='minimum alignment identity of the reads to be considered for assembling')
     parser.add_argument(
         '--lfc', action="store_true", default=False,
