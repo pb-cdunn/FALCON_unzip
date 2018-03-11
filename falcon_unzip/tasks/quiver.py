@@ -109,11 +109,7 @@ python -m falcon_unzip.mains.bam_segregate --merged-fn={input.merged_bamfn} --ou
 
 def run_workflow(wf, config, rule_writer):
     #import pdb; pdb.set_trace()
-    parameters = {
-        'sge_option': config['sge_track_reads'],  # applies to select_reads task also, for now
-        'max_n_open_files': config['max_n_open_files'],
-        #'topdir': os.getcwd(),
-    }
+    sge_option_default = config['sge_option']
     input_bam_fofn = os.path.relpath(config['input_bam_fofn']) # All input paths should be relative, for snakemake.
     track_reads_rr2c = './4-quiver/track_reads/rawread_to_contigs'
     wf.addTask(gen_task(
@@ -125,9 +121,11 @@ def run_workflow(wf, config, rule_writer):
         outputs={
             'rawread_to_contigs': track_reads_rr2c,
         },
-        parameters=parameters,
+        parameters={},
         rule_writer=rule_writer,
-        dist=Dist(NPROC=12) # guesstimate
+        dist=Dist(NPROC=12, # guesstimate
+            sge_option=config['sge_track_reads']
+        )
     ))
 
     read2ctg = './4-quiver/select_reads/read2ctg.msgpack'
@@ -141,9 +139,11 @@ def run_workflow(wf, config, rule_writer):
         outputs={
             'read2ctg': read2ctg,
         },
-        parameters=parameters,
+        parameters={},
         rule_writer=rule_writer,
-        dist=Dist(NPROC=4, MB=16), # actually NPROC=1, but our qsub jobs rarely report mem needs
+        dist=Dist(NPROC=4, MB=16, # actually NPROC=1, but our qsub jobs rarely report mem needs
+            sge_option=config['sge_track_reads']
+        )
     ))
 
     #read2ctg_plf = makePypeLocalFile(read2ctg)
@@ -159,9 +159,13 @@ def run_workflow(wf, config, rule_writer):
         outputs={
             'merged_fofn': merged_fofn,
         },
-        parameters=parameters,
+        parameters={
+            'max_n_open_files': config['max_n_open_files'],
+        },
         rule_writer=rule_writer,
-        dist=Dist(NPROC=4, MB=16), # actually NPROC=1, but our qsub jobs rarely report mem needs
+        dist=Dist(NPROC=4, MB=16, # actually NPROC=1, but our qsub jobs rarely report mem needs
+            sge_option=config['sge_track_reads']
+        )
     ))
 
     scattered ='./4-quiver/segregate_scatter/scattered.json'
@@ -192,8 +196,10 @@ def run_workflow(wf, config, rule_writer):
             outputs={
                 'segregated_bam_fofn': './4-quiver/segregate_scatter/{segr}/segregated_bam.fofn',
             },
-            parameters=parameters,
-            dist=Dist(NPROC=4, MB=16), # actually NPROC=1, but our qsub jobs rarely report mem needs
+            parameters={},
+            dist=Dist(NPROC=4, MB=16, # actually NPROC=1, but our qsub jobs rarely report mem needs
+                sge_option=config['sge_track_reads']
+            )
     ))
 
     ctg2segregated_bamfn = './4-quiver/segregate_bam/ctg2segregated_bamfn.msgpack'
@@ -206,7 +212,7 @@ def run_workflow(wf, config, rule_writer):
         outputs={
             'ctg2segregated_bamfn': ctg2segregated_bamfn,
         },
-        parameters=parameters,
+        parameters={},
         rule_writer=rule_writer,
         dist=Dist(local=True),
     ))
@@ -222,7 +228,7 @@ def run_workflow(wf, config, rule_writer):
         outputs={
                 'scattered': scattered_quiver,
         },
-        parameters=parameters, #{},
+        parameters={},
         rule_writer=rule_writer,
         dist=Dist(local=True),
     ))
@@ -244,9 +250,10 @@ def run_workflow(wf, config, rule_writer):
                 'ctg_type_again': '4-quiver/quiver_run/{ctg_id}/ctg_type',
                 'job_done': '4-quiver/quiver_run/{ctg_id}/quiver_done',
             },
-            parameters=parameters, # expanded wildcards are added implicitly
-            # TODO(CD): sge_quiver
-            dist=Dist(NPROC=24),
+            parameters={},
+            dist=Dist(NPROC=24,
+                sge_option=config['sge_quiver']
+            )
         ),
     )
     gathered_quiver = '4-quiver/cns_gather/gathered_quiver.json'
@@ -258,7 +265,7 @@ def run_workflow(wf, config, rule_writer):
         outputs={
             'separated': gathered_quiver,
         },
-        parameters=parameters, #{},
+        parameters={},
         rule_writer=rule_writer,
         dist=Dist(local=True),
     ))
@@ -276,7 +283,9 @@ def run_workflow(wf, config, rule_writer):
             'job_done': '4-quiver/cns_output/job_done',
         },
         rule_writer=rule_writer,
-        dist=Dist(NPROC=1),
+        dist=Dist(NPROC=1,
+            sge_option=sge_option_default
+        )
     ))
 
     wf.refreshTargets()

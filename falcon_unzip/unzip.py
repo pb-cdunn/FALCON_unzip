@@ -52,25 +52,26 @@ def run(config_fn, logging_config_fn):
     if config.has_option('General', 'pwatcher_type'):
         pwatcher_type = config.get('General', 'pwatcher_type')
 
-    sge_blasr_aln = ' -pe smp 24 -q bigmem '
+    sge_option = ''
+    if config.has_option('Unzip', 'sge_option'):
+        sge_option = config.get('Unzip', 'sge_option')
+
+    sge_blasr_aln = sge_option
     if config.has_option('Unzip', 'sge_blasr_aln'):
         sge_blasr_aln = config.get('Unzip', 'sge_blasr_aln')
 
-    smrt_bin = ''
-    if config.has_option('Unzip', 'smrt_bin'):
-        smrt_bin = config.get('Unzip', 'smrt_bin')
+    # I guess phasing is combined with the blasr job now.
+    #sge_phasing = ' -pe smp 12 -q bigmem'
+    #if config.has_option('Unzip', 'sge_phasing'):
+    #    sge_phasing = config.get('Unzip', 'sge_phasing')
 
-    sge_phasing = ' -pe smp 12 -q bigmem'
-    if config.has_option('Unzip', 'sge_phasing'):
-        sge_phasing = config.get('Unzip', 'sge_phasing')
-
-    sge_hasm = ' -pe smp 48 -q bigmem'
+    sge_hasm = sge_option
     if config.has_option('Unzip', 'sge_hasm'):
         sge_hasm = config.get('Unzip', 'sge_hasm')
 
-    sge_track_reads = ' -pe smp 12 -q bigmem'
+    sge_track_reads = sge_option
     if config.has_option('Unzip', 'sge_track_reads'):
-        sge_track_reads = config.get('Unzip', 'sge_track_reads')
+        sge_track_reads = config.get('Unzip', 'sge_track_reads') # applies to select_reads task also, for now
 
     unzip_blasr_concurrent_jobs = 8
     if config.has_option('Unzip', 'unzip_blasr_concurrent_jobs'):
@@ -80,12 +81,15 @@ def run(config_fn, logging_config_fn):
     if config.has_option('Unzip', 'unzip_phasing_concurrent_jobs'):
         unzip_phasing_concurrent_jobs = config.getint('Unzip', 'unzip_phasing_concurrent_jobs')
 
+    if config.has_option('Unzip', 'smrt_bin'):
+        LOG.warning('You have set option "smrt_bin={}" in the "Unzip" section. That will be ignored. Simply and to your $PATH.'.format(config.get('Unzip', 'smrt_bin')))
+
     config = {'job_type': job_type,
               'job_queue': job_queue,
+              'sge_option': sge_option,
               'sge_blasr_aln': sge_blasr_aln,
-              'smrt_bin': smrt_bin,
-              'sge_phasing': sge_phasing,
               'sge_hasm': sge_hasm,
+              #'sge_phasing': sge_phasing,
               'sge_track_reads': sge_track_reads,
               'unzip_blasr_concurrent_jobs': unzip_blasr_concurrent_jobs,
               'unzip_phasing_concurrent_jobs': unzip_phasing_concurrent_jobs,

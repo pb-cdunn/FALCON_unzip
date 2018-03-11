@@ -172,13 +172,10 @@ def create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file, pa
 
 
 def run_workflow(wf, config, rule_writer):
-    parameters = {
-        'sge_option': config['sge_track_reads'],
-        #'topdir': os.getcwd(),
-    }
+    sge_option_default = config['sge_option']
     read_to_contig_map_file = '3-unzip/reads/get_read_ctg_map/read_to_contig_map'
     # This has lots of inputs from falcon stages 0, 1, and 2.
-    create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file, parameters)
+    create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file, {})
 
     ctg_list_file = './3-unzip/reads/ctg_list'
     fofn_file = config.get('input_fofn', './input.fofn') # from user config, usually
@@ -193,9 +190,11 @@ def run_workflow(wf, config, rule_writer):
                 'job_done': './3-unzip/reads/track_reads_done',
                 'ctg_list_file': ctg_list_file,
             },
-            parameters=parameters,
+            parameters={},
             rule_writer=rule_writer,
-            dist=Dist(NPROC=4),
+            dist=Dist(NPROC=4,
+                sge_option=config['sge_track_reads']
+            )
     ))
 
     scattered = './3-unzip/1-hasm/scattered/scattered.json'
@@ -208,14 +207,11 @@ def run_workflow(wf, config, rule_writer):
         outputs=dict(
             scattered=scattered,
         ),
-        parameters=parameters, #{},
+        parameters={},
         rule_writer=rule_writer,
         dist=Dist(local=True),
     ))
 
-    parameters = {#'job_uid': 'aln-' + ctg_id, 'ctg_id': ctg_id,
-                    'sge_option': config['sge_blasr_aln'],
-    }
     gathered = './3-unzip/1-hasm/gathered-rid-to-phase/gathered.json'
 
     gen_parallel_tasks(
@@ -230,8 +226,10 @@ def run_workflow(wf, config, rule_writer):
             outputs={
                 'rid_to_phase_out': './3-unzip/0-phasing/{ctg_id}/rid_to_phase',
             },
-            parameters=parameters,
-            dist=Dist(NPROC=24), # currently, we hard-code the blasr max
+            parameters={},
+            dist=Dist(NPROC=24, # currently, we hard-code the blasr max
+                sge_option=config['sge_blasr_aln']
+            )
         ),
     )
 
@@ -243,14 +241,11 @@ def run_workflow(wf, config, rule_writer):
         },
         outputs={'rid_to_phase_all': concatenated_rid_to_phase_file,
         },
-        parameters=parameters, #{},
+        parameters={},
         rule_writer=rule_writer,
         dist=Dist(local=True),
     ))
 
-    parameters = {
-            'sge_option': config['sge_hasm'],
-    }
     las_fofn_file = './1-preads_ovl/las-gather/las_fofn.json'
     job_done = './3-unzip/1-hasm/hasm_done'
 
@@ -263,9 +258,11 @@ def run_workflow(wf, config, rule_writer):
             outputs={
                 'job_done': job_done,
             },
-            parameters=parameters,
+            parameters={},
             rule_writer=rule_writer,
-            dist=Dist(NPROC=4),
+            dist=Dist(NPROC=48,
+                sge_option=config['sge_hasm']
+            )
     ))
     unzip_phasing_concurrent_jobs = config['unzip_phasing_concurrent_jobs']
     wf.max_jobs = unzip_phasing_concurrent_jobs
