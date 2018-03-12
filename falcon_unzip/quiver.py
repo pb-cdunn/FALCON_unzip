@@ -40,17 +40,17 @@ def run(config_fn, logging_config_fn):
     if config.has_option('General', 'max_n_open_files'):
         max_n_open_files = config.getint('General', 'max_n_open_files')
 
-    sge_track_reads = ' -pe smp 12 -q bigmem'
+    sge_option = ''
+    if config.has_option('Unzip', 'sge_option'):
+        sge_option = config.get('Unzip', 'sge_option')
+
+    sge_track_reads = sge_option
     if config.has_option('Unzip', 'sge_track_reads'):
         sge_track_reads = config.get('Unzip', 'sge_track_reads')
 
-    sge_quiver = ' -pe smp 24 -q bigmem '
+    sge_quiver = sge_option
     if config.has_option('Unzip', 'sge_quiver'):
         sge_quiver = config.get('Unzip', 'sge_quiver')
-
-    smrt_bin = ''
-    if config.has_option('Unzip', 'smrt_bin'):
-        smrt_bin = config.get('Unzip', 'smrt_bin')
 
     input_bam_fofn = 'input_bam.fofn'
     if config.has_option('Unzip', 'input_bam_fofn'):
@@ -62,14 +62,18 @@ def run(config_fn, logging_config_fn):
     if config.has_option('Unzip', 'quiver_concurrent_jobs'):
         quiver_concurrent_jobs = config.getint('Unzip', 'quiver_concurrent_jobs')
 
+    if config.has_option('Unzip', 'smrt_bin'):
+        LOG.warning('You have set option "smrt_bin={}" in the "Unzip" section. That will be ignored. Simply and to your $PATH.'.format(config.get('Unzip', 'smrt_bin')))
+
     config = {'job_type': job_type,
               'job_queue': job_queue,
+              'sge_option': sge_option,
               'sge_quiver': sge_quiver,
               'sge_track_reads': sge_track_reads,
               'input_bam_fofn': input_bam_fofn,
               'max_n_open_files': max_n_open_files,
               'pwatcher_type': pwatcher_type,
-              'smrt_bin': smrt_bin}
+    }
     io.update_env_from_config(config, config_fn)
 
     # support.job_type = 'SGE' #tmp hack until we have a configuration parser
