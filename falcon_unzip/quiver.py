@@ -1,6 +1,5 @@
 from falcon_kit import run_support as support
-#from falcon_kit import snakemake
-from .tasks import snakemake
+from falcon_kit import snakemake
 from pypeflow.simple_pwatcher_bridge import (
     PypeProcWatcherWorkflow)
 from .tasks import quiver as tasks_quiver

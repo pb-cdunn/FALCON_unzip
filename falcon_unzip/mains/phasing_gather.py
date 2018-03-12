@@ -12,8 +12,8 @@ def run(gathered_fn, rid_to_phase_all_fn):
     out_dir = os.path.dirname(rid_to_phase_all_fn)
     rid_to_phase_all = list()
     gathered = io.deserialize(gathered_fn)
-    for job_output in gathered.values():
-        fn = job_output['fns']['rid_to_phase_out']
+    for job_output in gathered:
+        fn = job_output['rid_to_phase_out']
         if not os.path.isabs(fn):
             fn = os.path.relpath(os.path.join(gathered_dir, fn), out_dir)
         # Discern ctgs from filepaths. (Or we could we use the key in gathered.json.)

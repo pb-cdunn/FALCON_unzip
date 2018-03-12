@@ -2,7 +2,8 @@ from __future__ import absolute_import
 #from falcon_kit.pype import (wrap_gen_task as gen_task, gen_parallel_tasks, Dist)
 from falcon_kit.pype import Dist
 from falcon_kit import pype_tasks
-from .pype import gen_task, gen_parallel_tasks
+#from .pype import gen_task, gen_parallel_tasks
+from falcon_kit.pype import (wrap_gen_task as gen_task, gen_parallel_tasks, Dist)
 from .. import io
 import logging
 import os
@@ -12,8 +13,8 @@ LOG = logging.getLogger(__name__)
 
 TASK_TRACK_READS_SCRIPT = """\
 # Also require read_to_contig_map.
-python -m falcon_unzip.mains.rr_ctg_track --base-dir={params.topdir} --output=rawread_to_contigs
-python -m falcon_unzip.mains.pr_ctg_track --base-dir={params.topdir} --output=pread_to_contigs
+python -m falcon_unzip.mains.rr_ctg_track --base-dir={params.topdir} --output={output.rawread_to_contigs}
+python -m falcon_unzip.mains.pr_ctg_track --base-dir={params.topdir} --output={output.pread_to_contigs}
 # Those outputs are used only by fetch_reads.
 python -m falcon_unzip.mains.fetch_reads --base-dir={params.topdir} --fofn={input.fofn} --ctg-list={output.ctg_list_file}
 touch {output.job_done}
@@ -21,7 +22,7 @@ touch {output.job_done}
 # TODO: Proper scattering (currently in fetch_reads.py)
 
 # This will run in 3-unzip/0-phasing/(ctg_id)/
-TASK_RUN_PHASING_SCRIPT = """\
+TASK_PHASING_RUN_SCRIPT = """\
 
 # BLASR
 ctg_aln_out='blasr/{params.ctg_id}_sorted.bam'
@@ -61,13 +62,13 @@ python -m falcon_unzip.mains.phasing_get_phased_reads --ctg-id={params.ctg_id} -
 
 # PHASING READMAP
 # TODO: read-map-dir/* as inputs
-python -m falcon_unzip.mains.phasing_readmap --the-ctg-id={params.ctg_id} --read-map-dir=../../reads --phased-reads=${{phased_reads_fn}} >| {output.rid_to_phase_out}.tmp
+python -m falcon_unzip.mains.phasing_readmap --the-ctg-id={params.ctg_id} --rawread-ids-fn={input.rawread_ids} --pread-ids-fn={input.pread_ids} --pread-to-contigs={input.pread_to_contigs} --phased-reads=${{phased_reads_fn}} >| {output.rid_to_phase_out}.tmp
 mv {output.rid_to_phase_out}.tmp {output.rid_to_phase_out}.true
 
 mkdir -p proto
-preads_ovl_dir=$(pwd)'/../../../1-preads_ovl'
-falcon_asm_dir=$(pwd)'/../../../2-asm-falcon'
-unzip_dir=$(pwd)'/../../../3-unzip'
+preads_ovl_dir="{params.base_dir}/1-preads_ovl"
+falcon_asm_dir="{params.base_dir}/2-asm-falcon"
+unzip_dir="{params.base_dir}/3-unzip"
 
 python -m falcon_unzip.proto.extract_phased_preads \
     --ctg-id {params.ctg_id} \
@@ -94,8 +95,11 @@ python -m falcon_unzip.proto.main_augment_pb \
 mv {output.rid_to_phase_out}.tmp {output.rid_to_phase_out}
 """
 
-TASK_PHASING_SCATTER_SCRIPT = """\
-python -m falcon_unzip.mains.phasing_scatter --ctg-list-fn={input.ctg_list} --scattered-fn={output.scattered}
+#TASK_PHASING_SCATTER_SCRIPT = """\
+#python -m falcon_unzip.mains.phasing_scatter --ctg-list-fn={input.ctg_list} --scattered-fn={output.scattered}
+#"""
+TASK_PHASING_SPLIT_SCRIPT = """\
+python -m falcon_unzip.mains.phasing_split --base-dir={params.topdir} --ctg-list-fn={input.ctg_list} --rawread-ids-fn={input.rawread_ids} --pread-ids-fn={input.pread_ids} --pread-to-contigs-fn={input.pread_to_contigs} --split-fn={output.split} --bash-template-fn={output.bash_template}
 """
 
 TASK_GET_RID_TO_PHASE_ALL_SCRIPT = """\
@@ -176,18 +180,17 @@ touch {output.job_done}
 """
 
 
-def create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file, parameters):
+def create_tasks_read_to_contig_map(wf, rule_writer, rawread_ids_fn, pread_ids_fn, read_to_contig_map_file, parameters):
     falcon_asm_done = './2-asm-falcon/falcon_asm_done'
 
     rawread_db = '0-rawreads/raw_reads.db'
-    rawread_ids = '3-unzip/reads/dump_rawread_ids/rawread_ids'
 
     wf.addTask(gen_task(
         script=pype_tasks.TASK_DUMP_RAWREAD_IDS_SCRIPT,
         inputs={'rawread_db': rawread_db,
                 'falcon_asm_done': falcon_asm_done,
         },
-        outputs={'rawread_id_file': rawread_ids,
+        outputs={'rawread_id_file': rawread_ids_fn,
         },
         parameters=parameters,
         rule_writer=rule_writer,
@@ -195,14 +198,13 @@ def create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file, pa
     ))
 
     pread_db = '1-preads_ovl/preads.db'
-    pread_ids = '3-unzip/reads/dump_pread_ids/pread_ids'
 
     wf.addTask(gen_task(
         script=pype_tasks.TASK_DUMP_PREAD_IDS_SCRIPT,
         inputs={'pread_db': pread_db,
                 'falcon_asm_done': falcon_asm_done,
         },
-        outputs={'pread_id_file': pread_ids,
+        outputs={'pread_id_file': pread_ids_fn,
         },
         parameters=parameters,
         rule_writer=rule_writer,
@@ -213,8 +215,8 @@ def create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file, pa
     utg_data = '2-asm-falcon/utg_data'
     ctg_paths = '2-asm-falcon/ctg_paths'
 
-    inputs = {'rawread_id_file': rawread_ids,
-              'pread_id_file': pread_ids,
+    inputs = {'rawread_id_file': rawread_ids_fn,
+              'pread_id_file': pread_ids_fn,
               'sg_edges_list': sg_edges_list,
               'utg_data': utg_data,
               'ctg_paths': ctg_paths}
@@ -230,22 +232,28 @@ def create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file, pa
 
 def run_workflow(wf, config, rule_writer):
     sge_option_default = config['sge_option']
-    read_to_contig_map_file = '3-unzip/reads/get_read_ctg_map/read_to_contig_map'
+    read_to_contig_map_fn = '3-unzip/reads/get_read_ctg_map/read_to_contig_map'
+    rawread_ids_fn = '3-unzip/reads/dump_rawread_ids/rawread_ids'
+    pread_ids_fn = '3-unzip/reads/dump_pread_ids/pread_ids'
     # This has lots of inputs from falcon stages 0, 1, and 2.
-    create_tasks_read_to_contig_map(wf, rule_writer, read_to_contig_map_file, {})
+    create_tasks_read_to_contig_map(wf, rule_writer, rawread_ids_fn, pread_ids_fn, read_to_contig_map_fn, {})
 
-    ctg_list_file = './3-unzip/reads/ctg_list'
+    ctg_list_fn = './3-unzip/reads/ctg_list'
+    rawread_to_contigs_fn = './3-unzip/reads/rawread_to_contigs'
+    pread_to_contigs_fn = './3-unzip/reads/pread_to_contigs'
     fofn_file = config.get('input_fofn', './input.fofn') # from user config, usually
 
     wf.addTask(gen_task(
             script=TASK_TRACK_READS_SCRIPT,
             inputs={
                 'fofn': fofn_file,
-                'read_to_contig_map': read_to_contig_map_file,
+                'read_to_contig_map': read_to_contig_map_fn,
             },
             outputs={
                 'job_done': './3-unzip/reads/track_reads_done',
-                'ctg_list_file': ctg_list_file,
+                'ctg_list_file': ctg_list_fn,
+                'rawread_to_contigs': rawread_to_contigs_fn,
+                'pread_to_contigs': pread_to_contigs_fn,
             },
             parameters={},
             rule_writer=rule_writer,
@@ -254,15 +262,20 @@ def run_workflow(wf, config, rule_writer):
             )
     ))
 
-    scattered = './3-unzip/1-hasm/scattered/scattered.json'
+    phasing_all_units_fn = './3-unzip/1-hasm/phasing-split/all-units-of-work.json'
+    phasing_run_bash_template_fn ='./3-unzip/1-hasm/phasing-split/bash-template.sh'
 
     wf.addTask(gen_task(
-        script=TASK_PHASING_SCATTER_SCRIPT,
+        script=TASK_PHASING_SPLIT_SCRIPT,
         inputs=dict(
-            ctg_list=ctg_list_file,
+            ctg_list=ctg_list_fn,
+            rawread_ids=rawread_ids_fn,
+            pread_ids=pread_ids_fn,
+            pread_to_contigs=pread_to_contigs_fn,
         ),
         outputs=dict(
-            scattered=scattered,
+            split=phasing_all_units_fn,
+            bash_template=phasing_run_bash_template_fn,
         ),
         parameters={},
         rule_writer=rule_writer,
@@ -273,15 +286,15 @@ def run_workflow(wf, config, rule_writer):
 
     gen_parallel_tasks(
         wf, rule_writer,
-        scattered, gathered,
+        phasing_all_units_fn, gathered,
         run_dict=dict(
-            script=TASK_RUN_PHASING_SCRIPT,
+            bash_template_fn=phasing_run_bash_template_fn,
+            script=TASK_PHASING_RUN_SCRIPT,
             inputs={
-                'ref_fasta': './3-unzip/reads/{ctg_id}/ref.fa',
-                'read_fasta': './3-unzip/reads/{ctg_id}/reads.fa',
+                'units_of_work': './3-unzip/1-hasm/phasing-chunks/{ctg_id}/some-units-of-work.json',
             },
             outputs={
-                'rid_to_phase_out': './3-unzip/0-phasing/{ctg_id}/rid_to_phase',
+                'results': './3-unzip/1-hasm/phasing-run/{ctg_id}/phasing-result-list.json',
             },
             parameters={},
             dist=Dist(NPROC=24, # currently, we hard-code the blasr max
