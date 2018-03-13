@@ -15,7 +15,7 @@ TASK_TRACK_READS_H_SCRIPT = """\
 python -m falcon_unzip.mains.get_read_hctg_map --base-dir={params.topdir} --output=read_to_contig_map
 # formerly generated ./4-quiver/read_maps/read_to_contig_map
 
-fc_rr_hctg_track.py --base-dir={params.topdir} --stream
+fc_rr_hctg_track.py --base-dir={params.topdir} --stream --read-to-contig-map=read_to_contig_map
 # That writes into 0-rawreads/m_*/
 # n_core is actually limited by number of files, but in theory we could use whole machine,
 # Note: We also use a proc for LA4Falcon, so this is half.
@@ -31,7 +31,7 @@ ls -l {output.rawread_to_contigs}
 
 # For now, in/outputs are in various directories, by convention.
 TASK_SELECT_READS_H_SCRIPT = """\
-python -m falcon_unzip.mains.get_read2ctg --output={output.read2ctg} {input.input_bam_fofn}
+python -m falcon_unzip.mains.get_read2ctg --rawread-to-contigs={input.rawread_to_contigs} --output={output.read2ctg} {input.input_bam_fofn}
 # I think this should be memory-constrained. Only 1 proc.
 """
 
@@ -111,7 +111,7 @@ def run_workflow(wf, config, rule_writer):
     #import pdb; pdb.set_trace()
     sge_option_default = config['sge_option']
     input_bam_fofn = os.path.relpath(config['input_bam_fofn']) # All input paths should be relative, for snakemake.
-    track_reads_rr2c = './4-quiver/track_reads/rawread_to_contigs'
+    track_reads_rr2c = './4-quiver/track-reads/rawread_to_contigs'
     wf.addTask(gen_task(
         script=TASK_TRACK_READS_H_SCRIPT,
         inputs={
