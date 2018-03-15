@@ -43,6 +43,7 @@ def test_update_env_from_config(tmpdir, monkeypatch):
 
     cmds = [
         'blasr', 'samtools', 'pbalign', 'variantCaller',
+        'minimap2',
         'nucmer', 'show-coords',
         'fc_rr_hctg_track2.exe',
     ]

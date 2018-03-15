@@ -47,6 +47,7 @@ def validate_config(config):
         'blasr', 'samtools', 'pbalign', 'variantCaller',
     ]
     path_cmds = [
+        'minimap2',
         'nucmer',
         'show-coords',
         'fc_rr_hctg_track2.exe',
@@ -61,6 +62,7 @@ def validate_config(config):
         syscall('which ' + cmd)
     syscall('show-coords -h')
     syscall('nucmer --version')
+    syscall('minimap2 --version')
 
     samtools_output = commands.getoutput('samtools')
     validate_samtools(samtools_output)

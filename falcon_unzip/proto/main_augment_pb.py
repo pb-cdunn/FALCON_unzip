@@ -5,8 +5,8 @@ import sys
 import argparse
 import tiling_path
 import phasing_block
-# import intervaltree.intervaltree as intervaltree
-from intervaltree import *
+import intervaltree.intervaltree as intervaltree
+#from intervaltree import * # Let's avoid this.
 import json
 import networkx as nx
 import sam2m4
