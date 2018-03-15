@@ -118,7 +118,7 @@ def calc_node_coords(tiling_path, offset=0):
     for edge in tiling_path:
         if edge.v not in coord_map:
             raise Exception(
-                'Tiling path is not in sorted order. Node "{v!r}" does not yet have an assigned coordinate.'.format(v=v))
+                'Tiling path is not in sorted order. Node "{v!r}" does not yet have an assigned coordinate.'.format(v=edge.v))
         coord = coord_map[edge.v]
         coord += abs(int(edge.b) - int(edge.e))
         coord_map[edge.w] = coord

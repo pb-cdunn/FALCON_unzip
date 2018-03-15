@@ -332,7 +332,7 @@ def load_and_hash_sam(sam_path, fp_proto_log):
         if aln[0] not in aln_dict:
             aln_dict[aln[0]] = aln
         else:
-            qstart, qend, aln[5], aln[6]
+            qstart, qend = aln[5], aln[6]
             qdist = qend - qstart
             prev_aln = aln_dict[aln[0]]
             prev_qstart, prev_qend = prev_aln[5], prev_aln[6]

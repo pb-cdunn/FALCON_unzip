@@ -28,5 +28,5 @@ def load_rid_to_phase(rid_phase_map):
         for row in f:
             row = row.strip().split()
             arid2phase[row[0]] = (row[1], row[2], row[3])  # ctg_id, phase_blk_id, phase_id
-    assert arid2phase, 'Empty rid_phase_map: {!r}'.format(args.rid_phase_map)
+    assert arid2phase, 'Empty rid_phase_map: {!r}'.format(rid_phase_map)
     return arid2phase

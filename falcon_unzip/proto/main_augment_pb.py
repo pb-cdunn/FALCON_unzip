@@ -44,7 +44,7 @@ def find_max_linear_region(all_regions, found_regions, reference_start, referenc
             max_linear_region = region_id
     return max_linear_region
 
-def create_new_rid2phase(ctg_id, rid2phase, all_regions, m4, phasing_blocks, a_paths):
+def create_new_rid2phase(ctg_id, rid2phase, all_regions, m4, a_paths):
     # Hash the regions in an intervaltree
     intervals = []
     for region_id in xrange(len(all_regions)):
@@ -460,11 +460,6 @@ def run(wd, ctg_id, extracted_ctg_fasta, p_ctg, p_ctg_tiling_path, a_ctg, a_ctg_
     rid2phase = phasing_block.load_rid_to_phase(rid_phase_map)
 
     ###################################################
-    # Load all phasing blocks, including their coordinates.
-    ###################################################
-    phasing_blocks = phasing_block.load_phasing_blocks(p_variant_fn)
-
-    ###################################################
     # Extract preads for this contig and map them to
     # the contig, to get the coordinates of each pread.
     # This is needed to filter preads which map
@@ -477,7 +472,7 @@ def run(wd, ctg_id, extracted_ctg_fasta, p_ctg, p_ctg_tiling_path, a_ctg, a_ctg_
     # This is the most important part to ensure that
     # the linear regions will get assembled into haplotigs.
     ###################################################
-    updated_rid2phase, phase_relation_graph, htig_to_phase = create_new_rid2phase(ctg_id, rid2phase, all_regions, m4, phasing_blocks, a_paths)
+    updated_rid2phase, phase_relation_graph, htig_to_phase = create_new_rid2phase(ctg_id, rid2phase, all_regions, m4, a_paths)
 
     # Write the phase relation graph to disk.
     nx.write_gexf(phase_relation_graph, os.path.join(wd, "phase_relation_graph.gexf"))
