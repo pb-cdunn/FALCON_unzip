@@ -2,8 +2,7 @@
 
 import re
 import sys
-import pysam
-# import argparse
+from ..io import AlignmentFile
 
 ################################
 ######### Utility tools ########
@@ -36,16 +35,16 @@ def is_primary(sam):
 
 def open_sam_bam_for_reading(file_path):
     if (file_path.endswith('bam')):
-        fp = pysam.AlignmentFile(file_path, 'rb', check_sq=False)
+        fp = AlignmentFile(file_path, 'rb', check_sq=False)
         return fp, True
-    fp = pysam.AlignmentFile(file_path, 'r', check_sq=False)
+    fp = AlignmentFile(file_path, 'r', check_sq=False)
     return fp, False
 
 def open_sam_bam_for_writing(file_path, header):
     if (file_path.endswith('bam')):
-        fp = pysam.AlignmentFile(file_path, 'wb', header=header)
+        fp = AlignmentFile(file_path, 'wb', header=header)
     else:
-        fp = pysam.AlignmentFile(file_path, 'wh', header=header)
+        fp = AlignmentFile(file_path, 'wh', header=header)
     return fp
 
 def pysam_to_m4(aln, ref_lens = None, skip_supplementary=True, skip_secondary=True):
