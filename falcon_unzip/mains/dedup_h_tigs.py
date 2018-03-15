@@ -12,7 +12,12 @@ def run(ctg_id):
     if not io.exists_and_not_empty(fn):
         LOG.info('No h_ctg_all.{ctg_id}.fa, but that is ok. Continue workflow.')
         return 0  # it is ok if there is no h_ctg_all.{ctg_id}.fa, don't want to interupt the workflow
-    io.syscall("nucmer --mum p_ctg.{ctg_id}.fa h_ctg_all.{ctg_id}.fa -p hp_aln".format(ctg_id=ctg_id))
+    try:
+        # Might still have a 0-length fasta line.
+        io.syscall("nucmer --mum p_ctg.{ctg_id}.fa h_ctg_all.{ctg_id}.fa -p hp_aln".format(ctg_id=ctg_id))
+    except Exception:
+        LOG.exception('nucmer failed, but we can probably proceed and simply skip this ctg. Check stderr to see what nucmer reported.')
+        return 0
     io.syscall("show-coords -T -H -l -c hp_aln.delta > hp_aln.coor")
 
     if not os.path.exists("hp_aln.coor"):
