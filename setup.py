@@ -6,7 +6,13 @@ from distutils.core import Extension
 
 import glob
 
-install_requires = ["networkx >= 1.7", "pysam>=0.8.4,<=0.13", "msgpack-python"]
+install_requires = [
+        "falcon-kit",
+        "networkx >= 1.7",
+        "pysam>=0.8.4,<=0.13",
+        "msgpack-python",
+        "intervaltree",
+]
 
 #scripts = glob.glob("src/py_scripts/*.py")
 
