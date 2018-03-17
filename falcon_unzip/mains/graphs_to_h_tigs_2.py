@@ -18,6 +18,7 @@ import intervaltree
 import argparse
 import sys
 import logging
+from .. import io # deserialize()
 
 # for shared memory usage
 global p_asm_G
@@ -45,29 +46,31 @@ tstrand, tstart, tend, tlen = aln[8:12]
 ### The main method for processing a single ctg_id. ###
 #######################################################
 def run_generate_haplotigs_for_ctg(input_):
+    ctg_id, proto_dir, out_dir, base_dir = input_
+    sys.stderr.write('[Proto] Entering generate_haplotigs_for_ctg(ctg_id={!r}, out_dir={!r}, base_dir={!r}\n'.format(
+        ctg_id, out_dir, base_dir))
+    mkdir(out_dir)
+
+    # Prepare the log output stream for this particular contig.
+    fp_proto_log = logging.getLogger(ctg_id)
+    fp_proto_log.setLevel(logging.INFO)
+    log_fn = os.path.join(out_dir, 'prototype.log')
+    LOG.warning('New logging FileHandler: {!r}'.format(os.path.abspath(log_fn)))
+    hdlr = logging.FileHandler(log_fn) #, level=logging.INFO)
+    fp_proto_log.addHandler(hdlr)
+
     try:
-        ctg_id, out_dir = input_
-        sys.stderr.write('[Proto] Entered run_generate_haplotigs_for_ctg for ctg_id = %s, out_dir = %s\n' % (ctg_id, out_dir))
-        mkdir(out_dir)
-
-        # Prepare the log output stream for this particular contig.
-        fp_proto_log = logging.getLogger(ctg_id)
-        fp_proto_log.setLevel(logging.INFO)
-        log_fn = os.path.join(out_dir, 'prototype.log')
-        LOG.warning('New logging FileHandler: {!r}'.format(os.path.abspath(log_fn)))
-        hdlr = logging.FileHandler(log_fn) #, level=logging.INFO)
-        fp_proto_log.addHandler(hdlr)
-
-        base_dir = os.path.join(out_dir, '..', '..') # wrong; fix soon
-        return generate_haplotigs_for_ctg(ctg_id, out_dir, fp_proto_log)
+        unzip_dir = os.path.join(base_dir, '3-unzip')
+        return generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, fp_proto_log)
     except Exception:
         LOG.exception('Failure in generate_haplotigs_for_ctg({!r})'.format(input_))
         raise
+    finally:
+        fp_proto_log.removeHandler(hdlr)
 
-def proto_log(message, fp_proto_log):
-    fp_proto_log.info(message)
+def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, fp_proto_log):
+    # proto_dir is specific to this ctg_id.
 
-def generate_haplotigs_for_ctg(ctg_id, out_dir, base_dir, fp_proto_log):
     global all_haplotigs_for_ctg
     global seqs
     global seq_lens
@@ -87,11 +90,13 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, base_dir, fp_proto_log):
     p_ctg_tiling_path = p_ctg_tiling_paths[ctg_id]
 
     # Path to the directory with the output of the main_augment_pb.py.
-    proto_dir = os.path.join(base_dir, '0-phasing', ctg_id, 'proto')
+    #proto_dir = os.path.join(unzip_dir, '0-phasing', ctg_id, 'proto')
 
     # Load the linear sequences for alignment.
-    p_ctg_path = os.path.join(base_dir, 'reads', ctg_id, 'ref.fa')
-    linear_p_ctg_path = os.path.join(base_dir, '0-phasing', ctg_id, 'proto', 'p_ctg_linear_%s.fasta' % (ctg_id))
+    p_ctg_path = os.path.join(unzip_dir, 'reads', ctg_id, 'ref.fa')
+    assert os.path.exists(p_ctg_path)
+    linear_p_ctg_path = os.path.join(proto_dir, 'p_ctg_linear_%s.fasta' % (ctg_id))
+    assert os.path.exists(linear_p_ctg_path)
 
     proto_log('Loading linear seqs from %s .\n' % (linear_p_ctg_path), fp_proto_log)
     linear_seqs = load_all_seq(linear_p_ctg_path)
@@ -252,8 +257,6 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, base_dir, fp_proto_log):
     #########################################################
 
     proto_log('[Proto] Finished.\n', fp_proto_log)
-
-    fp_proto_log.close()
 
 def load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase, preads):
     """
@@ -964,6 +967,24 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, all_haplotig_dict, phase_a
                     new_edge_line = [new_ctg_id, edge_v, edge_w, cross_phase, source_graph, phase[1], phase[2], phase[1], phase[2]]
                     fp_h_tig_edges.write(' '.join([str(val) for val in new_edge_line]) + '\n')
 
+def get_rid2proto_dir(gath_fn):
+    gath = io.deserialize(gath_fn)
+    result = dict()
+    for rec in gath:
+        rid_to_phase_fn = os.path.normpath(rec['rid_to_phase_out'])
+        # That was the output-name for TASK_PHASING_RUN_SCRIPT,
+        # specified in phasing_split.py.
+        # We now assume that its ctg_id is two dirs up, and
+        # the proto/ directory is next to the rid_to_phase file.
+        phasing_run_dir = os.path.dirname(rid_to_phase_fn)
+        proto_dir = os.path.join(phasing_run_dir, 'proto')
+        assert os.path.isdir(proto_dir)
+        ctg_id = os.path.basename(os.path.dirname(phasing_run_dir))
+        # I guess ctg_id == rid?
+        result[ctg_id] = proto_dir
+    LOG.debug('From {!r}, rid2proto_dir dict={!r}'.format(gath_fn, result))
+    return result
+
 def run(args):
     # make life easier for now. will refactor it out if possible
     global all_rid_to_phase
@@ -982,6 +1003,10 @@ def run(args):
     ctg_id = args.ctg_id
     base_dir = args.base_dir
     fasta_fn = args.fasta
+    gath_fn = args.gathered_rid_to_phase
+
+    rid2proto_dir = get_rid2proto_dir(gath_fn)
+
     hasm_falcon_path = os.path.join(fc_hasm_path, 'asm-falcon')
 
     p_asm_G = AsmGraph(os.path.join(fc_asm_path, "sg_edges_list"),
@@ -1076,7 +1101,8 @@ def run(args):
             continue
         if ctg_id not in all_rid_to_phase:
             continue
-        exe_list.append((ctg_id, os.path.join(".", ctg_id)))
+        proto_dir = rid2proto_dir[ctg_id]
+        exe_list.append((ctg_id, proto_dir, os.path.join(".", ctg_id), base_dir))
 
     sys.stderr.write('[Proto] Running jobs.\n')
 
@@ -1092,6 +1118,9 @@ def parse_args(argv):
         description='layout haplotigs from primary assembly graph and phased aseembly graph')
 
     parser.add_argument(
+        '--gathered-rid-to-phase', required=True,
+        help='Input. (Typically 3-unzip/1-hasm/gathered-rid-to-phase/gathered.json) JSON list of dict of "rid_to_phase_out"->filename. This is used to find the proto/ directory for each unit of phasing work.')
+    parser.add_argument(
         '--fc-asm-path', type=str,
         help='path to the primary Falcon assembly output directory', required=True)
     parser.add_argument(
@@ -1100,7 +1129,7 @@ def parse_args(argv):
     parser.add_argument(
         '--ctg-id', type=str, help='contig identifier in the bam file', default="all", required=True)
     parser.add_argument(
-        '--base-dir', type=str, default="./",
+        '--base-dir', type=str, required=True,
         help='the output base_dir, default to current working directory')
     parser.add_argument(
         '--rid-phase-map', type=str,

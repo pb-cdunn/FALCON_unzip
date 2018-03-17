@@ -9,8 +9,14 @@ RCMAP = dict(zip("ACGTacgtNn-", "TGCAtgcaNn-"))
 
 def proto_log(message, fp_proto_log):
     if fp_proto_log:
-        fp_proto_log.write(message)
-        fp_proto_log.flush()
+        if hasattr(fp_proto_log, 'write'):
+            # Old logging.
+            fp_proto_log.write(message)
+            fp_proto_log.flush()
+        else:
+            # New logging.
+            message = message.rstrip() # drop trailing newline
+            fp_proto_log.info(message)
 
 def mkdir(d):
     if not os.path.isdir(d):

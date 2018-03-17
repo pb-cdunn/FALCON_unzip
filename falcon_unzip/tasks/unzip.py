@@ -140,7 +140,7 @@ ln -sf ../preads4falcon.fasta
 time python -m falcon_kit.mains.graph_to_contig
 popd
 
-python -m falcon_unzip.mains.graphs_to_h_tigs_2 --fc-asm-path ../../2-asm-falcon/ --fc-hasm-path ./ --ctg-id all --rid-phase-map {input.rid_to_phase_all} --fasta preads4falcon.fasta
+python -m falcon_unzip.mains.graphs_to_h_tigs_2 --gathered-rid-to-phase={input.gathered_rid_to_phase} --base-dir={params.topdir} --fc-asm-path ../../2-asm-falcon/ --fc-hasm-path ./ --ctg-id all --rid-phase-map {input.rid_to_phase_all} --fasta preads4falcon.fasta
 
 # more script -- a little bit hacky here, we should improve
 
@@ -262,8 +262,8 @@ def run_workflow(wf, config, rule_writer):
             )
     ))
 
-    phasing_all_units_fn = './3-unzip/1-hasm/phasing-split/all-units-of-work.json'
-    phasing_run_bash_template_fn ='./3-unzip/1-hasm/phasing-split/bash-template.sh'
+    phasing_all_units_fn = './3-unzip/0-phasing/phasing-split/all-units-of-work.json'
+    phasing_run_bash_template_fn ='./3-unzip/0-phasing/phasing-split/bash-template.sh'
 
     wf.addTask(gen_task(
         script=TASK_PHASING_SPLIT_SCRIPT,
@@ -282,19 +282,19 @@ def run_workflow(wf, config, rule_writer):
         dist=Dist(local=True),
     ))
 
-    gathered = './3-unzip/1-hasm/gathered-rid-to-phase/gathered.json'
+    gathered_rid_to_phase_fn = './3-unzip/0-phasing/gathered-rid-to-phase/gathered.json'
 
     gen_parallel_tasks(
         wf, rule_writer,
-        phasing_all_units_fn, gathered,
+        phasing_all_units_fn, gathered_rid_to_phase_fn,
         run_dict=dict(
             bash_template_fn=phasing_run_bash_template_fn,
             script=TASK_PHASING_RUN_SCRIPT,
             inputs={
-                'units_of_work': './3-unzip/1-hasm/phasing-chunks/{ctg_id}/some-units-of-work.json',
+                'units_of_work': './3-unzip/0-phasing/phasing-chunks/{ctg_id}/some-units-of-work.json',
             },
             outputs={
-                'results': './3-unzip/1-hasm/phasing-run/{ctg_id}/phasing-result-list.json',
+                'results': './3-unzip/0-phasing/{ctg_id}/phasing-result-list.json',
             },
             parameters={},
             dist=Dist(NPROC=24, # currently, we hard-code the blasr max
@@ -303,13 +303,13 @@ def run_workflow(wf, config, rule_writer):
         ),
     )
 
-    concatenated_rid_to_phase_file = './3-unzip/1-hasm/concatenated-rid-to-phase/rid_to_phase.all'
+    concatenated_rid_to_phase_fn = './3-unzip/1-hasm/concatenated-rid-to-phase/rid_to_phase.all'
 
     wf.addTask(gen_task(
         script=TASK_PHASING_GATHER_SCRIPT,
-        inputs={'gathered': gathered,
+        inputs={'gathered': gathered_rid_to_phase_fn,
         },
-        outputs={'rid_to_phase_all': concatenated_rid_to_phase_file,
+        outputs={'rid_to_phase_all': concatenated_rid_to_phase_fn,
         },
         parameters={},
         rule_writer=rule_writer,
@@ -322,7 +322,8 @@ def run_workflow(wf, config, rule_writer):
     wf.addTask(gen_task(
             script=TASK_HASM_SCRIPT,
             inputs={
-                'rid_to_phase_all': concatenated_rid_to_phase_file,
+                'rid_to_phase_all': concatenated_rid_to_phase_fn,
+                'gathered_rid_to_phase': gathered_rid_to_phase_fn,
                 'las_fofn': las_fofn_file,
             },
             outputs={
