@@ -13,6 +13,7 @@ import pysam
 import falcon_unzip.proto.cigartools as cigartools
 import json
 from graphs_to_h_tigs_2_utils import *
+from graphs_to_h_tigs_2_utils import proto_log
 import intervaltree
 import argparse
 import sys
@@ -30,7 +31,7 @@ global seq_lens
 global p_ctg_seqs
 global p_ctg_tiling_paths
 global LOG
-LOG = logging.getLogger(__name__)
+LOG = logging.getLogger() # root, to inherit from sub-loggers
 
 """
 aln = aln_dict[htig_name]
@@ -45,14 +46,28 @@ tstrand, tstart, tend, tlen = aln[8:12]
 #######################################################
 def run_generate_haplotigs_for_ctg(input_):
     try:
-        return generate_haplotigs_for_ctg(input_)
+        ctg_id, out_dir = input_
+        sys.stderr.write('[Proto] Entered run_generate_haplotigs_for_ctg for ctg_id = %s, out_dir = %s\n' % (ctg_id, out_dir))
+        mkdir(out_dir)
+
+        # Prepare the log output stream for this particular contig.
+        fp_proto_log = logging.getLogger(ctg_id)
+        fp_proto_log.setLevel(logging.INFO)
+        log_fn = os.path.join(out_dir, 'prototype.log')
+        LOG.warning('New logging FileHandler: {!r}'.format(os.path.abspath(log_fn)))
+        hdlr = logging.FileHandler(log_fn) #, level=logging.INFO)
+        fp_proto_log.addHandler(hdlr)
+
+        base_dir = os.path.join(out_dir, '..', '..') # wrong; fix soon
+        return generate_haplotigs_for_ctg(ctg_id, out_dir, fp_proto_log)
     except Exception:
         LOG.exception('Failure in generate_haplotigs_for_ctg({!r})'.format(input_))
         raise
 
-def generate_haplotigs_for_ctg(input_):
-    ctg_id, out_dir = input_
+def proto_log(message, fp_proto_log):
+    fp_proto_log.info(message)
 
+def generate_haplotigs_for_ctg(ctg_id, out_dir, base_dir, fp_proto_log):
     global all_haplotigs_for_ctg
     global seqs
     global seq_lens
@@ -60,18 +75,11 @@ def generate_haplotigs_for_ctg(input_):
     global sg_edges
     global p_ctg_tiling_paths
 
-    sys.stderr.write('[Proto] Entered generate_haplotigs_for_ctg for ctg_id = %s, out_dir = %s\n' % (ctg_id, out_dir))
-
-    mkdir(out_dir)
-
     # min_linear_len = 8
 
     #########################################################
     # Load and prepare data.
     #########################################################
-    # Prepare the log output stream for this particular contig.
-    fp_proto_log = open(os.path.join(out_dir, 'prototype.log'), 'w')
-
     proto_log('Fetching the p_ctg_seq.\n', fp_proto_log)
     p_ctg_seq = p_ctg_seqs[ctg_id]
 
@@ -79,25 +87,25 @@ def generate_haplotigs_for_ctg(input_):
     p_ctg_tiling_path = p_ctg_tiling_paths[ctg_id]
 
     # Path to the directory with the output of the main_augment_pb.py.
-    proto_dir = os.path.join(out_dir, '..', '..', '0-phasing', ctg_id, 'proto')
+    proto_dir = os.path.join(base_dir, '0-phasing', ctg_id, 'proto')
 
     # Load the linear sequences for alignment.
-    p_ctg_path = os.path.join(out_dir, '..', '..', 'reads', ctg_id, 'ref.fa')
-    linear_p_ctg_path = os.path.join(out_dir, '..', '..', '0-phasing', ctg_id, 'proto', 'p_ctg_linear_%s.fasta' % (ctg_id))
+    p_ctg_path = os.path.join(base_dir, 'reads', ctg_id, 'ref.fa')
+    linear_p_ctg_path = os.path.join(base_dir, '0-phasing', ctg_id, 'proto', 'p_ctg_linear_%s.fasta' % (ctg_id))
 
-    proto_log('Loading linear seqs from %s.\n' % (linear_p_ctg_path), fp_proto_log)
+    proto_log('Loading linear seqs from %s .\n' % (linear_p_ctg_path), fp_proto_log)
     linear_seqs = load_all_seq(linear_p_ctg_path)
 
     # Load the phase relation graph, and build a dict of the weakly connected components.
     phase_relation_graph = nx.read_gexf(os.path.join(proto_dir, "phase_relation_graph.gexf"))
-    proto_log('Loading the phase relation graph from %s.\n' % (phase_relation_graph), fp_proto_log)
+    proto_log('Loading the phase relation graph from %s .\n' % (phase_relation_graph), fp_proto_log)
     phase_alias_map, alias_to_phase_list = create_phase_alias_map(phase_relation_graph)
 
     # Load the regions as built previous in the 0-phasing step.
     # The structure of each region in the list is:
     #   type_, edge_start_id, edge_end_id, pos_start, pos_end, htigs = all_regions[i]
     all_regions_path = os.path.join(proto_dir, 'regions.json')
-    proto_log('Loading all regions from %s.\n' % (all_regions_path), fp_proto_log)
+    proto_log('Loading all regions from %s .\n' % (all_regions_path), fp_proto_log)
     all_regions = json.load(open(all_regions_path))
 
     # Create a list of bubble regions, for easier merging with the diploid groups.
