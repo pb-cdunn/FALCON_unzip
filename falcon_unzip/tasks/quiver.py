@@ -89,9 +89,6 @@ python -m falcon_unzip.mains.cns_zcat \
 touch {output.job_done}
 """
 
-#TASK_QUIVER_SCATTER_SCRIPT = """\
-#python -m falcon_unzip.mains.quiver_scatter --p-ctg-fasta-fn={input.p_ctg_fa} --h-ctg-fasta-fn={input.h_ctg_fa} --ctg2bamfn-fn={input.ctg2bamfn} --scattered-fn={output.scattered}
-#"""
 TASK_QUIVER_SPLIT_SCRIPT = """\
 python -m falcon_unzip.mains.quiver_split --p-ctg-fasta-fn={input.p_ctg_fa} --h-ctg-fasta-fn={input.h_ctg_fa} --ctg2bamfn-fn={input.ctg2bamfn} --split-fn={output.split} --bash-template-fn={output.bash_template}
 """
@@ -100,9 +97,6 @@ TASK_SEPARATE_GATHERED_QUIVER_SCRIPT = """\
 python -m falcon_unzip.mains.quiver_separate_gathered --gathered-fn={input.gathered} --output-fn={output.separated}
 """
 
-#TASK_SEGREGATE_SCATTER_SCRIPT = """
-#python -m falcon_unzip.mains.bam_segregate_scatter --merged-fofn-fn={input.merged_fofn} --scattered-fn={output.scattered}
-#"""
 TASK_SEGREGATE_SPLIT_SCRIPT = """
 python -m falcon_unzip.mains.bam_segregate_split --merged-fofn-fn={input.merged_fofn} --split-fn={output.split} --bash-template-fn={output.bash_template}
 """
@@ -259,17 +253,6 @@ def run_workflow(wf, config, rule_writer):
             outputs={
                 'results': './4-quiver/quiver-run/{ctg_id}/results.json',
             },
-            #inputs={
-            #    'read_bam': '4-quiver/segregate_scatter/segregated/{ctg_id}/reads.bam',
-            #    'ref_fasta': '4-quiver/quiver_scatter/refs/{ctg_id}/ref.fa',
-            #    'ctg_type': '4-quiver/quiver_scatter/refs/{ctg_id}/ctg_type',
-            #},
-            #outputs={
-            #    'cns_fasta': '4-quiver/quiver_run/{ctg_id}/cns.fasta.gz',
-            #    'cns_fastq': '4-quiver/quiver_run/{ctg_id}/cns.fastq.gz',
-            #    'ctg_type_again': '4-quiver/quiver_run/{ctg_id}/ctg_type',
-            #    'job_done': '4-quiver/quiver_run/{ctg_id}/quiver_done',
-            #},
             parameters={},
             dist=Dist(NPROC=24,
                 sge_option=config['sge_quiver']

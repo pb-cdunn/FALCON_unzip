@@ -95,9 +95,6 @@ python -m falcon_unzip.proto.main_augment_pb \
 mv {output.rid_to_phase_out}.tmp {output.rid_to_phase_out}
 """
 
-#TASK_PHASING_SCATTER_SCRIPT = """\
-#python -m falcon_unzip.mains.phasing_scatter --ctg-list-fn={input.ctg_list} --scattered-fn={output.scattered}
-#"""
 TASK_PHASING_SPLIT_SCRIPT = """\
 python -m falcon_unzip.mains.phasing_split --base-dir={params.topdir} --ctg-list-fn={input.ctg_list} --rawread-ids-fn={input.rawread_ids} --pread-ids-fn={input.pread_ids} --pread-to-contigs-fn={input.pread_to_contigs} --split-fn={output.split} --bash-template-fn={output.bash_template}
 """
