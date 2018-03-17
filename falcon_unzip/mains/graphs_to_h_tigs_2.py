@@ -16,6 +16,7 @@ from graphs_to_h_tigs_2_utils import *
 import intervaltree
 import argparse
 import sys
+import logging
 
 # for shared memory usage
 global p_asm_G
@@ -28,6 +29,8 @@ global seqs
 global seq_lens
 global p_ctg_seqs
 global p_ctg_tiling_paths
+global LOG
+LOG = logging.getLogger(__name__)
 
 """
 aln = aln_dict[htig_name]
@@ -40,6 +43,13 @@ tstrand, tstart, tend, tlen = aln[8:12]
 #######################################################
 ### The main method for processing a single ctg_id. ###
 #######################################################
+def run_generate_haplotigs_for_ctg(input_):
+    try:
+        return generate_haplotigs_for_ctg(input_)
+    except Exception:
+        LOG.exception('Failure in generate_haplotigs_for_ctg({!r})'.format(input_))
+        raise
+
 def generate_haplotigs_for_ctg(input_):
     ctg_id, out_dir = input_
 
@@ -1063,7 +1073,7 @@ def run(args):
     sys.stderr.write('[Proto] Running jobs.\n')
 
     exec_pool = Pool(args.nproc)  # TODO, make this configurable
-    exec_pool.map(generate_haplotigs_for_ctg, exe_list)
+    exec_pool.map(run_generate_haplotigs_for_ctg, exe_list)
     #map( generate_haplotigs_for_ctg, exe_list)
 
 
@@ -1099,6 +1109,7 @@ def parse_args(argv):
 
 def main(argv=sys.argv):
     args = parse_args(argv)
+    logging.basicConfig()
     run(args)
 
 
