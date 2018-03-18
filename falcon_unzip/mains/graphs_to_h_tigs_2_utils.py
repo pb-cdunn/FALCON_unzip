@@ -2,21 +2,9 @@ from falcon_kit.FastaReader import FastaReader
 import os
 import re
 import networkx as nx
-import falcon_unzip.proto.execute as execute
 import falcon_unzip.proto.sam2m4 as sam2m4
 
 RCMAP = dict(zip("ACGTacgtNn-", "TGCAtgcaNn-"))
-
-def proto_log(message, fp_proto_log):
-    if fp_proto_log:
-        if hasattr(fp_proto_log, 'write'):
-            # Old logging.
-            fp_proto_log.write(message)
-            fp_proto_log.flush()
-        else:
-            # New logging.
-            message = message.rstrip() # drop trailing newline
-            fp_proto_log.info(message)
 
 def mkdir(d):
     if not os.path.isdir(d):
@@ -86,7 +74,7 @@ def write_haplotigs(haplotigs, haplotig_seqs_out_path, fp_proto_log, hack_qnames
         #     haplotig = haplotigs[h_name]
         for h_name, haplotig in haplotigs.iteritems():
             num_htigs += 1
-            proto_log('[IS] Writing %d, h_name = %s\n' % (num_htigs, h_name), fp_proto_log)
+            fp_proto_log('[IS] Writing {}, h_name = {}'.format(num_htigs, h_name))
             qname = haplotig.name
             qseq = ''.join(haplotig.seq)
             if hack_qnames_for_blasr == True:

@@ -12,8 +12,14 @@ import copy
 import pysam
 import falcon_unzip.proto.cigartools as cigartools
 import json
-from graphs_to_h_tigs_2_utils import *
-from graphs_to_h_tigs_2_utils import proto_log
+from graphs_to_h_tigs_2_utils import (
+        mkdir,
+        extract_weakly_unphased_haplotig_paths,
+        load_aln, nx_to_gfa,
+        load_all_seq, load_sg_seq, path_to_seq,
+        revcmp_seq, reverse_end,
+        write_haplotigs,
+)
 import intervaltree
 import argparse
 import sys
@@ -47,28 +53,34 @@ tstrand, tstart, tend, tlen = aln[8:12]
 #######################################################
 def run_generate_haplotigs_for_ctg(input_):
     ctg_id, proto_dir, out_dir, base_dir = input_
-    sys.stderr.write('[Proto] Entering generate_haplotigs_for_ctg(ctg_id={!r}, out_dir={!r}, base_dir={!r}\n'.format(
+    LOG.info('Entering generate_haplotigs_for_ctg(ctg_id={!r}, out_dir={!r}, base_dir={!r}'.format(
         ctg_id, out_dir, base_dir))
     mkdir(out_dir)
 
     # Prepare the log output stream for this particular contig.
-    fp_proto_log = logging.getLogger(ctg_id)
-    fp_proto_log.setLevel(logging.INFO)
+    logger = logging.getLogger(ctg_id)
     log_fn = os.path.join(out_dir, 'prototype.log')
-    LOG.warning('New logging FileHandler: {!r}'.format(os.path.abspath(log_fn)))
-    hdlr = logging.FileHandler(log_fn) #, level=logging.INFO)
-    fp_proto_log.addHandler(hdlr)
+    LOG.info('New logging FileHandler: {!r}'.format(os.path.abspath(log_fn)))
+    hdlr = logging.FileHandler(log_fn, mode='w') #, level=logging.INFO)
+    hdlr.setFormatter(logging.Formatter('%(levelname)s: %(message)s')) # Comment this out if you want.
+    logger.addHandler(hdlr)
+    hdlr.setLevel(logging.DEBUG) # Set to INFO someday?
 
     try:
         unzip_dir = os.path.join(base_dir, '3-unzip')
-        return generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, fp_proto_log)
+        return generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger)
     except Exception:
         LOG.exception('Failure in generate_haplotigs_for_ctg({!r})'.format(input_))
         raise
     finally:
-        fp_proto_log.removeHandler(hdlr)
+        logger.removeHandler(hdlr)
+        # Note: The logger itself remains registered, but without a handler.
+        # Note that the logger was registered in a thread,
+        # so the main-thread sees only the top loggers, not this one.
+        # Each thread accumulates some portion of the old loggers in disuse.
+        # This will not cause any problems, as there is never a O(n) logger search.
 
-def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, fp_proto_log):
+def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger):
     # proto_dir is specific to this ctg_id.
 
     global all_haplotigs_for_ctg
@@ -78,15 +90,17 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, fp_proto_l
     global sg_edges
     global p_ctg_tiling_paths
 
+    fp_proto_log = logger.info
+
     # min_linear_len = 8
 
     #########################################################
     # Load and prepare data.
     #########################################################
-    proto_log('Fetching the p_ctg_seq.\n', fp_proto_log)
+    fp_proto_log('Fetching the p_ctg_seq.')
     p_ctg_seq = p_ctg_seqs[ctg_id]
 
-    proto_log('Fetching the p_ctg_tiling_path.\n', fp_proto_log)
+    fp_proto_log('Fetching the p_ctg_tiling_path.')
     p_ctg_tiling_path = p_ctg_tiling_paths[ctg_id]
 
     # Path to the directory with the output of the main_augment_pb.py.
@@ -98,23 +112,23 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, fp_proto_l
     linear_p_ctg_path = os.path.join(proto_dir, 'p_ctg_linear_%s.fasta' % (ctg_id))
     assert os.path.exists(linear_p_ctg_path)
 
-    proto_log('Loading linear seqs from %s .\n' % (linear_p_ctg_path), fp_proto_log)
+    fp_proto_log('Loading linear seqs from {} .'.format(linear_p_ctg_path))
     linear_seqs = load_all_seq(linear_p_ctg_path)
 
     # Load the phase relation graph, and build a dict of the weakly connected components.
     phase_relation_graph = nx.read_gexf(os.path.join(proto_dir, "phase_relation_graph.gexf"))
-    proto_log('Loading the phase relation graph from %s .\n' % (phase_relation_graph), fp_proto_log)
+    fp_proto_log('Loading the phase relation graph from {} .'.format(phase_relation_graph))
     phase_alias_map, alias_to_phase_list = create_phase_alias_map(phase_relation_graph)
 
     # Load the regions as built previous in the 0-phasing step.
     # The structure of each region in the list is:
     #   type_, edge_start_id, edge_end_id, pos_start, pos_end, htigs = all_regions[i]
     all_regions_path = os.path.join(proto_dir, 'regions.json')
-    proto_log('Loading all regions from %s .\n' % (all_regions_path), fp_proto_log)
+    fp_proto_log('Loading all regions from {} .'.format(all_regions_path))
     all_regions = json.load(open(all_regions_path))
 
     # Create a list of bubble regions, for easier merging with the diploid groups.
-    proto_log('Making bubble region list.\n', fp_proto_log)
+    fp_proto_log('Making bubble region list.')
     bubble_region_list = []
     for region in all_regions:
         region_type, first_edge, last_edge, pos_start, pos_end, region_htigs = region
@@ -122,14 +136,14 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, fp_proto_l
             bubble_region_list.append(region)
 
     # The json module converts a tuple to list, so revert back here.
-    proto_log('Retoupling.\n', fp_proto_log)
+    fp_proto_log('Retupling.')
     for region in all_regions:
         region_type, first_edge, last_edge, pos_start, pos_end, region_htigs = region
         for htig_name, htig in region_htigs.iteritems():
             htig['phase'] = tuple(htig['phase'])
 
     # Assign sequences to all regions.
-    proto_log('Assigning sequences to all regions.\n', fp_proto_log)
+    fp_proto_log('Assigning sequences to all regions.')
     for region in all_regions:
         region_type, first_edge, last_edge, pos_start, pos_end, region_htigs = region
         if region_type == 'linear':
@@ -145,7 +159,7 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, fp_proto_l
                 htig['seq'] = path_to_seq(seqs, htig['path'], False)
 
     # Get all the haplotig objects corresponding to this contig only.
-    proto_log('Getting snp_haplotigs.\n', fp_proto_log)
+    fp_proto_log('Getting snp_haplotigs.')
     snp_haplotigs = all_haplotigs_for_ctg.get(ctg_id, {})
 
     #########################################################
@@ -153,21 +167,21 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, fp_proto_l
     #########################################################
     # Debug verbose.
     #########################################################
-    proto_log('phase_alias_map = %s\n' % (str(phase_alias_map)), fp_proto_log)
+    logger.debug('phase_alias_map = {}'.format(phase_alias_map))
 
-    proto_log('Verbose all regions loaded from regions.json:\n', fp_proto_log)
+    logger.debug('Verbose all regions loaded from regions.json:')
     for region_id in xrange(len(all_regions)):
         region = all_regions[region_id]
         region_type, first_edge, last_edge, pos_start, pos_end, region_htigs = region
-        proto_log('[region_id = %d] type = %s, first_edge = %s, last_edge = %s, pos_start = %s, pos_end = %s\n' % (region_id, region_type, str(first_edge), str(last_edge), str(pos_start), str(pos_end)), fp_proto_log)
-    proto_log('\n', fp_proto_log)
+        logger.debug('[region_id = {}] type = {}, first_edge = {}, last_edge = {}, pos_start = {}, pos_end = {}'.format(region_id, region_type, first_edge, last_edge, pos_start, pos_end))
+    logger.debug('') # newline
     #########################################################
 
     #########################################################
     # Write the haplotigs to disk for alignment.
     #########################################################
-    proto_log('[Proto] Writing haplotigs to disk.\n', fp_proto_log)
     aln_snp_hasm_ctg_path = os.path.join(out_dir, "aln_snp_hasm_ctg.fasta")
+    fp_proto_log('Writing haplotigs to disk: {!r}'.format(aln_snp_hasm_ctg_path))
     write_haplotigs(snp_haplotigs, aln_snp_hasm_ctg_path, fp_proto_log, hack_qnames_for_blasr=True)
 
     #########################################################
@@ -181,7 +195,7 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, fp_proto_l
     if len(snp_haplotigs.keys()) > 0:
         # BLASR crashes on empty files, so address that.
         blasr_params = '--minMatch 15 --maxMatch 25 --advanceHalf --advanceExactMatches 10 --bestn 1 --nproc %d --noSplitSubreads' % (num_threads)
-        execute.execute_command('blasr %s %s %s --sam --out %s.sam' % (blasr_params, aln_snp_hasm_ctg_path, mapping_ref, mapping_out_prefix), sys.stderr, dry_run = False)
+        execute.execute_command('blasr %s %s %s --sam --out %s.sam' % (blasr_params, aln_snp_hasm_ctg_path, mapping_ref, mapping_out_prefix), logger, dry_run = False)
     aln_dict = load_and_hash_sam(sam_path, fp_proto_log)
 
     #########################################################
@@ -215,23 +229,23 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, fp_proto_l
     # final_all_regions = sorted(final_all_regions, key = lambda x: x[3])
 
     # Convert the linear region list to a graph.
-    proto_log('[Proto] Creating a haplotig graph.\n', fp_proto_log)
+    fp_proto_log('Creating a haplotig graph.')
     haplotig_graph = regions_to_haplotig_graph(ctg_id, final_all_regions, phase_alias_map, fp_proto_log)
     haplotig_graph = update_haplotig_graph(haplotig_graph, phase_alias_map)
 
     # Hash all haplotigs for lookup.
-    proto_log('  - Hashing haplotigs.\n', fp_proto_log)
+    fp_proto_log('  - Hashing haplotigs.')
     all_haplotig_dict = {}
     for region in final_all_regions:
         region_type, edge_start, edge_end, region_pos_start, region_pos_end, region_haplotigs = region
         all_haplotig_dict.update({htig_key: htig for htig_key, htig in region_haplotigs.iteritems()})
 
     # Write the nx graph to disk for debugging.
-    proto_log('  - Writing the haplotig graph in the gexf format.\n', fp_proto_log)
+    fp_proto_log('  - Writing the haplotig graph in the gexf format.')
     nx.write_gexf(haplotig_graph, os.path.join(out_dir, "haplotig_graph.gexf"))
 
     # Write the haplotig graph to disk.
-    proto_log('[Proto] Writing the haplotig_graph.gfa.\n', fp_proto_log)
+    fp_proto_log('Writing the haplotig_graph.gfa.')
     with open(os.path.join(out_dir, "haplotig_graph.gfa"), 'w') as fp_out:
         nx_to_gfa(ctg_id, haplotig_graph, all_haplotig_dict, fp_out)
 
@@ -242,21 +256,21 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, fp_proto_l
     # Debug verbose.
     #########################################################
     for line in sorted(clippoints.iteritems()):
-        proto_log('clip_point: %s\n' % (str(line)), fp_proto_log)
+        logger.debug(' clip_point: {}'.format(line))
 
-    proto_log('[Proto] Fragmented haplotigs:\n', fp_proto_log)
+    logger.debug('Fragmented haplotigs:')
     for hname, htig in fragmented_snp_haplotigs.iteritems():
-        proto_log('  - name = %s, phase = %s, path = %s\n' % (htig.name, str(htig.phase), str(htig.path)), fp_proto_log)
+        logger.debug('  - name = {}, phase = {}, path = {}'.format(htig.name, htig.phase, htig.path))
 
-    proto_log('Verbose the generated diploid regions:\n', fp_proto_log)
+    logger.debug('Verbose the generated diploid regions:')
     for region_id in xrange(len(final_all_regions)):
         region = final_all_regions[region_id]
         region_type, first_edge, last_edge, pos_start, pos_end, region_htigs = region
-        proto_log('[region_id = %d] type = %s, first_edge = %s, last_edge = %s, pos_start = %s, pos_end = %s\n' % (region_id, region_type, str(first_edge), str(last_edge), str(pos_start), str(pos_end)), fp_proto_log)
-    proto_log('\n', fp_proto_log)
+        logger.debug('[region_id = {}] type = {}, first_edge = {}, last_edge = {}, pos_start = {}, pos_end = {}'.format(region_id, region_type, first_edge, last_edge, pos_start, pos_end))
+    logger.debug('')
     #########################################################
 
-    proto_log('[Proto] Finished.\n', fp_proto_log)
+    fp_proto_log('Finished.')
 
 def load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase, preads):
     """
@@ -273,7 +287,7 @@ def load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase, preads):
     #
     htig_name_to_original_pctg = {}
 
-    sys.stderr.write('[Proto] Loading haplotigs.\n')
+    LOG.info('Loading haplotigs.')
 
     # Load the primary contig tiling paths.
     p_tiling_paths = os.path.join(hasm_falcon_path, 'p_ctg_tiling_path')
@@ -327,7 +341,7 @@ def load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase, preads):
         def verbose_haplotig(haplotig):
             return 'phase = %s, h_tig_name = %s, num_edges = %d, len(seq) = %d' % (str(haplotig.phase), haplotig.name, len(haplotig.path), len(haplotig.seq))
 
-        sys.stderr.write('[%d] Loaded haplotig: %s\n' % (num_hctg, verbose_haplotig(new_haplotig)))
+        LOG.info('[{}] Loaded haplotig: {}'.format(num_hctg, verbose_haplotig(new_haplotig)))
 
         # Append the haplotig to the right place.
         # Secondary haplotigs for any phase will be filtered later.
@@ -346,7 +360,7 @@ def load_and_hash_sam(sam_path, fp_proto_log):
     aln_dict = {}
     if not os.path.exists(sam_path):
         return aln_dict
-    proto_log('[Proto] Loading the alignments.\n', fp_proto_log)
+    fp_proto_log('Loading the alignments.')
     m4 = load_aln(sam_path)
     m4 = sorted(m4, key = lambda x: x[0].split('-')[-1])    # Not required, but simplifies manual debugging.
     for aln in m4:
@@ -393,29 +407,29 @@ def reorient_haplotigs(snp_haplotigs, aln_dict, sg_edges, fp_proto_log):
     which align toreverse strand.
     Changes are made in-place.
     """
-    proto_log('[Proto] Reorienting haplotigs.\n', fp_proto_log)
+    fp_proto_log('Reorienting haplotigs.')
     for qname, haplotig in snp_haplotigs.iteritems():
         aln = aln_dict[qname]
         qstrand, qstart, qend, qlen = aln[4:8]
         tstrand, tstart, tend, tlen = aln[8:12]
         if tstrand == 1:
-            proto_log('  - qname = %s\n' % (qname), fp_proto_log)
-            # proto_log('  - Before reversing:\n', fp_proto_log)
+            fp_proto_log('  - qname = {}'.format(qname))
+            # fp_proto_log('  - Before reversing:')
             # for line in haplotig.path:
-            #     proto_log('  %s\n' % (str(line)), fp_proto_log)
+            #     fp_proto_log('  {}' %.format(line))
 
             # Reverse the path and the seq.
             haplotig.path = reverse_sg_path(haplotig.path, sg_edges)
             haplotig.seq = revcmp_seq(haplotig.seq)
-            proto_log('\n', fp_proto_log)
+            fp_proto_log('')
             # Reset the reverse flag.
             # Coordinates in aln are on the fwd strand anyway,
             # so they remain the same.
             aln[8] = 0
 
-            # proto_log('  - After reversing:\n', fp_proto_log)
+            # fp_proto_log('  - After reversing:')
             # for line in haplotig.path:
-            #     proto_log('  %s\n' % (str(line)), fp_proto_log)
+            #     fp_proto_log('  {}'.format(line))
 
 def collect_clippoints(all_regions, snp_haplotigs, aln_dict, fp_proto_log):
     """
@@ -486,17 +500,17 @@ def fragment_single_haplotig(haplotig, aln, clippoints, bubble_tree, fp_proto_lo
     regions_of_interest = []
     if len(all_pos_of_interest) > 1:
         for start, end in zip(all_pos_of_interest[:-1], all_pos_of_interest[1:]):
-            proto_log('start = %s, end = %s\n' % (str(start), str(end)), fp_proto_log)
+            fp_proto_log(' start = {}, end = {}'.format(start, end))
             tstart, tend = start[0], end[0]
             found_intervals = bubble_tree.search(tstart, tend)
             if found_intervals:
                 continue
             regions_of_interest.append((start, end, q_name, q_len, t_name, t_len, haplotig.phase))
 
-    proto_log('[Proto] pos_of_interest for q_name: %s\n' % (q_name), fp_proto_log)
+    fp_proto_log('pos_of_interest for q_name: {}'.format(q_name))
     for line in regions_of_interest:
-        proto_log('%s\n' % (str(line)), fp_proto_log)
-    proto_log('\n', fp_proto_log)
+        fp_proto_log('{}'.format(line))
+    fp_proto_log('')
 
     # Here we extract the subsequence and the subpath of the tiling path.
     ret_haplotigs = {}
@@ -609,9 +623,9 @@ def make_linear_region(ctg_id, pos_start, pos_end, p_ctg_seq, p_ctg_tiling_path,
     (the sequence and path are part of the Haplotig object).
     """
 
-    proto_log('[Proto] Entered function: "%s"\n' % (str(__name__)), fp_proto_log)
+    fp_proto_log('Entered function: "{}"'.format(__name__))
     if (pos_end - pos_start) <= 0:
-        proto_log('[Proto] Exiting function: "%s"\n' % (str(__name__)), fp_proto_log)
+        fp_proto_log('Exiting function: "{}"'.format(__name__))
         return None
 
     region_type = 'linear'
@@ -619,19 +633,19 @@ def make_linear_region(ctg_id, pos_start, pos_end, p_ctg_seq, p_ctg_tiling_path,
 
     htig_name = '%s_%s2_%d:%d_base' % (ctg_id, region_type, pos_start, pos_end)
 
-    proto_log('[Proto] Info: pos_start = %d, pos_end = %d, seq len: %d\n' % (pos_start, pos_end, len(p_ctg_seq)), fp_proto_log)
+    fp_proto_log('Info: pos_start = {}, pos_end = {}, seq len: {}'.format(pos_start, pos_end, len(p_ctg_seq)))
 
-    proto_log('[Proto] Extracting subpath.\n', fp_proto_log)
+    fp_proto_log('Extracting subpath.')
     new_path, new_start_coord, new_end_coord = p_ctg_tiling_path.get_subpath(pos_start, pos_end)
 
-    proto_log('[Proto] Extracting the seq.\n', fp_proto_log)
+    fp_proto_log('Extracting the seq.')
     new_seq = p_ctg_seq[pos_start:pos_end]
 
-    proto_log('[Proto] len(new_path) = %d\n' % (len(new_path)), fp_proto_log)
+    fp_proto_log('len(new_path) = {}'.format(len(new_path)))
     first_edge = new_path[0]
     last_edge = new_path[-1]
 
-    proto_log('[Proto] Forming the haplotig.\n', fp_proto_log)
+    fp_proto_log('Forming the haplotig.')
     new_haplotig = Haplotig(name = htig_name, phase = complete_phase, seq = new_seq, path = new_path, edges = [])
     new_haplotig.labels['start_in_path'] = new_start_coord
     new_haplotig.labels['end_in_path'] = new_end_coord
@@ -639,7 +653,7 @@ def make_linear_region(ctg_id, pos_start, pos_end, p_ctg_seq, p_ctg_tiling_path,
     region_htigs = {htig_name: new_haplotig.__dict__}
     new_region = (region_type, first_edge, last_edge, pos_start, pos_end, region_htigs)
 
-    proto_log('[Proto] Exiting function: "%s"\n' % (str(__name__)), fp_proto_log)
+    fp_proto_log('Exiting function: "{}"'.format(__name__))
     return new_region
 
 def get_linear_regions_between_bubbles(ctg_id, bubble_regions, p_ctg_seq, p_ctg_tiling_path, fp_proto_log):
@@ -651,8 +665,8 @@ def get_linear_regions_between_bubbles(ctg_id, bubble_regions, p_ctg_seq, p_ctg_
 
     sorted_bubble_regions = sorted(bubble_regions, key = lambda x: x[3])
 
-    proto_log('[Proto] Function: "%s"\n' % (str(__name__)), fp_proto_log)
-    proto_log('len(sorted_bubble_regions) = %d\n' % (len(sorted_bubble_regions)), fp_proto_log)
+    fp_proto_log('Function: "{}"'.format(__name__))
+    fp_proto_log('len(sorted_bubble_regions) = {}'.format(len(sorted_bubble_regions)))
 
     if len(sorted_bubble_regions) == 0:
         pos_start = 0
@@ -663,7 +677,7 @@ def get_linear_regions_between_bubbles(ctg_id, bubble_regions, p_ctg_seq, p_ctg_
         return ret_linear_regions
 
     # Handle the prefix linear region.
-    proto_log('Handling prefix.\n', fp_proto_log)
+    fp_proto_log('Handling prefix.')
     region1_type, region1_first_edge, region1_last_edge, region1_pos_start, region1_pos_end, region1_htigs = sorted_bubble_regions[0]
     pos_start = 0
     pos_end = region1_pos_start
@@ -671,23 +685,23 @@ def get_linear_regions_between_bubbles(ctg_id, bubble_regions, p_ctg_seq, p_ctg_
     if new_region != None:
         ret_linear_regions.append(new_region)
 
-    proto_log('Handling infix.\n', fp_proto_log)
+    fp_proto_log('Handling infix.')
     if len(sorted_bubble_regions) > 1:
         temp_num_regions = 0
         for region1, region2 in zip(sorted_bubble_regions[0:-1], sorted_bubble_regions[1:]):
             temp_num_regions += 1
-            proto_log('Checking for in-between region %d / %d.\n' % (temp_num_regions, len(sorted_bubble_regions)), fp_proto_log)
+            fp_proto_log('Checking for in-between region {} / {}.'.format(temp_num_regions, len(sorted_bubble_regions)))
             region1_type, region1_first_edge, region1_last_edge, region1_pos_start, region1_pos_end, region1_htigs = region1
             region2_type, region2_first_edge, region2_last_edge, region2_pos_start, region2_pos_end, region2_htigs = region2
             pos_start = region1_pos_end
             pos_end = region2_pos_start
             new_region = make_linear_region(ctg_id, pos_start, pos_end, p_ctg_seq, p_ctg_tiling_path, fp_proto_log)
             if new_region != None:
-                proto_log('Generated the new region.\n', fp_proto_log)
+                fp_proto_log('Generated the new region.')
                 ret_linear_regions.append(new_region)
 
     # Handle the suffix linear region.
-    proto_log('Handling suffix.\n', fp_proto_log)
+    fp_proto_log('Handling suffix.')
     region2_type, region2_first_edge, region2_last_edge, region2_pos_start, region2_pos_end, region2_htigs = sorted_bubble_regions[-1]
     pos_start = region2_pos_end
     pos_end = len(p_ctg_seq)
@@ -695,7 +709,7 @@ def get_linear_regions_between_bubbles(ctg_id, bubble_regions, p_ctg_seq, p_ctg_
     if new_region != None:
         ret_linear_regions.append(new_region)
 
-    proto_log('Done!\n', fp_proto_log)
+    fp_proto_log('Dunn!')
 
     return ret_linear_regions
 
@@ -709,16 +723,16 @@ def regions_to_haplotig_graph(ctg_id, all_regions, phase_alias_map, fp_proto_log
 
     haplotig_graph = nx.DiGraph()
     # Add nodes.
-    proto_log('  - Adding nodes.\n', fp_proto_log)
+    fp_proto_log('  - Adding nodes.')
     for region_id in xrange(len(all_regions)):
         region = all_regions[region_id]
         region_type, edge_start, edge_end, region_pos_start, region_pos_end, region_haplotigs = region
         if region_type == 'complex':
             # Complex regions are sketchy, better just break the graph here.
             continue
-        proto_log('    - region_id = %d, region_type = %s, region_pos_start = %d, region_pos_end = %d\n' % (region_id, region_type, region_pos_start, region_pos_end), fp_proto_log)
+        fp_proto_log('    - region_id = {}, region_type = {}, region_pos_start = {}, region_pos_end = {}'.format(region_id, region_type, region_pos_start, region_pos_end))
         for key, htig in region_haplotigs.iteritems():
-            proto_log('      - key = %s\n' % (key), fp_proto_log)
+            fp_proto_log('      - key = {}'.format(key))
             v = htig['name']
             vphase = htig['phase']
             vphase_alias = phase_alias_map.get(vphase, -1)
@@ -728,7 +742,7 @@ def regions_to_haplotig_graph(ctg_id, all_regions, phase_alias_map, fp_proto_log
 
     # Add edges between all bubble components. Filtering the edges
     # will be performed afterwards.
-    proto_log('  - Adding edges.\n', fp_proto_log)
+    fp_proto_log('  - Adding edges.')
     for region_id in xrange(1, len(all_regions)):
         region = all_regions[region_id - 1]
         region_type, edge_start, edge_end, region_pos_start, region_pos_end, region_haplotigs = region
@@ -824,7 +838,7 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, all_haplotig_dict, phase_a
     # Write all haplotigs for possible
     # future use.
     ##################################
-    proto_log('  - Writing all the haplotigs to disk in haplotigs.fasta.\n', fp_proto_log)
+    fp_proto_log('  - Writing all the haplotigs to disk in haplotigs.fasta.')
     with open(os.path.join(out_dir, "haplotigs.fasta"), 'w') as fp_out:
         for qname, qseq in node_seqs.iteritems():
             fp_out.write('>%s\n%s\n' % (qname, qseq))
@@ -832,7 +846,7 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, all_haplotig_dict, phase_a
     ##################################
     # Extract the primary collapsed haplotig.
     ##################################
-    proto_log('[Proto] Extracting the primary contigs.\n', fp_proto_log)
+    fp_proto_log('Extracting the primary contigs.')
 
     # More than one path may be found, if there were multiple connected
     # components. For example, if there was a complex bubble, the graph
@@ -857,7 +871,7 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, all_haplotig_dict, phase_a
                 haplotig = all_haplotig_dict[v]
                 phase = haplotig['phase']
                 tp = haplotig['path']
-                proto_log('[Proto] v = %s\n' % (v), fp_proto_log)
+                fp_proto_log('v = {}'.format(v))
 
                 for edge in tp:
                     # Example tiling path line from 2-asm-falcon:
@@ -877,7 +891,7 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, all_haplotig_dict, phase_a
                     new_edge_line = [new_ctg_id, edge_v, edge_w, cross_phase, source_graph, phase[1], phase[2], phase[1], phase[2]]
                     fp_p_tig_edges.write(' '.join([str(val) for val in new_edge_line]) + '\n')
 
-                proto_log('[Proto] v = %s done.\n' % (v), fp_proto_log)
+                fp_proto_log(' v = {} done.'.format(v))
 
             # print >>p_tig_path, "%s" % ctg_id, v, w, seq_id, s, t, edge_data[1], edge_data[2], "%d %d" % arid_to_phase.get(seq_id, (-1, 0))
             # print >>f, "%s" % ctg_id, v, w, sg[v][w]["cross_phase"], sg[v][w]["src"], vphase[0], vphase[1], wphase[0], wphase[1]
@@ -885,7 +899,7 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, all_haplotig_dict, phase_a
     #####################################################
     # Create and write the associate contigs.
     #####################################################
-    proto_log('[Proto] Extracting the associate haplotigs.\n', fp_proto_log)
+    fp_proto_log('Extracting the associate haplotigs.')
 
     haplotig_graph2 = haplotig_graph.copy()
 
@@ -927,7 +941,7 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, all_haplotig_dict, phase_a
     for v in nodes_to_remove:
         haplotig_graph2.remove_node(v)
 
-    proto_log('  - After removing the primary path and all cross-phase edges.\n', fp_proto_log)
+    fp_proto_log('  - After removing the primary path and all cross-phase edges.')
 
     # Each connected component is one haplotig.
     htig_id = 0
@@ -1067,7 +1081,7 @@ def run(args):
     all_haplotigs_for_ctg, htig_name_to_original_pctg = load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase, seqs)
     # all_asm_haplotig_seqs = load_all_seq(hasm_falcon_path)
 
-    sys.stderr.write('[Proto] Loaded haplotigs.\n')
+    LOG.info('Loaded haplotigs.')
 
     # Load all sg_edges_list so that haplotig paths can be reversed if needed.
     sg_edges = {}
@@ -1076,7 +1090,7 @@ def run(args):
             sl = line.strip().split()
             sg_edges[(sl[0], sl[1])] = sl
 
-    sys.stderr.write('[Proto] Loaded sg_edges_list.\n')
+    LOG.info('Loaded sg_edges_list.')
 
     # Hash the lengths of the preads.
     seq_lens = {}
@@ -1086,14 +1100,14 @@ def run(args):
         seq_lens[key + ':B'] = l
         seq_lens[key + ':E'] = l
 
-    sys.stderr.write('[Proto] Loaded seq lens.\n')
+    LOG.info('Loaded seq lens.')
 
     if ctg_id == "all":
         ctg_id_list = p_asm_G.ctg_data.keys()
     else:
         ctg_id_list = [ctg_id]
 
-    sys.stderr.write('[Proto] Creating the exe list for: %s\n' % (str(ctg_id_list)))
+    LOG.info('Creating the exe list for: {}'.format(str(ctg_id_list)))
 
     exe_list = []
     for ctg_id in ctg_id_list:
@@ -1104,7 +1118,7 @@ def run(args):
         proto_dir = rid2proto_dir[ctg_id]
         exe_list.append((ctg_id, proto_dir, os.path.join(".", ctg_id), base_dir))
 
-    sys.stderr.write('[Proto] Running jobs.\n')
+    LOG.info('Running jobs.')
 
     exec_pool = Pool(args.nproc)  # TODO, make this configurable
     exec_pool.map(run_generate_haplotigs_for_ctg, exe_list)
@@ -1145,8 +1159,31 @@ def parse_args(argv):
 
 
 def main(argv=sys.argv):
+    global LOG
     args = parse_args(argv)
-    logging.basicConfig()
+
+    # Write all warnings to stderr, including from thread-loggers.
+    # (However, the main-thread logger does not currently propagate recs here.)
+    hdlr = logging.StreamHandler(sys.stderr)
+    hdlr.setLevel(logging.WARNING - 1) # We want records from execute_command() too.
+    hdlr.setFormatter(logging.Formatter('[Proto] %(levelname)s:%(name)s:%(message)s'))
+    LOG.addHandler(hdlr)
+    LOG.setLevel(logging.NOTSET) # Important, as other NOTSET loggers inherit this level.
+
+    # In main thread, log to a special file.
+    # (Turn this off if too verbose.)
+    # This handler will not see the thread-logger
+    # log-records at all.
+    LOG = logging.getLogger('mainthread')
+    #hdlr = logging.FileHandler('graphs_to_h_tigs_2.log', 'w')
+    hdlr = logging.StreamHandler(sys.stderr)
+    hdlr.setLevel(logging.INFO)
+    hdlr.setFormatter(logging.Formatter('[Proto] %(levelname)s:%(message)s'))
+    LOG.addHandler(hdlr)
+    LOG.propagate = False
+
+    logging.addLevelName(logging.WARNING-1, 'EXECUTE')
+
     run(args)
 
 

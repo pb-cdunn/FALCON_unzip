@@ -561,7 +561,7 @@ def parse_args(argv):
     parser.add_argument(
         '--threads', type=int,
         default=4,
-        help='Number of threads to run the alignment with.'
+        help='(Ignored. Single-threaded.) Number of threads to run the alignment with.'
     )
 
     args = parser.parse_args(argv[1:])
