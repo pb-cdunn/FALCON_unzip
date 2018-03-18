@@ -62,8 +62,9 @@ def run_generate_haplotigs_for_ctg(input_):
     log_fn = os.path.join(out_dir, 'prototype.log')
     LOG.info('New logging FileHandler: {!r}'.format(os.path.abspath(log_fn)))
     hdlr = logging.FileHandler(log_fn, mode='w') #, level=logging.INFO)
+    hdlr.setFormatter(logging.Formatter('%(levelname)s: %(message)s')) # Comment this out if you want.
     logger.addHandler(hdlr)
-    hdlr.setLevel(logging.INFO)
+    hdlr.setLevel(logging.DEBUG) # Set to INFO someday?
 
     try:
         unzip_dir = os.path.join(base_dir, '3-unzip')
@@ -73,6 +74,11 @@ def run_generate_haplotigs_for_ctg(input_):
         raise
     finally:
         logger.removeHandler(hdlr)
+        # Note: The logger itself remains registered, but without a handler.
+        # Note that the logger was registered in a thread,
+        # so the main-thread sees only the top loggers, not this one.
+        # Each thread accumulates some portion of the old loggers in disuse.
+        # This will not cause any problems, as there is never a O(n) logger search.
 
 def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger):
     # proto_dir is specific to this ctg_id.
@@ -161,14 +167,14 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger):
     #########################################################
     # Debug verbose.
     #########################################################
-    fp_proto_log('phase_alias_map = {}'.format(phase_alias_map))
+    logger.debug('phase_alias_map = {}'.format(phase_alias_map))
 
-    fp_proto_log('Verbose all regions loaded from regions.json:')
+    logger.debug('Verbose all regions loaded from regions.json:')
     for region_id in xrange(len(all_regions)):
         region = all_regions[region_id]
         region_type, first_edge, last_edge, pos_start, pos_end, region_htigs = region
-        fp_proto_log('[region_id = {}] type = {}, first_edge = {}, last_edge = {}, pos_start = {}, pos_end = {}'.format(region_id, region_type, first_edge, last_edge, pos_start, pos_end))
-    fp_proto_log('') # newline
+        logger.debug('[region_id = {}] type = {}, first_edge = {}, last_edge = {}, pos_start = {}, pos_end = {}'.format(region_id, region_type, first_edge, last_edge, pos_start, pos_end))
+    logger.debug('') # newline
     #########################################################
 
     #########################################################
@@ -250,18 +256,18 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger):
     # Debug verbose.
     #########################################################
     for line in sorted(clippoints.iteritems()):
-        fp_proto_log(' clip_point: {}'.format(line))
+        logger.debug(' clip_point: {}'.format(line))
 
-    fp_proto_log('Fragmented haplotigs:')
+    logger.debug('Fragmented haplotigs:')
     for hname, htig in fragmented_snp_haplotigs.iteritems():
-        fp_proto_log('  - name = {}, phase = {}, path = {}'.format(htig.name, htig.phase, htig.path))
+        logger.debug('  - name = {}, phase = {}, path = {}'.format(htig.name, htig.phase, htig.path))
 
-    fp_proto_log('Verbose the generated diploid regions:')
+    logger.debug('Verbose the generated diploid regions:')
     for region_id in xrange(len(final_all_regions)):
         region = final_all_regions[region_id]
         region_type, first_edge, last_edge, pos_start, pos_end, region_htigs = region
-        fp_proto_log('[region_id = {}] type = {}, first_edge = {}, last_edge = {}, pos_start = {}, pos_end = {}'.format(region_id, region_type, first_edge, last_edge, pos_start, pos_end))
-    fp_proto_log('')
+        logger.debug('[region_id = {}] type = {}, first_edge = {}, last_edge = {}, pos_start = {}, pos_end = {}'.format(region_id, region_type, first_edge, last_edge, pos_start, pos_end))
+    logger.debug('')
     #########################################################
 
     fp_proto_log('Finished.')
@@ -1168,7 +1174,7 @@ def main(argv=sys.argv):
     # (Turn this off if too verbose.)
     # This handler will not see the thread-logger
     # log-records at all.
-    LOG = logging.getLogger('main-thread')
+    LOG = logging.getLogger('mainthread')
     #hdlr = logging.FileHandler('graphs_to_h_tigs_2.log', 'w')
     hdlr = logging.StreamHandler(sys.stderr)
     hdlr.setLevel(logging.INFO)
