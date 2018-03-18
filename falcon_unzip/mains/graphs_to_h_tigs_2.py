@@ -54,17 +54,17 @@ tstrand, tstart, tend, tlen = aln[8:12]
 #######################################################
 def run_generate_haplotigs_for_ctg(input_):
     ctg_id, proto_dir, out_dir, base_dir = input_
-    sys.stderr.write('[Proto] Entering generate_haplotigs_for_ctg(ctg_id={!r}, out_dir={!r}, base_dir={!r}\n'.format(
+    LOG.info('Entering generate_haplotigs_for_ctg(ctg_id={!r}, out_dir={!r}, base_dir={!r}'.format(
         ctg_id, out_dir, base_dir))
     mkdir(out_dir)
 
     # Prepare the log output stream for this particular contig.
     fp_proto_log = logging.getLogger(ctg_id)
-    fp_proto_log.setLevel(logging.INFO)
     log_fn = os.path.join(out_dir, 'prototype.log')
-    LOG.warning('New logging FileHandler: {!r}'.format(os.path.abspath(log_fn)))
-    hdlr = logging.FileHandler(log_fn) #, level=logging.INFO)
+    LOG.info('New logging FileHandler: {!r}'.format(os.path.abspath(log_fn)))
+    hdlr = logging.FileHandler(log_fn, mode='w') #, level=logging.INFO)
     fp_proto_log.addHandler(hdlr)
+    hdlr.setLevel(logging.INFO)
 
     try:
         unzip_dir = os.path.join(base_dir, '3-unzip')
@@ -280,7 +280,7 @@ def load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase, preads):
     #
     htig_name_to_original_pctg = {}
 
-    sys.stderr.write('[Proto] Loading haplotigs.\n')
+    LOG.info('Loading haplotigs.')
 
     # Load the primary contig tiling paths.
     p_tiling_paths = os.path.join(hasm_falcon_path, 'p_ctg_tiling_path')
@@ -334,7 +334,7 @@ def load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase, preads):
         def verbose_haplotig(haplotig):
             return 'phase = %s, h_tig_name = %s, num_edges = %d, len(seq) = %d' % (str(haplotig.phase), haplotig.name, len(haplotig.path), len(haplotig.seq))
 
-        sys.stderr.write('[%d] Loaded haplotig: %s\n' % (num_hctg, verbose_haplotig(new_haplotig)))
+        LOG.info('[{}] Loaded haplotig: {}'.format(num_hctg, verbose_haplotig(new_haplotig)))
 
         # Append the haplotig to the right place.
         # Secondary haplotigs for any phase will be filtered later.
@@ -1074,7 +1074,7 @@ def run(args):
     all_haplotigs_for_ctg, htig_name_to_original_pctg = load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase, seqs)
     # all_asm_haplotig_seqs = load_all_seq(hasm_falcon_path)
 
-    sys.stderr.write('[Proto] Loaded haplotigs.\n')
+    LOG.info('[Proto] Loaded haplotigs.')
 
     # Load all sg_edges_list so that haplotig paths can be reversed if needed.
     sg_edges = {}
@@ -1083,7 +1083,7 @@ def run(args):
             sl = line.strip().split()
             sg_edges[(sl[0], sl[1])] = sl
 
-    sys.stderr.write('[Proto] Loaded sg_edges_list.\n')
+    LOG.info('[Proto] Loaded sg_edges_list.')
 
     # Hash the lengths of the preads.
     seq_lens = {}
@@ -1093,14 +1093,14 @@ def run(args):
         seq_lens[key + ':B'] = l
         seq_lens[key + ':E'] = l
 
-    sys.stderr.write('[Proto] Loaded seq lens.\n')
+    LOG.info('Loaded seq lens.')
 
     if ctg_id == "all":
         ctg_id_list = p_asm_G.ctg_data.keys()
     else:
         ctg_id_list = [ctg_id]
 
-    sys.stderr.write('[Proto] Creating the exe list for: %s\n' % (str(ctg_id_list)))
+    LOG.info('Creating the exe list for: {}'.format(str(ctg_id_list)))
 
     exe_list = []
     for ctg_id in ctg_id_list:
@@ -1111,7 +1111,7 @@ def run(args):
         proto_dir = rid2proto_dir[ctg_id]
         exe_list.append((ctg_id, proto_dir, os.path.join(".", ctg_id), base_dir))
 
-    sys.stderr.write('[Proto] Running jobs.\n')
+    LOG.info('Running jobs.')
 
     exec_pool = Pool(args.nproc)  # TODO, make this configurable
     exec_pool.map(run_generate_haplotigs_for_ctg, exe_list)
@@ -1152,8 +1152,29 @@ def parse_args(argv):
 
 
 def main(argv=sys.argv):
+    global LOG
     args = parse_args(argv)
-    logging.basicConfig()
+
+    # Write all warnings to stderr, including from thread-loggers.
+    # (However, the main-thread logger does not currently propagate recs here.)
+    hdlr = logging.StreamHandler(sys.stderr)
+    hdlr.setLevel(logging.WARNING)
+    hdlr.setFormatter(logging.Formatter('[Proto] %(levelname)s:%(name)s:%(message)s'))
+    LOG.addHandler(hdlr)
+    LOG.setLevel(logging.NOTSET) # Important, as other NOTSET loggers inherit this level.
+
+    # In main thread, log to a special file.
+    # (Turn this off if too verbose.)
+    # This handler will not see the thread-logger
+    # log-records at all.
+    LOG = logging.getLogger('main-thread')
+    #hdlr = logging.FileHandler('graphs_to_h_tigs_2.log', 'w')
+    hdlr = logging.StreamHandler(sys.stderr)
+    hdlr.setLevel(logging.INFO)
+    hdlr.setFormatter(logging.Formatter('[Proto] %(levelname)s:%(message)s'))
+    LOG.addHandler(hdlr)
+    LOG.propagate = False
+
     run(args)
 
 
