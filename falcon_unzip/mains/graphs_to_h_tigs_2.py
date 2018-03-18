@@ -195,7 +195,7 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger):
     if len(snp_haplotigs.keys()) > 0:
         # BLASR crashes on empty files, so address that.
         blasr_params = '--minMatch 15 --maxMatch 25 --advanceHalf --advanceExactMatches 10 --bestn 1 --nproc %d --noSplitSubreads' % (num_threads)
-        execute.execute_command('blasr %s %s %s --sam --out %s.sam' % (blasr_params, aln_snp_hasm_ctg_path, mapping_ref, mapping_out_prefix), sys.stderr, dry_run = False)
+        execute.execute_command('blasr %s %s %s --sam --out %s.sam' % (blasr_params, aln_snp_hasm_ctg_path, mapping_ref, mapping_out_prefix), logger, dry_run = False)
     aln_dict = load_and_hash_sam(sam_path, fp_proto_log)
 
     #########################################################
@@ -1165,7 +1165,7 @@ def main(argv=sys.argv):
     # Write all warnings to stderr, including from thread-loggers.
     # (However, the main-thread logger does not currently propagate recs here.)
     hdlr = logging.StreamHandler(sys.stderr)
-    hdlr.setLevel(logging.WARNING)
+    hdlr.setLevel(logging.WARNING - 1) # We want records from execute_command() too.
     hdlr.setFormatter(logging.Formatter('[Proto] %(levelname)s:%(name)s:%(message)s'))
     LOG.addHandler(hdlr)
     LOG.setLevel(logging.NOTSET) # Important, as other NOTSET loggers inherit this level.
@@ -1181,6 +1181,8 @@ def main(argv=sys.argv):
     hdlr.setFormatter(logging.Formatter('[Proto] %(levelname)s:%(message)s'))
     LOG.addHandler(hdlr)
     LOG.propagate = False
+
+    logging.addLevelName(logging.WARNING-1, 'EXECUTE')
 
     run(args)
 
