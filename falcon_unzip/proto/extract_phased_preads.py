@@ -1,9 +1,8 @@
 #! /usr/bin/env python2.7
-
+from __future__ import absolute_import
 import os
 import sys
 import argparse
-import execute
 from falcon_kit.FastaReader import FastaReader
 
 def load_rid_to_phase(rid_phase_map, ctg_id):

@@ -12,8 +12,15 @@ import copy
 import pysam
 import falcon_unzip.proto.cigartools as cigartools
 import json
-from graphs_to_h_tigs_2_utils import *
 from graphs_to_h_tigs_2_utils import proto_log
+from graphs_to_h_tigs_2_utils import (
+        mkdir,
+        extract_weakly_unphased_haplotig_paths,
+        load_aln, nx_to_gfa,
+        load_all_seq, load_sg_seq, path_to_seq,
+        revcmp_seq, reverse_end,
+        write_haplotigs,
+)
 import intervaltree
 import argparse
 import sys
