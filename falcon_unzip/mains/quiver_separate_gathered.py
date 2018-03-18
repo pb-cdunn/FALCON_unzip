@@ -20,17 +20,18 @@ def run(gathered_fn, output_fn):
             return fn
         return os.path.join(os.path.dirname(gathered_fn), fn)
 
-    for job_output in gathered.values():
-        cns_fasta_fn = resolved(job_output['fns']['cns_fasta'])
-        cns_fastq_fn = resolved(job_output['fns']['cns_fastq'])
-        ctg_type_fn = resolved(job_output['fns']['ctg_type_again'])
+    for job_output in gathered:
+        cns_fasta_fn = resolved(job_output['cns_fasta'])
+        cns_fastq_fn = resolved(job_output['cns_fastq'])
+        ctg_type_fn = resolved(job_output['ctg_type_again'])
         ctg_type = open(ctg_type_fn).read().strip()
         assert ctg_type in 'ph', 'ctg_type={!r}'.format(ctg_type)
-        wd = os.path.dirname(cns_fasta_fn)
-        calc_cns_fasta = '{wd}/cns.fasta.gz'.format(**locals())
-        calc_cns_fastq = '{wd}/cns.fastq.gz'.format(**locals())
-        assert cns_fasta_fn == calc_cns_fasta, '\n{!r} !=\n{!r}'.format(
-                cns_fasta_fn, calc_cns_fasta)
+        # I don't know what this was supposed to do. Delete it later.
+        #wd = os.path.dirname(cns_fasta_fn)
+        #calc_cns_fasta = '{wd}/cns.fasta.gz'.format(**locals())
+        #calc_cns_fastq = '{wd}/cns.fastq.gz'.format(**locals())
+        #assert cns_fasta_fn == calc_cns_fasta, '\n{!r} !=\n{!r}'.format(
+        #        cns_fasta_fn, calc_cns_fasta)
         if ctg_type == 'p':
             p_ctg_out.append([cns_fasta_fn, cns_fastq_fn])
         elif ctg_type == 'h':

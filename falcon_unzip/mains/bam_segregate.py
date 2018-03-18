@@ -1,4 +1,5 @@
 from .. import io
+from pypeflow.io import cd
 import logging
 import os
 import re
@@ -24,6 +25,10 @@ def get_ctg_from_fn(fn):
 
 
 def segregate_ctgs(merged_fn, read2ctg, ctg2samfn, samfn2writer):
+    """Walk sequentially through the merged.bam file.
+    Write each read to the samfile for its contig.
+    (Expensive. Lots of i/o.)
+    """
     log('Segregating reads from a merged BAM: {!r}'.format(merged_fn))
 
     def yield_record_and_ctg():
@@ -50,6 +55,9 @@ def segregate_ctgs(merged_fn, read2ctg, ctg2samfn, samfn2writer):
 
 
 def open_sam_writers(header, sam_fns):
+    """There will be an open file for each
+    sam filename. (Might that be too many?)
+    """
     log('Opening {} sam writers'.format(len(sam_fns)))
     io.mkdirs(*[os.path.dirname(fn) for fn in sam_fns])
     samfn2writer = dict()
@@ -78,6 +86,9 @@ def get_single_bam_header(fn):
 
 
 def get_ctg2samfn(read2ctg, basedir):
+    """Choose the output filename for each BAM-file,
+    where each has reads for a single contig.
+    """
     ctg2samfn = dict()
     ctgs = set(read2ctg.values())
     for ctg in ctgs:
@@ -86,7 +97,9 @@ def get_ctg2samfn(read2ctg, basedir):
     return ctg2samfn
 
 
-def run(output_fn, merged_fn):
+def run(merged_bam_fn, segregated_bam_fns_fn):
+    merged_fn = merged_bam_fn
+    output_basedir = os.path.normpath(os.path.dirname(segregated_bam_fns_fn))
     if os.path.islink(merged_fn):
         # If it was symlinked, we need to resolve the symlink first, for the implicit dep below.
         # This is kinda hacky. When we make this extra dep explicit, we can drop this hack.
@@ -94,7 +107,7 @@ def run(output_fn, merged_fn):
     # We have (for now) an implicit input next to each merged_fn.
     read2ctg_fn = merged_fn + '.read2ctg.msgpack'  # by convention
     read2ctg = io.deserialize(read2ctg_fn)
-    ctg2samfn = get_ctg2samfn(read2ctg, os.path.dirname(output_fn))
+    ctg2samfn = get_ctg2samfn(read2ctg, output_basedir)
     header = get_single_bam_header(merged_fn)
     bamfns = list(set(ctg2samfn.values()))
     samfn2writer = open_sam_writers(header, bamfns)
@@ -102,10 +115,7 @@ def run(output_fn, merged_fn):
         segregate_ctgs(merged_fn, read2ctg, ctg2samfn, samfn2writer)
     finally:
         close_sam_writers(samfn2writer.values())
-    fofn_content = '\n'.join(bamfns + [''])
-    io.mkdirs(os.path.dirname(os.path.abspath(output_fn)))
-    with open(output_fn, 'w') as ofs:
-        ofs.write(fofn_content)
+    io.serialize(segregated_bam_fns_fn, bamfns)
 
 
 ######
@@ -119,13 +129,13 @@ def parse_args(argv):
         description='Segregate merged BAM files into single-ctg BAM files.',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
-        '--output-fn', type=str,
-        help='A FOFN of BAM for segregated reads. The paths must encode each ctg somehow (by convention).',
-        # The FOFNs must have a fasta and a fastq filename on each line, I think.
+        '--segregated-bam-fns-fn', type=str,
+        help='Output. A JSON list of BAM filenames for segregated reads. The paths must encode each ctg somehow (by convention).',
+        # The lines must each have a tuple of fasta and fastq, I think.
     )
     parser.add_argument(
-        '--merged-fn', type=str,
-        help='A merged BAM file.',
+        '--merged-bam-fn', type=str,
+        help='Input. A JSON list of (merged BAM, read2ctg).',
     )
     # parser.add_argument('--max-n-open-files', type=int,
     #        default=300,

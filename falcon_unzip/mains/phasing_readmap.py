@@ -2,9 +2,9 @@ import os
 import re
 
 
-def run(out_stream, phased_reads, read_map_dir, the_ctg_id):
-    rawread_id_file = os.path.join(read_map_dir, 'dump_rawread_ids', 'rawread_ids')
-    pread_id_file = os.path.join(read_map_dir, 'dump_pread_ids', 'pread_ids')
+def run(out_stream, phased_reads, rawread_ids_fn, pread_ids_fn, pread_to_contigs_fn, the_ctg_id):
+    rawread_id_file = rawread_ids_fn
+    pread_id_file = pread_ids_fn
     rid_to_oid = open(rawread_id_file).read().split('\n')  # daligner raw read id to the original ids
     pid_to_fid = open(pread_id_file).read().split('\n')  # daligner pread id to the fake ids
 
@@ -20,7 +20,7 @@ def run(out_stream, phased_reads, read_map_dir, the_ctg_id):
             rid_to_phase[row[6]] = (int(row[2]), int(row[3]))
 
     arid_to_phase = {}
-    map_fn = os.path.join(read_map_dir, 'pread_to_contigs')
+    map_fn = pread_to_contigs_fn
     with open(map_fn) as f:
         for row in f:
             row = row.strip().split()
@@ -54,8 +54,14 @@ def parse_args(argv):
         '--phased-reads', required=True,
         help='path to read vs. phase map')
     parser.add_argument(
-        '--read-map-dir', required=True,
-        help='path to the read map directory (should have "dump_rawread_ids/rawreads_ids", "dump_pread_ids/preads_ids", and "pread_to_contigs")')
+        '--rawread-ids-fn', required=True,
+        help='Input. Typically 3-unzip/reads/dump_rawread_ids/rawreads_ids')
+    parser.add_argument(
+        '--pread-ids-fn', required=True,
+        help='Input. Typically 3-unzip/reads/dump_rawread_ids/rawreads_ids')
+    parser.add_argument(
+        '--pread-to-contigs-fn', required=True,
+        help='Input. Typically 3-unzip/reads/pread_to_contigs')
     parser.add_argument(
         '--the-ctg-id', required=True,
         help='contig identifier in the bam file')

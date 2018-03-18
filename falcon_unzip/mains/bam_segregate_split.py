@@ -3,34 +3,39 @@ import logging
 import os
 import sys
 from .. import io
+from ..tasks.quiver import TASK_SEGREGATE_RUN_SCRIPT
 
 LOG = logging.getLogger()
 
 
-def run(merged_fofn_fn, scattered_fn):
+def run(merged_fofn_fn, bash_template_fn, split_fn):
     LOG.info('Scatting segregate-reads tasks into {!r}. Reading merged BAM names from FOFN: {!r}'.format(
-        scattered_fn, merged_fofn_fn))
-    basedir = os.path.dirname(os.path.abspath(scattered_fn))
+        split_fn, merged_fofn_fn))
+    with open(bash_template_fn, 'w') as stream:
+        stream.write(TASK_SEGREGATE_RUN_SCRIPT)
+
+    basedir = os.path.normpath(os.path.dirname(split_fn))
     fns = list(io.yield_abspath_from_fofn(merged_fofn_fn))
     # ctg is encoded into each filepath within each FOFN, fwiw.
     jobs = list()
-    for i, merged_bamfn in enumerate(fns):
-        job_name = 'segr{:03d}'.format(i) # wildcard value
+    for i, merged_bam_fn in enumerate(fns):
+        job_name = 'segr{:03d}'.format(i) # wildcard value # TODO: Needed?
 
-        segregated_bam_fofn = '{}/{}/segregated_bam.fofn'.format(
-                basedir, job_name)
+        #segregated_bam_fofn = '{}/{}/segregated_bam.fofn'.format(
+        #        basedir, job_name)
+        segregated_bam_fns_fn = 'segregated-bam-fns.json'
         job = dict()
         job['input'] = dict(
                 # The other input is next to this one, postfixed by convention: 'merged.bam.read2ctg.json'
-                merged_bamfn=merged_bamfn,
+                merged_bam_fn=merged_bam_fn,
         )
         job['output'] = dict(
-                segregated_bam_fofn=segregated_bam_fofn,
+                segregated_bam_fns=segregated_bam_fns_fn,
         )
         job['params'] = dict()
         job['wildcards'] = {'segr': job_name} # This should match the wildcard used in the pattern elsewhere.
         jobs.append(job)
-    io.serialize(scattered_fn, jobs)
+    io.serialize(split_fn, jobs)
 
 
 class HelpF(argparse.RawTextHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
@@ -38,7 +43,7 @@ class HelpF(argparse.RawTextHelpFormatter, argparse.ArgumentDefaultsHelpFormatte
 
 
 def parse_args(argv):
-    description = 'Scatter the tasks which generate segregated BAM.'
+    description = 'Split the tasks which generate segregated BAM.'
     epilog = 'To learn about inputs and outputs in the serialized jobs, see bam_segregate.py'
     parser = argparse.ArgumentParser(
         description=description,
@@ -47,12 +52,14 @@ def parse_args(argv):
     )
     parser.add_argument(
         '--merged-fofn-fn',
-        help='FOFN of merged ???',
+        help='Input. FOFN of merged BAM.',
     )
     parser.add_argument(
-        '--scattered-fn',
-        help='JSON file of the ??? files for segregation',
-    )
+        '--split-fn',
+        help='Output. JSON list of units of work.')
+    parser.add_argument(
+        '--bash-template-fn',
+        help='Output. Copy of known bash template, for use later.')
     args = parser.parse_args(argv[1:])
     return args
 

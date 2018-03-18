@@ -273,7 +273,7 @@ but that is now handled in `rr_hctg_track.nim`.)
         '--phased-read-file', type=str, default="{base_dir}/3-unzip/all_phased_reads",
         help='phased-read-file (accumulated from many fc_graphs_to_h_tigs.py calls)')
     parser.add_argument(
-        '--read-to-contig-map', type=str, default="{base_dir}/4-quiver/track_reads/read_to_contig_map",
+        '--read-to-contig-map', type=str, default="{base_dir}/4-quiver/track-reads/read_to_contig_map",
         help='read_to_contig_map, from fc_get_read_hctg_map')
     parser.add_argument(
         '--rawread-ids', type=str,

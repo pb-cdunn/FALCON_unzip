@@ -10,10 +10,10 @@ LOG = logging.getLogger()
 def run(gathered_fn, ctg2segregated_bamfn_fn):
     ctg2segregated_bamfn = dict()
     gathered = io.deserialize(gathered_fn)
-    for job_output in gathered.values():
+    for job_output in gathered:
         # Read FOFN.
-        fofn_fn = job_output['fns']['segregated_bam_fofn']
-        segregated_bam_fns = list(io.yield_abspath_from_fofn(fofn_fn))
+        fofn_fn = job_output['segregated_bam_fns']
+        segregated_bam_fns = list(io.yield_abspath_from_fofn(fofn_fn)) # can read JSON
         # Discern ctgs from filepaths.
         for bamfn in segregated_bam_fns:
             basename = os.path.basename(bamfn)

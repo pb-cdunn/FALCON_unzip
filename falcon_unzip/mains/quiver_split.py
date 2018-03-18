@@ -4,11 +4,16 @@ import logging
 import os
 import sys
 from .. import io
+from ..tasks.quiver import TASK_QUIVER_RUN_SCRIPT
 
 LOG = logging.getLogger()
 
 
-def run(p_ctg_fasta_fn, h_ctg_fasta_fn, ctg2bamfn_fn, scattered_fn):
+def run(p_ctg_fasta_fn, h_ctg_fasta_fn, ctg2bamfn_fn, split_fn, bash_template_fn):
+    LOG.info('Splitting quiver tasks into {!r}.'.format(
+        split_fn))
+    with open(bash_template_fn, 'w') as stream:
+        stream.write(TASK_QUIVER_RUN_SCRIPT)
     ctg2bamfn = io.deserialize(ctg2bamfn_fn)
 
     ref_seq_data = {}
@@ -56,14 +61,14 @@ def run(p_ctg_fasta_fn, h_ctg_fasta_fn, ctg2bamfn_fn, scattered_fn):
         ctg_type_fn = os.path.abspath(os.path.join('refs', ctg_id, 'ctg_type'))
         with open(ctg_type_fn, 'w') as ofs:
             ofs.write(ctg_type) # just a letter
-        wd = os.path.join(os.getcwd(), '..', 'quiver_run', ctg_id)
-        cns_fasta = os.path.join(wd, 'cns.fasta.gz')
-        cns_fastq = os.path.join(wd, 'cns.fastq.gz')
-        job_done = os.path.join(wd, 'quiver_done')
-        out_ctg_type_fn = os.path.join(wd, 'ctg_type')
+        #wd = os.path.join(os.getcwd(), '..', 'quiver_run', ctg_id)
+        cns_fasta = 'cns.fasta.gz'
+        cns_fastq = 'cns.fastq.gz'
+        job_done = 'quiver_done'
+        out_ctg_type_fn = 'ctg_type'
         new_job = {}
         new_job['params'] = dict(
-                #ctg_id=ctg_id,
+                ctg_id=ctg_id,
                 #ctg_type=ctg_type,
         )
         new_job['input'] = dict(
@@ -83,8 +88,7 @@ def run(p_ctg_fasta_fn, h_ctg_fasta_fn, ctg2bamfn_fn, scattered_fn):
         }
         #jobs[ctg_id] = new_job # TODO(CD): What about ctg_type???
         jobs.append(new_job)
-    scattered = jobs
-    io.serialize(scattered_fn, scattered)
+    io.serialize(split_fn, jobs)
 
 
 class HelpF(argparse.RawTextHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
@@ -112,9 +116,11 @@ def parse_args(argv):
         help='Map of ctg -> segregated BAM (???)',
     )
     parser.add_argument(
-        '--scattered-fn',
-        help='Serialized (JSON or msgpack) list of quiver job-descriptions',
-    )
+        '--split-fn',
+        help='Output. JSON list of units of work.')
+    parser.add_argument(
+        '--bash-template-fn',
+        help='Output. Copy of known bash template, for use later.')
     args = parser.parse_args(argv[1:])
     return args
 

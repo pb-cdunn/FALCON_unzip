@@ -41,6 +41,6 @@ setup(name='falcon_unzip',
           'fc_unzip_gen_gfa_v1.py=falcon_unzip.mains.unzip_gen_gfa_v1:main',
       ]},
       #scripts = scripts,
-      zip_safe=False,
+      zip_safe=True,
       install_requires=install_requires
       )

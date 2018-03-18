@@ -56,7 +56,6 @@ def parse_args(argv):
     )
     parser.add_argument(
         '--out', required=True,
-        default='./',
         help='Output file to write the selected preads.',
     )
 
