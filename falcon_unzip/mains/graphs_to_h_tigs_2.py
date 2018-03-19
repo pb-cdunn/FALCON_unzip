@@ -8,6 +8,7 @@ import falcon_unzip.proto.execute as execute
 from falcon_unzip.proto.haplotig import Haplotig
 import falcon_unzip.proto.tiling_path as tiling_path
 import falcon_unzip.proto.sam2m4 as sam2m4
+import collections
 import copy
 import pysam
 import falcon_unzip.proto.cigartools as cigartools
@@ -24,7 +25,8 @@ import intervaltree
 import argparse
 import sys
 import logging
-from .. import io # deserialize()
+from falcon_kit import io # (de)serialize()
+from pypeflow.io import cd
 
 # for shared memory usage
 global p_asm_G
@@ -982,6 +984,7 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, all_haplotig_dict, phase_a
                     fp_h_tig_edges.write(' '.join([str(val) for val in new_edge_line]) + '\n')
 
 def get_rid2proto_dir(gath_fn):
+    LOG.info('Reading {!r} to create rid2proto_dir map.'.format(gath_fn))
     gath = io.deserialize(gath_fn)
     result = dict()
     for rec in gath:
@@ -999,7 +1002,7 @@ def get_rid2proto_dir(gath_fn):
     LOG.debug('From {!r}, rid2proto_dir dict={!r}'.format(gath_fn, result))
     return result
 
-def run(args):
+def define_globals(args):
     # make life easier for now. will refactor it out if possible
     global all_rid_to_phase
     global all_flat_rid_to_phase
@@ -1014,12 +1017,8 @@ def run(args):
 
     fc_asm_path = args.fc_asm_path
     fc_hasm_path = args.fc_hasm_path
-    ctg_id = args.ctg_id
     base_dir = args.base_dir
     fasta_fn = args.fasta
-    gath_fn = args.gathered_rid_to_phase
-
-    rid2proto_dir = get_rid2proto_dir(gath_fn)
 
     #hasm_falcon_path = os.path.join(fc_hasm_path, 'asm-falcon')
     hasm_falcon_path = fc_hasm_path # They run in same dir, for now.
@@ -1075,7 +1074,7 @@ def run(args):
     for p_ctg_id, ctg_seq in p_ctg_seqs.iteritems():
         p_ctg_seq_lens[p_ctg_id] = len(ctg_seq)
 
-    # Load the tiling path of the primary contig, and assign coordiantes to nodes.
+    # Load the tiling path of the primary contig, and assign coordinants to nodes.
     p_ctg_tiling_paths = tiling_path.load_tiling_paths(os.path.join(fc_asm_path, "p_ctg_tiling_path"), None, p_ctg_seq_lens)
 
     # Load the haplotig sequences (assembled with falcon_kit.mains.graph_to_contig).
@@ -1103,56 +1102,246 @@ def run(args):
 
     LOG.info('Loaded seq lens.')
 
-    if ctg_id == "all":
-        ctg_id_list = p_asm_G.ctg_data.keys()
-    else:
-        ctg_id_list = [ctg_id]
+def cmd_apply(args):
+    units_of_work_fn = args.units_of_work_fn
+    results_fn = args.results_fn
 
-    LOG.info('Creating the exe list for: {}'.format(str(ctg_id_list)))
+    LOG.info('Loading units-of-work from {!r}'.format(units_of_work_fn))
+    units_of_work = io.deserialize(units_of_work_fn)
+    if not units_of_work:
+        LOG.warning('No units of work in {!r}'.format(units_of_work_fn))
+        io.serialize(results_fn, list())
+        return
 
-    exe_list = []
+    uow = units_of_work[0] # Get the common args from the first UOW.
+    sub_args = lambda: None # for attribute storage
+    sub_args.fc_asm_path = uow['input']['fc_asm_path']
+    sub_args.fc_hasm_path = uow['input']['fc_hasm_path']
+    sub_args.base_dir = uow['input']['base_dir']
+    sub_args.fasta = uow['input']['fasta_fn']
+    sub_args.rid_phase_map = uow['input']['rid_phase_map']
+
+    define_globals(sub_args)
+
+    #LOG.info('Creating the exe list for: {}'.format(str(ctg_id_list)))
+
+    exe_list = list()
+    for i, uow in enumerate(units_of_work):
+        ctg_id = uow['params']['ctg_id']
+        proto_dir = uow['params']['proto_dir']
+        out_dir = os.path.join('.', 'uow-{}'.format(ctg_id))
+        base_dir = sub_args.base_dir
+
+        exe_list.append((ctg_id, proto_dir, out_dir, base_dir))
+
+    LOG.info('Running {} units of work.'.format(len(exe_list)))
+
+    #exec_pool = Pool(args.nproc)  # TODO, make this configurable
+    #exec_pool.map(run_generate_haplotigs_for_ctg, exe_list)
+    ##map( generate_haplotigs_for_ctg, exe_list)
+
+    results = list()
+    for i, exe in enumerate(exe_list):
+        out_dir = exe[2] # See prior for-loop. # TODO: with cd(out_dir)
+
+        LOG.info('UOW #{} of {} ...'.format(i, len(exe_list)))
+        result = run_generate_haplotigs_for_ctg(exe)
+
+        # We could specify this to 'run_gen', but for now it is an implicit output.
+        output_h_ctg_fn = os.path.join(out_dir, 'h_ctg.{}.fa'.format(ctg_id))
+        assert os.path.exists(output_h_ctg_fn), 'Missing h_ctg fasta: {!r}'.format(
+                os.path.abspath(output_h_ctg_fn))
+
+        result = dict(
+                h_ctg=output_h_ctg_fn, # We record the result even if zero-size.
+                ctg_id=ctg_id,
+        )
+        results.append(result)
+
+    io.serialize(results_fn, results)
+
+
+######
+TASK_APPLY_UNITS_OF_WORK = """\
+python -m falcon_unzip.mains.graphs_to_h_tigs_2 apply --units-of-work-fn={input.units_of_work} --results-fn={output.results}
+
+#--bash-template-fn= # not needed
+"""
+
+def cmd_split(args):
+    gath_fn = args.gathered_rid_to_phase
+    split_fn = args.split_fn
+    bash_template_fn = args.bash_template_fn
+    with open(bash_template_fn, 'w') as stream:
+        stream.write('echo hi')
+
+    rid2proto_dir = get_rid2proto_dir(gath_fn)
+
+    define_globals(args)
+
+    ctg_id_list = p_asm_G.ctg_data.keys()
+
+    LOG.info('Creating units-of-work for ctg_id_list (though many will be skipped): {}'.format(ctg_id_list))
+
+    uows = []
     for ctg_id in ctg_id_list:
         if ctg_id[-1] != "F":
             continue
         if ctg_id not in all_rid_to_phase:
             continue
         proto_dir = rid2proto_dir[ctg_id]
-        exe_list.append((ctg_id, proto_dir, os.path.join(".", ctg_id), base_dir))
+        uow = dict(
+                input=dict(
+                    # common inputs:
+                    fc_asm_path = args.fc_asm_path,
+                    fc_hasm_path = args.fc_hasm_path,
+                    base_dir = args.base_dir,
+                    fasta_fn = args.fasta,
+                    rid_phase_map = args.rid_phase_map,
+                ),
+                params=dict(
+                    ctg_id=ctg_id,
+                    proto_dir=proto_dir,
+                ),
+                wildcards=dict(
+                    chunk_id='chunk_{}'.format(ctg_id), # for later substitution
+                ),
+        )
+        uows.append(uow)
+    io.serialize(split_fn, uows)
 
-    LOG.info('Running jobs.')
-
-    exec_pool = Pool(args.nproc)  # TODO, make this configurable
-    exec_pool.map(run_generate_haplotigs_for_ctg, exe_list)
-    #map( generate_haplotigs_for_ctg, exe_list)
-
-
-######
-
+def generate_h_ctg_ids(run_dir, ctg_id):
+    cmd = 'grep ">" ./h_ctg.{ctg_id}.fa | sed "s/^>//" >| ./h_ctg_ids.{ctg_id}'.format(
+            **locals())
+    with cd(run_dir):
+        execute.execute_command(cmd, LOG, dry_run=False)
+def combine(ostream, fns):
+    for fn in fns:
+        with open(fn) as istream: # IOError would report fn
+            ostream.write(istream.read())
+def cmd_combine(args):
+    results_fn = args.results_fn
+    done_fn = args.done_fn
+    results = io.deserialize(results_fn)
+    combined = collections.defaultdict(list)
+    for result in results:
+        h_ctg_fn = result['h_ctg']
+        if not io.exists_and_not_empty(h_ctg_fn):
+            LOG.warning('Skipping missing or empty {!r}'.format(h_ctg_fn))
+            continue
+        run_dir = os.path.normpath(os.path.dirname(h_ctg_fn))
+        ctg_id = result['ctg_id']
+        combined['h_ctg'].append(h_ctg_fn)
+        combined['p_ctg'].append(os.path.join(run_dir, 'p_ctg.{}.fa'.format(ctg_id)))
+        combined['h_ctg_ids'].append(os.path.join(run_dir, 'h_ctg_ids.{}'.format(ctg_id)))
+        combined['h_ctg_edges'].append(os.path.join(run_dir, 'h_ctg_edges.{}'.format(ctg_id)))
+        combined['p_ctg_edges'].append(os.path.join(run_dir, 'p_ctg_edges.{}'.format(ctg_id)))
+        generate_h_ctg_ids(run_dir, ctg_id)
+    with open('all_h_ctg.fa', 'w') as stream:
+        combine(stream, combined['h_ctg'])
+    with open('all_p_ctg.fa', 'w') as stream:
+        combine(stream, combined['p_ctg'])
+    with open('all_h_ctg_ids', 'w') as stream:
+        combine(stream, combined['h_ctg_ids'])
+    with open('all_h_ctg_edges', 'w') as stream:
+        combine(stream, combined['h_ctg_edges'])
+    with open('all_p_ctg_edges', 'w') as stream:
+        combine(stream, combined['p_ctg_edges'])
+    io.touch(done_fn)
+'''
+find ./0-phasing -name "phased_reads" | sort | xargs cat >| all_phased_reads
+find ./2-htigs -name "h_ctg_ids.*" | sort | xargs cat >| all_h_ctg_ids
+find ./2-htigs -name "p_ctg_edges.*" | sort | xargs cat >| all_p_ctg_edges
+find ./2-htigs -name "h_ctg_edges.*" | sort | xargs cat >| all_h_ctg_edges
+find ./2-htigs -name "p_ctg.*.fa" | sort | xargs cat >| all_p_ctg.fa
+find ./2-htigs -name "h_ctg.*.fa" | sort | xargs cat >| all_h_ctg.fa
+'''
 def parse_args(argv):
     parser = argparse.ArgumentParser(
         description='layout haplotigs from primary assembly graph and phased aseembly graph')
+    subparsers = parser.add_subparsers(help='sub-command help')
+    description_combine = """
+    The run-dirs will have various files. Some of them will be named explicitly in results.json. Others are implicit outputs (to minimize explicits). E.g. p/h ctgs, ids, and edges. We will concatenate these files into single files, excluding any units of work which produced empty fasta. For now, we expect:
+  all_h_ctg_edges
+  all_h_ctg.fa
+  all_h_ctg_ids
+  all_p_ctg_edges
+  all_p_ctg.fa
+  all_phased_reads # ??? This would come from 0-phasing/
+    """
+    help_combine = 'Combine the results of each "graph_to_h_tigs" application into something useful to the next task.'
+    help_split = 'Split input into atomic units-of-work.'
+    help_apply = 'Apply "graph_to_h_tigs" to a subset of one or more units-of-work, serially.'
+    parser_split = subparsers.add_parser('split',
+            description=help_split,
+            help=help_split)
+    parser_apply = subparsers.add_parser('apply',
+            description=help_apply,
+            help=help_apply)
+    parser_combine = subparsers.add_parser('combine',
+            description=help_combine,
+            epilog=description_combine,
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            help=help_combine)
+    parser_combine.set_defaults(func=cmd_combine)
 
-    parser.add_argument(
+    parser_split.add_argument(
+        '--split-fn', required=True,
+        help='Output: JSON list of all units of work.')
+    parser_split.add_argument(
+        '--bash-template-fn', required=True,
+        help='Output: bash script to run a unit-of-work, given a record from JSON split-file.')
+    parser_split.add_argument(
         '--gathered-rid-to-phase', required=True,
-        help='Input. (Typically 3-unzip/1-hasm/gathered-rid-to-phase/gathered.json) JSON list of dict of "rid_to_phase_out"->filename. This is used to find the proto/ directory for each unit of phasing work.')
-    parser.add_argument(
-        '--fc-asm-path', type=str,
-        help='path to the primary Falcon assembly output directory', required=True)
-    parser.add_argument(
-        '--fc-hasm-path', type=str,
-        help='path to the phased Falcon assembly output directory', required=True)
-    parser.add_argument(
-        '--ctg-id', type=str, help='contig identifier in the bam file', default="all", required=True)
-    parser.add_argument(
-        '--base-dir', type=str, required=True,
-        help='the output base_dir, default to current working directory')
-    parser.add_argument(
-        '--rid-phase-map', type=str,
-        help="path to the file that encode the relationship of the read id to phase blocks", required=True)
-    parser.add_argument(
-        '--fasta', type=str, help="sequence file of the p-reads", required=True)
-    parser.add_argument(
-        '--nproc', type=int, default=8, help="number of processes to use")
+        help='Input. (Possibly 3-unzip/1-hasm/gathered-rid-to-phase/gathered.json) JSON list of dict of "rid_to_phase_out"->filename. This is used to find the proto/ directory for each unit of phasing work.')
+    parser_split.add_argument(
+        '--fc-asm-path', type=str, required=True,
+        help='Common input: path to the primary Falcon assembly output directory')
+    parser_split.add_argument(
+        '--fc-hasm-path', type=str, required=True,
+        help='Common input: path to the phased Falcon assembly output directory')
+    parser_split.add_argument(
+        '--base-dir', type=str, default='.',
+        help='Common input: the output base_dir, default to current working directory')
+    parser_split.add_argument(
+        '--rid-phase-map', type=str, required=True,
+        help="Common input: path to the file that encode the relationship of the read id to phase blocks")
+    parser_split.add_argument(
+        '--fasta', type=str, required=True,
+        help="Common input: sequence file of the p-reads")
+    parser_split.set_defaults(func=cmd_split)
+
+    parser_apply.add_argument(
+        '--units-of-work-fn', required=True,
+        help='Input. JSON list of units of work. This can be on, several, or all of the list from subcommand "split".')
+    parser_apply.add_argument(
+        '--results-fn', required=True,
+        help='Output. JSON list of results, one record per unit-of-work.')
+    parser_apply.set_defaults(func=cmd_apply)
+
+    parser_combine.add_argument(
+        '--results-fn', required=True,
+        help='Input: JSON list of results, one record per unit-of-work. Probably, a "gatherer" has already gathered the "results.json" from each application into one large file, this one.')
+    parser_combine.add_argument(
+        '--done-fn',
+        help='Output: Sentinel.')
+    #parser_combine.add_argument(
+    #    '--combined-fn',
+    #    help='Output: JSON. I think it will be a list of dicts, describing the p/h ctgs, ids, and edges. This might be deduced from the run-dir, to minimize the number of outputs we need to specify explicitly. The list will exclude units-of-work which produced empty h_ctg files. Also, the paths will probably be absolutized here, in case the "gatherer" did not do that already. (There were relative so "apply" could occur in a tmpdir.)')
+    parser_combine.set_defaults(func=cmd_combine)
+
+    #parser_run = subparsers.add_parser('run',
+    #        help='Actually run "graph_to_h_tigs". This is called for each unit-of-work, in a directory selected by subcommand "apply".',
+    #        description='This a single-threaded-program, but it will call multi-threaded blasr.')
+
+    #parser_run.add_argument(
+    #    '--ctg-id', type=str, required=True,
+    #    help='contig identifier in the bam file')
+    #parser_run.add_argument(
+    #    '--proto-dir', type=str, required=True,
+    #    help='directory of phasing work, e.g. "3-unzip/0-phasing/000000F/uow-00/proto/"')
+    #parser_run.add_argument(
+    #    '--nproc', type=int, default=8, help="number of processes to use")
 
     args = parser.parse_args(argv[1:])
 
@@ -1185,7 +1374,7 @@ def main(argv=sys.argv):
 
     logging.addLevelName(logging.WARNING-1, 'EXECUTE')
 
-    run(args)
+    args.func(args)
 
 
 if __name__ == '__main__':  # pragma: no cover

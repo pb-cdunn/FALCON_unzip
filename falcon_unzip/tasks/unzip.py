@@ -132,6 +132,17 @@ if [[ ! -e {output.p_ctg} ]]; then
 fi
 """
 
+TASK_GRAPH_TO_H_TIGS_SPLIT_SCRIPT = """\
+asm_dir=$(dirname {input.falcon_asm_done})
+hasm_dir=$(dirname {input.p_ctg})
+
+# TODO: Should we look at ../reads/ctg_list ?
+
+python -m falcon_unzip.mains.graphs_to_h_tigs_2 split --gathered-rid-to-phase={input.gathered_rid_to_phase} --base-dir={params.topdir} --fc-asm-path ${{asm_dir}} --fc-hasm-path ${{hasm_dir}} --rid-phase-map {input.rid_to_phase_all} --fasta {input.preads4falcon} --split-fn={output.split} --bash-template-fn={output.bash_template}
+
+# The bash-template is just a dummy, for now.
+"""
+
 TASK_GRAPH_TO_H_TIGS_SCRIPT = """\
 asm_dir=$(dirname {input.falcon_asm_done})
 hasm_dir=$(dirname {input.p_ctg})
@@ -162,12 +173,14 @@ TASK_HASM_COLLECT_SCRIPT = """\
 ## prepare for quviering the haplotig
 ## (assume we are in 3-unzip/somewhere/)
 
+python -m falcon_unzip.mains.graphs_to_h_tigs_2 combine --results-fn={input.results} --done-fn={output.job_done}
+
 find ./0-phasing -name "phased_reads" | sort | xargs cat >| all_phased_reads
-find ./2-htigs -name "h_ctg_ids.*" | sort | xargs cat >| all_h_ctg_ids
-find ./2-htigs -name "p_ctg_edges.*" | sort | xargs cat >| all_p_ctg_edges
-find ./2-htigs -name "h_ctg_edges.*" | sort | xargs cat >| all_h_ctg_edges
-find ./2-htigs -name "p_ctg.*.fa" | sort | xargs cat >| all_p_ctg.fa
-find ./2-htigs -name "h_ctg.*.fa" | sort | xargs cat >| all_h_ctg.fa
+#find ./2-htigs -name "h_ctg_ids.*" | sort | xargs cat >| all_h_ctg_ids
+#find ./2-htigs -name "p_ctg_edges.*" | sort | xargs cat >| all_p_ctg_edges
+#find ./2-htigs -name "h_ctg_edges.*" | sort | xargs cat >| all_h_ctg_edges
+#find ./2-htigs -name "p_ctg.*.fa" | sort | xargs cat >| all_p_ctg.fa
+#find ./2-htigs -name "h_ctg.*.fa" | sort | xargs cat >| all_h_ctg.fa
 
 if [[ ! -s all_p_ctg.fa ]]; then
     echo "Empty all_p_ctg.fa -- No point in continuing!"
@@ -175,13 +188,11 @@ if [[ ! -s all_p_ctg.fa ]]; then
 fi
 
 # # Generate a GFA for only primary contigs and haplotigs.
-# time python -m falcon_unzip.mains.unzip_gen_gfa_v1 --unzip-root .. --p-ctg-fasta ./all_p_ctg.fa --h-ctg-fasta ./all_h_ctg.fa --preads-fasta {input.preads4falcon} >| ./asm.gfa
+# time python -m falcon_unzip.mains.unzip_gen_gfa_v1 --unzip-root . --p-ctg-fasta ./all_p_ctg.fa --h-ctg-fasta ./all_h_ctg.fa --preads-fasta {input.preads4falcon} >| ./asm.gfa
 
 # # Generate a GFA of all assembly graph edges. This GFA can contain
 # # edges and nodes which are not part of primary contigs and haplotigs
-# time python -m falcon_unzip.mains.unzip_gen_gfa_v1 --unzip-root .. --p-ctg-fasta ./all_p_ctg.fa --h-ctg-fasta ./all_h_ctg.fa --preads-fasta {input.preads4falcon} --add-string-graph >| ./sg.gfa
-
-touch {output.job_done}
+# time python -m falcon_unzip.mains.unzip_gen_gfa_v1 --unzip-root . --p-ctg-fasta ./all_p_ctg.fa --h-ctg-fasta ./all_h_ctg.fa --preads-fasta {input.preads4falcon} --add-string-graph >| ./sg.gfa
 """
 
 
@@ -343,9 +354,11 @@ def run_workflow(wf, config, rule_writer):
             )
     ))
 
-    htigs_done_fn = './3-unzip/2-htigs/htigs.done'
+    #htigs_done_fn = './3-unzip/2-htigs/htigs.done'
+    g2h_all_units_fn = './3-unzip/2-htigs/split/all-units-of-work.json'
+    dummy_fn = './3-unzip/2-htigs/split/dummy.sh'
     wf.addTask(gen_task(
-            script=TASK_GRAPH_TO_H_TIGS_SCRIPT,
+            script=TASK_GRAPH_TO_H_TIGS_SPLIT_SCRIPT,
             inputs={
                 'falcon_asm_done': falcon_asm_done_fn,
                 'preads4falcon': preads4falcon_fn,
@@ -354,21 +367,50 @@ def run_workflow(wf, config, rule_writer):
                 'p_ctg': hasm_p_ctg_fn,
             },
             outputs={
-                'htigs_done': htigs_done_fn
+                'split': g2h_all_units_fn,
+                'bash_template': dummy_fn,
             },
             parameters={},
             rule_writer=rule_writer,
-            dist=Dist(NPROC=48,
+            dist=Dist(NPROC=1,
                 sge_option=config['sge_hasm']
             )
     ))
+    TASK_GTOH_APPLY_UNITS_OF_WORK = """\
+    python -m falcon_unzip.mains.graphs_to_h_tigs_2 apply --units-of-work-fn={input.units_of_work} --results-fn={output.results}
+
+    #--bash-template-fn= # not needed
+    """
+    gathered_g2h_fn = './3-unzip/2-htigs/gathered/gathered.json'
+    import falcon_kit.pype
+    print('QQQQQQQQQQQQQ', gen_parallel_tasks, falcon_kit.pype)
+    gen_parallel_tasks(
+        wf, rule_writer,
+        g2h_all_units_fn, gathered_g2h_fn,
+        run_dict=dict(
+            bash_template_fn=dummy_fn,
+            script='DUMMY',
+            inputs={
+                'units_of_work': './3-unzip/2-htigs/chunks/{chunk_id}/some-units-of-work.json',
+            },
+            outputs={
+                'results': './3-unzip/2-htigs/{chunk_id}/result-list.json',
+            },
+            parameters={},
+        ),
+        dist=Dist(NPROC=24, # currently, we hard-code the blasr max
+            sge_option=config['sge_blasr_aln']),
+        run_script=TASK_GTOH_APPLY_UNITS_OF_WORK,
+    )
+    #htigs_done_fn = './3-unzip/2-htigs/htigs.done'
+
 
     job_done = './3-unzip/hasm_done'
     wf.addTask(gen_task(
             script=TASK_HASM_COLLECT_SCRIPT,
             inputs={
                 'preads4falcon': preads4falcon_fn,
-                'htigs_done': htigs_done_fn
+                'results': gathered_g2h_fn,
             },
             outputs={
                 'job_done': job_done,
