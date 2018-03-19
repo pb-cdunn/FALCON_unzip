@@ -99,92 +99,97 @@ TASK_PHASING_SPLIT_SCRIPT = """\
 python -m falcon_unzip.mains.phasing_split --base-dir={params.topdir} --ctg-list-fn={input.ctg_list} --rawread-ids-fn={input.rawread_ids} --pread-ids-fn={input.pread_ids} --pread-to-contigs-fn={input.pread_to_contigs} --split-fn={output.split} --bash-template-fn={output.bash_template}
 """
 
-TASK_GET_RID_TO_PHASE_ALL_SCRIPT = """\
-rm -f {output.rid_to_phase_all}
-for fn in {input}; do
-  cat $fn >> {output.rid_to_phase_all}
-done
-"""
-
 TASK_PHASING_GATHER_SCRIPT = """\
 python -m falcon_unzip.mains.phasing_gather --gathered={input.gathered} --rid-to-phase-all={output.rid_to_phase_all}
 """
 
-
 TASK_HASM_SCRIPT = """\
-python -m falcon_unzip.mains.ovlp_filter_with_phase_strict --fofn {input.las_fofn} --max-diff 120 --max-cov 120 --min-cov 1 --n-core 48 --min-len 2500 --db ../../1-preads_ovl/preads.db --rid-phase-map {input.rid_to_phase_all} > preads.p_ovl
+# TODO: Needs preads.db
+
+rm -f ./ctg_paths
+python -m falcon_unzip.mains.ovlp_filter_with_phase_strict --fofn {input.las_fofn} --max-diff 120 --max-cov 120 --min-cov 1 --n-core 48 --min-len 2500 --db {input.preads_db} --rid-phase-map {input.rid_to_phase_all} > preads.p_ovl
 python -m falcon_unzip.mains.phased_ovlp_to_graph preads.p_ovl --min-len 2500 > fc.log
 
-if [ -e ../../1-preads_ovl/preads4falcon.fasta ];
-then
-  ln -sf ../../1-preads_ovl/preads4falcon.fasta .
-else
-  ln -sf ../../1-preads_ovl/db2falcon/preads4falcon.fasta .
+if [[ ! -e ./ctg_paths ]]; then
+    exit 1
 fi
 
-#WD=$PWD
+rm -f preads.p_ovl
 
 # Create haplotigs in a safe manner.
-mkdir -p asm-falcon
-pushd asm-falcon
+
+ln -sf {input.preads4falcon} .
+
 # Given sg_edges_list, utg_data, ctg_paths, preads4falcon.fasta,
 # write p_ctg.fa and a_ctg_all.fa,
 # plus a_ctg_base.fa, p_ctg_tiling_path, a_ctg_tiling_path, a_ctg_base_tiling_path:
-ln -sf ../sg_edges_list
-ln -sf ../utg_data
-ln -sf ../ctg_paths
-ln -sf ../preads4falcon.fasta
-time python -m falcon_kit.mains.graph_to_contig
-popd
 
-python -m falcon_unzip.mains.graphs_to_h_tigs_2 --gathered-rid-to-phase={input.gathered_rid_to_phase} --base-dir={params.topdir} --fc-asm-path ../../2-asm-falcon/ --fc-hasm-path ./ --ctg-id all --rid-phase-map {input.rid_to_phase_all} --fasta preads4falcon.fasta
+rm -f {output.p_ctg}
+time python -m falcon_kit.mains.graph_to_contig
+
+if [[ ! -e {output.p_ctg} ]]; then
+    exit 1
+fi
+"""
+
+TASK_GRAPH_TO_H_TIGS_SCRIPT = """\
+asm_dir=$(dirname {input.falcon_asm_done})
+hasm_dir=$(dirname {input.p_ctg})
+
+python -m falcon_unzip.mains.graphs_to_h_tigs_2 --gathered-rid-to-phase={input.gathered_rid_to_phase} --base-dir={params.topdir} --fc-asm-path ${{asm_dir}} --fc-hasm-path ${{hasm_dir}} --ctg-id all --rid-phase-map {input.rid_to_phase_all} --fasta {input.preads4falcon}
 
 # more script -- a little bit hacky here, we should improve
 
-WD=$PWD
+#WD=$PWD
 # for f in `cat ../reads/ctg_list `; do mkdir -p $WD/$f; cd $WD/$f; python -m falcon_unzip.mains.dedup_h_tigs $f; done
+
 for f in `cat ../reads/ctg_list `
 do
-    mkdir -p $WD/$f; cd $WD/$f;
-    if [ -s $WD/$f/h_ctg.$f.fa ]
+    mkdir -p ./$f;
+    if [ -s ./$f/h_ctg.$f.fa ]
     then
-        grep ">" $WD/$f/h_ctg.$f.fa | sed "s/^>//" >| $WD/$f/h_ctg_ids.$f
+        grep ">" ./$f/h_ctg.$f.fa | sed "s/^>//" >| ./$f/h_ctg_ids.$f
     else
-        rm -rf $WD/$f/h_ctg_ids.$f
-        touch $WD/$f/h_ctg_ids.$f
+        rm -rf ./$f/h_ctg_ids.$f
+        touch ./$f/h_ctg_ids.$f
     fi
 done
 
-## prepare for quviering the haplotig
-cd $WD/..
+touch {output.htigs_done}
+"""
 
-find 0-phasing -name "phased_reads" | sort | xargs cat >| all_phased_reads
-find 1-hasm -name "h_ctg_ids.*" | sort | xargs cat >| all_h_ctg_ids
-find 1-hasm -name "p_ctg_edges.*" | sort | xargs cat >| all_p_ctg_edges
-find 1-hasm -name "h_ctg_edges.*" | sort | xargs cat >| all_h_ctg_edges
-find 1-hasm -name "p_ctg.*.fa" | sort | xargs cat >| all_p_ctg.fa
-find 1-hasm -name "h_ctg.*.fa" | sort | xargs cat >| all_h_ctg.fa
+TASK_HASM_COLLECT_SCRIPT = """\
+## prepare for quviering the haplotig
+## (assume we are in 3-unzip/somewhere/)
+
+find ./0-phasing -name "phased_reads" | sort | xargs cat >| all_phased_reads
+find ./2-htigs -name "h_ctg_ids.*" | sort | xargs cat >| all_h_ctg_ids
+find ./2-htigs -name "p_ctg_edges.*" | sort | xargs cat >| all_p_ctg_edges
+find ./2-htigs -name "h_ctg_edges.*" | sort | xargs cat >| all_h_ctg_edges
+find ./2-htigs -name "p_ctg.*.fa" | sort | xargs cat >| all_p_ctg.fa
+find ./2-htigs -name "h_ctg.*.fa" | sort | xargs cat >| all_h_ctg.fa
+
+if [[ ! -s all_p_ctg.fa ]]; then
+    echo "Empty all_p_ctg.fa -- No point in continuing!"
+    exit 1
+fi
 
 # # Generate a GFA for only primary contigs and haplotigs.
-# time python -m falcon_unzip.mains.unzip_gen_gfa_v1 --unzip-root $WD/.. --p-ctg-fasta $WD/../all_p_ctg.fa --h-ctg-fasta $WD/../all_h_ctg.fa --preads-fasta $WD/preads4falcon.fasta >| $WD/../asm.gfa
+# time python -m falcon_unzip.mains.unzip_gen_gfa_v1 --unzip-root .. --p-ctg-fasta ./all_p_ctg.fa --h-ctg-fasta ./all_h_ctg.fa --preads-fasta {input.preads4falcon} >| ./asm.gfa
 
 # # Generate a GFA of all assembly graph edges. This GFA can contain
 # # edges and nodes which are not part of primary contigs and haplotigs
-# time python -m falcon_unzip.mains.unzip_gen_gfa_v1 --unzip-root $WD/.. --p-ctg-fasta $WD/../all_p_ctg.fa --h-ctg-fasta $WD/../all_h_ctg.fa --preads-fasta $WD/preads4falcon.fasta --add-string-graph >| $WD/../sg.gfa
+# time python -m falcon_unzip.mains.unzip_gen_gfa_v1 --unzip-root .. --p-ctg-fasta ./all_p_ctg.fa --h-ctg-fasta ./all_h_ctg.fa --preads-fasta {input.preads4falcon} --add-string-graph >| ./sg.gfa
 
-cd $WD
 touch {output.job_done}
 """
 
 
-def create_tasks_read_to_contig_map(wf, rule_writer, rawread_ids_fn, pread_ids_fn, read_to_contig_map_file, parameters):
-    falcon_asm_done = './2-asm-falcon/falcon_asm_done'
-
-    rawread_db = '0-rawreads/raw_reads.db'
+def create_tasks_read_to_contig_map(wf, rule_writer, falcon_asm_done, raw_reads_db, preads_db, rawread_ids_fn, pread_ids_fn, read_to_contig_map_file, parameters):
 
     wf.addTask(gen_task(
         script=pype_tasks.TASK_DUMP_RAWREAD_IDS_SCRIPT,
-        inputs={'rawread_db': rawread_db,
+        inputs={'rawread_db': raw_reads_db,
                 'falcon_asm_done': falcon_asm_done,
         },
         outputs={'rawread_id_file': rawread_ids_fn,
@@ -194,11 +199,9 @@ def create_tasks_read_to_contig_map(wf, rule_writer, rawread_ids_fn, pread_ids_f
         dist=Dist(local=True), # TODO: Is this ok to run locally?
     ))
 
-    pread_db = '1-preads_ovl/preads.db'
-
     wf.addTask(gen_task(
         script=pype_tasks.TASK_DUMP_PREAD_IDS_SCRIPT,
-        inputs={'pread_db': pread_db,
+        inputs={'pread_db': preads_db,
                 'falcon_asm_done': falcon_asm_done,
         },
         outputs={'pread_id_file': pread_ids_fn,
@@ -208,6 +211,7 @@ def create_tasks_read_to_contig_map(wf, rule_writer, rawread_ids_fn, pread_ids_f
         dist=Dist(local=True), # TODO: Is this ok to run locally?
     ))
 
+    # From Falcon. (We will produce phased versions later.)
     sg_edges_list = '2-asm-falcon/sg_edges_list'
     utg_data = '2-asm-falcon/utg_data'
     ctg_paths = '2-asm-falcon/ctg_paths'
@@ -228,12 +232,16 @@ def create_tasks_read_to_contig_map(wf, rule_writer, rawread_ids_fn, pread_ids_f
 
 
 def run_workflow(wf, config, rule_writer):
+    falcon_asm_done_fn = './2-asm-falcon/falcon_asm_done'
+    raw_reads_db_fn = './0-rawreads/raw_reads.db'
+    preads_db_fn = './1-preads_ovl/preads.db'
+
     sge_option_default = config['sge_option']
     read_to_contig_map_fn = '3-unzip/reads/get_read_ctg_map/read_to_contig_map'
     rawread_ids_fn = '3-unzip/reads/dump_rawread_ids/rawread_ids'
     pread_ids_fn = '3-unzip/reads/dump_pread_ids/pread_ids'
     # This has lots of inputs from falcon stages 0, 1, and 2.
-    create_tasks_read_to_contig_map(wf, rule_writer, rawread_ids_fn, pread_ids_fn, read_to_contig_map_fn, {})
+    create_tasks_read_to_contig_map(wf, rule_writer, falcon_asm_done_fn, raw_reads_db_fn, preads_db_fn, rawread_ids_fn, pread_ids_fn, read_to_contig_map_fn, {})
 
     ctg_list_fn = './3-unzip/reads/ctg_list'
     rawread_to_contigs_fn = './3-unzip/reads/rawread_to_contigs'
@@ -313,22 +321,61 @@ def run_workflow(wf, config, rule_writer):
         dist=Dist(local=True),
     ))
 
-    las_fofn_file = './1-preads_ovl/las-gather/las_fofn.json'
-    job_done = './3-unzip/1-hasm/hasm_done'
+    preads4falcon_fn = './1-preads_ovl/db2falcon/preads4falcon.fasta'
+    las_fofn_fn = './1-preads_ovl/las-gather/las_fofn.json'
 
+    hasm_p_ctg_fn = './3-unzip/1-hasm/p_ctg.fa'
     wf.addTask(gen_task(
             script=TASK_HASM_SCRIPT,
             inputs={
+                'preads_db': preads_db_fn,
+                'preads4falcon': preads4falcon_fn,
+                'las_fofn': las_fofn_fn,
+                'rid_to_phase_all': concatenated_rid_to_phase_fn,
+            },
+            outputs={
+                'p_ctg': hasm_p_ctg_fn,
+            },
+            parameters={},
+            rule_writer=rule_writer,
+            dist=Dist(NPROC=1,
+                sge_option=config['sge_hasm']
+            )
+    ))
+
+    htigs_done_fn = './3-unzip/2-htigs/htigs.done'
+    wf.addTask(gen_task(
+            script=TASK_GRAPH_TO_H_TIGS_SCRIPT,
+            inputs={
+                'falcon_asm_done': falcon_asm_done_fn,
+                'preads4falcon': preads4falcon_fn,
                 'rid_to_phase_all': concatenated_rid_to_phase_fn,
                 'gathered_rid_to_phase': gathered_rid_to_phase_fn,
-                'las_fofn': las_fofn_file,
+                'p_ctg': hasm_p_ctg_fn,
+            },
+            outputs={
+                'htigs_done': htigs_done_fn
+            },
+            parameters={},
+            rule_writer=rule_writer,
+            dist=Dist(NPROC=48,
+                sge_option=config['sge_hasm']
+            )
+    ))
+
+    job_done = './3-unzip/hasm_done'
+    wf.addTask(gen_task(
+            script=TASK_HASM_COLLECT_SCRIPT,
+            inputs={
+                'preads4falcon': preads4falcon_fn,
+                'htigs_done': htigs_done_fn
             },
             outputs={
                 'job_done': job_done,
             },
             parameters={},
             rule_writer=rule_writer,
-            dist=Dist(NPROC=48,
+            dist=Dist(NPROC=1,
                 sge_option=config['sge_hasm']
             )
     ))

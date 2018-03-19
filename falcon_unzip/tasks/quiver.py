@@ -118,7 +118,7 @@ def run_workflow(wf, config, rule_writer):
         script=TASK_TRACK_READS_H_SCRIPT,
         inputs={
             #'input_bam_fofn': input_bam_fofn,
-            'hasm_done': './3-unzip/1-hasm/hasm_done',
+            'hasm_done': './3-unzip/hasm_done',
         },
         outputs={
             'rawread_to_contigs': track_reads_rr2c,
