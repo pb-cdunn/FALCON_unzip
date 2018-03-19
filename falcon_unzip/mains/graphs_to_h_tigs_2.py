@@ -1021,7 +1021,8 @@ def run(args):
 
     rid2proto_dir = get_rid2proto_dir(gath_fn)
 
-    hasm_falcon_path = os.path.join(fc_hasm_path, 'asm-falcon')
+    #hasm_falcon_path = os.path.join(fc_hasm_path, 'asm-falcon')
+    hasm_falcon_path = fc_hasm_path # They run in same dir, for now.
 
     p_asm_G = AsmGraph(os.path.join(fc_asm_path, "sg_edges_list"),
                        os.path.join(fc_asm_path, "utg_data"),
