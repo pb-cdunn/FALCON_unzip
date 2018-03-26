@@ -243,11 +243,14 @@ def create_tasks_read_to_contig_map(wf, rule_writer, falcon_asm_done, raw_reads_
 
 
 def run_workflow(wf, config, rule_writer):
+    default_njobs = int(config['job.defaults']['njobs'])
+    #default_njobs = int(config['job.defaults'].get('njobs', 8))
+    #wf.max_jobs = config['job.defaults']['njobs']
+
     falcon_asm_done_fn = './2-asm-falcon/falcon_asm_done'
     raw_reads_db_fn = './0-rawreads/raw_reads.db'
     preads_db_fn = './1-preads_ovl/preads.db'
 
-    sge_option_default = config['sge_option']
     read_to_contig_map_fn = '3-unzip/reads/get_read_ctg_map/read_to_contig_map'
     rawread_ids_fn = '3-unzip/reads/dump_rawread_ids/rawread_ids'
     pread_ids_fn = '3-unzip/reads/dump_pread_ids/pread_ids'
@@ -273,9 +276,7 @@ def run_workflow(wf, config, rule_writer):
             },
             parameters={},
             rule_writer=rule_writer,
-            dist=Dist(NPROC=4,
-                sge_option=config['sge_track_reads']
-            )
+            dist=Dist(NPROC=4, job_dict=config['job.step.unzip.track_reads']),
     ))
 
     phasing_all_units_fn = './3-unzip/0-phasing/phasing-split/all-units-of-work.json'
@@ -313,9 +314,7 @@ def run_workflow(wf, config, rule_writer):
                 'results': './3-unzip/0-phasing/{ctg_id}/phasing-result-list.json',
             },
             parameters={},
-            dist=Dist(NPROC=24, # currently, we hard-code the blasr max
-                sge_option=config['sge_blasr_aln']
-            )
+            dist=Dist(NPROC=24, job_dict=config['job.step.unzip.blasr_aln']),
         ),
     )
 
@@ -349,9 +348,7 @@ def run_workflow(wf, config, rule_writer):
             },
             parameters={},
             rule_writer=rule_writer,
-            dist=Dist(NPROC=1,
-                sge_option=config['sge_hasm']
-            )
+            dist=Dist(NPROC=1, job_dict=config['job.step.unzip.hasm']),
     ))
 
     #htigs_done_fn = './3-unzip/2-htigs/htigs.done'
@@ -372,9 +369,7 @@ def run_workflow(wf, config, rule_writer):
             },
             parameters={},
             rule_writer=rule_writer,
-            dist=Dist(NPROC=1,
-                sge_option=config['sge_hasm']
-            )
+            dist=Dist(NPROC=1, job_dict=config['job.step.unzip.hasm']),
     ))
     TASK_GTOH_APPLY_UNITS_OF_WORK = """\
     python -m falcon_unzip.mains.graphs_to_h_tigs_2 apply --units-of-work-fn={input.units_of_work} --results-fn={output.results}
@@ -382,8 +377,6 @@ def run_workflow(wf, config, rule_writer):
     #--bash-template-fn= # not needed
     """
     gathered_g2h_fn = './3-unzip/2-htigs/gathered/gathered.json'
-    import falcon_kit.pype
-    print('QQQQQQQQQQQQQ', gen_parallel_tasks, falcon_kit.pype)
     gen_parallel_tasks(
         wf, rule_writer,
         g2h_all_units_fn, gathered_g2h_fn,
@@ -398,8 +391,7 @@ def run_workflow(wf, config, rule_writer):
             },
             parameters={},
         ),
-        dist=Dist(NPROC=24, # currently, we hard-code the blasr max
-            sge_option=config['sge_blasr_aln']),
+        dist=Dist(NPROC=24, job_dict=config['job.step.unzip.blasr_aln']),
         run_script=TASK_GTOH_APPLY_UNITS_OF_WORK,
     )
     #htigs_done_fn = './3-unzip/2-htigs/htigs.done'
@@ -417,11 +409,9 @@ def run_workflow(wf, config, rule_writer):
             },
             parameters={},
             rule_writer=rule_writer,
-            dist=Dist(NPROC=1,
-                sge_option=config['sge_hasm']
-            )
+            dist=Dist(NPROC=1, job_dict=config['job.step.unzip.hasm']),
     ))
-    unzip_phasing_concurrent_jobs = config['unzip_phasing_concurrent_jobs']
-    wf.max_jobs = unzip_phasing_concurrent_jobs
+    unzip_phasing_njobs = int(config['job.step.unzip.phasing'].get('njobs', default_njobs))
+    wf.max_jobs = unzip_phasing_njobs
 
     wf.refreshTargets()

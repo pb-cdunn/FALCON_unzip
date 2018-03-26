@@ -110,8 +110,8 @@ python -m falcon_unzip.mains.bam_segregate --merged-bam-fn={input.merged_bam_fn}
 
 
 def run_workflow(wf, config, rule_writer):
+    default_njobs = int(config['job.defaults']['njobs'])
     #import pdb; pdb.set_trace()
-    sge_option_default = config['sge_option']
     input_bam_fofn = os.path.relpath(config['input_bam_fofn']) # All input paths should be relative, for snakemake.
     track_reads_rr2c = './4-quiver/track-reads/rawread_to_contigs'
     wf.addTask(gen_task(
@@ -126,8 +126,8 @@ def run_workflow(wf, config, rule_writer):
         parameters={},
         rule_writer=rule_writer,
         dist=Dist(NPROC=12, # guesstimate
-            sge_option=config['sge_track_reads']
-        )
+            job_dict=config['job.step.unzip.track_reads'],
+        ),
     ))
 
     read2ctg = './4-quiver/select-reads/read2ctg.msgpack'
@@ -144,8 +144,8 @@ def run_workflow(wf, config, rule_writer):
         parameters={},
         rule_writer=rule_writer,
         dist=Dist(NPROC=4, MB=16, # actually NPROC=1, but our qsub jobs rarely report mem needs
-            sge_option=config['sge_track_reads']
-        )
+            job_dict=config['job.step.unzip.track_reads'],
+        ),
     ))
 
     #read2ctg_plf = makePypeLocalFile(read2ctg)
@@ -166,8 +166,8 @@ def run_workflow(wf, config, rule_writer):
         },
         rule_writer=rule_writer,
         dist=Dist(NPROC=4, MB=16, # actually NPROC=1, but our qsub jobs rarely report mem needs
-            sge_option=config['sge_track_reads']
-        )
+            job_dict=config['job.step.unzip.track_reads'],
+        ),
     ))
 
     segr_all_units_fn ='./4-quiver/segregate-split/all-units-of-work.json'
@@ -203,8 +203,8 @@ def run_workflow(wf, config, rule_writer):
             },
             parameters={},
             dist=Dist(NPROC=4, MB=16, # actually NPROC=1, but our qsub jobs rarely report mem needs
-                sge_option=config['sge_track_reads']
-            )
+                job_dict=config['job.step.unzip.track_reads'],
+            ),
     ))
 
     ctg2segregated_bamfn = './4-quiver/segregated-bam/ctg2segregated_bamfn.msgpack'
@@ -255,8 +255,8 @@ def run_workflow(wf, config, rule_writer):
             },
             parameters={},
             dist=Dist(NPROC=24,
-                sge_option=config['sge_quiver']
-            )
+                job_dict=config['job.step.unzip.quiver'],
+            ),
         ),
     )
     gathered_quiver = '4-quiver/cns-gather/gathered_quiver.json'
@@ -286,9 +286,7 @@ def run_workflow(wf, config, rule_writer):
             'job_done': '4-quiver/cns-output/job_done',
         },
         rule_writer=rule_writer,
-        dist=Dist(NPROC=1,
-            sge_option=sge_option_default
-        )
+        dist=Dist(NPROC=1),
     ))
 
     wf.refreshTargets()
