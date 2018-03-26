@@ -4,3 +4,4 @@ build/
 /LOCAL/
 /test-reports/
 *.xml
+.pytest_cache/

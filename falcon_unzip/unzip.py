@@ -49,6 +49,7 @@ def update_config_from_sections(config, cfg):
 
 def parse_cfg_file(config_fn):
     """Return as dict.
+    This overlooks some ad-hoc config.
     """
     # New: Parse sections (case-sensitively), into sub-dicts.
     config = dict()
@@ -58,12 +59,15 @@ def parse_cfg_file(config_fn):
     falcon_kit.run_support.update_job_defaults_section(config)
     return config
 
-def run(config_fn, logging_config_fn):
-    global LOG
-    LOG = support.setup_logger(logging_config_fn)
-
+def parse_config(config_fn):
     config = parse_cfg_file(config_fn)
 
+    # We might need these in the top-level.
+    config.setdefault('max_n_open_files',
+            config['General'].get('max_n_open_files', 300))
+    input_bam_fofn = 'input_bam.fofn'
+    config.setdefault('input_bam_fofn',
+            config['Unzip'].get('input_bam_fofn'))
     cfg_unzip = config['Unzip']
 
     def update_from_legacy(new_key, new_section, legacy_key, default=None):
@@ -75,11 +79,20 @@ def run(config_fn, logging_config_fn):
     update_from_legacy('JOB_OPTS', 'job.step.unzip.blasr_aln', 'sge_blasr_aln')
     update_from_legacy('JOB_OPTS', 'job.step.unzip.hasm', 'sge_hasm')
     update_from_legacy('JOB_OPTS', 'job.step.unzip.track_reads', 'sge_track_reads')
-    update_from_legacy('njobs', 'job.defaults', 'unzip_blasr_concurrent_jobs', default=8)
+    update_from_legacy('njobs', 'job.defaults', 'unzip_concurrent_jobs', default=8)
     update_from_legacy('njobs', 'job.step.unzip.blasr_aln', 'unzip_blasr_concurrent_jobs', default=8)
     update_from_legacy('njobs', 'job.step.unzip.phasing', 'unzip_phasing_concurrent_jobs', default=8)
+    update_from_legacy('njobs', 'job.step.unzip.quiver', 'quiver_concurrent_jobs', default=8)
 
     if 'smrt_bin' in config['Unzip']:
         LOG.error('You have set option "smrt_bin={}" in the "Unzip" section. That will be ignored. Simply add to your $PATH.'.format(config.get('Unzip', 'smrt_bin')))
+
+    return config
+
+def run(config_fn, logging_config_fn):
+    global LOG
+    LOG = support.setup_logger(logging_config_fn)
+
+    config = parse_config(config_fn)
 
     unzip_all(config)
