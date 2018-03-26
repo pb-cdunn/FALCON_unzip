@@ -11,92 +11,75 @@ import logging
 import os
 import re
 import time
-import ConfigParser
+#import ConfigParser
+import falcon_kit.run_support
 
 LOG = logging.getLogger(__name__)
 
 
 def unzip_all(config):
-    unzip_blasr_concurrent_jobs = config['unzip_blasr_concurrent_jobs']
     wf = PypeProcWatcherWorkflow(
-        max_jobs=unzip_blasr_concurrent_jobs,
-        job_type=config['job_type'],
-        job_queue=config.get('job_queue'),
-        sge_option=config.get('sge_option'),
-        watcher_type=config.get('pwatcher_type'),
-        #watcher_directory=config.get('pwatcher_directory', 'mypwatcher'),
-        use_tmpdir=config.get('use_tmpdir'),
+        job_defaults=config['job.defaults'],
     )
     with open('foo.snake', 'w') as snakemake_writer:
         rule_writer = snakemake.SnakemakeRuleWriter(snakemake_writer)
         tasks_unzip.run_workflow(wf, config, rule_writer)
 
+def update_config_from_sections(config, cfg):
+    allowed_sections = set([
+            'General',
+            'Unzip',
+            'job.step.uzip.track_reads',
+            'job.step.unzip.phasing',
+            'job.step.unzip.blasr_aln',
+            'job.step.unzip.hasm',
+            'job.defaults',
+    ])
+    all_sections = set(k for k,v in cfg.items() if isinstance(v, dict))
+    unexpected = all_sections - allowed_sections
+    if unexpected:
+        msg = 'You have {} unexpected cfg sections: {}'.format(
+            len(unexpected), unexpected)
+        raise Exception(msg)
+    config.update(cfg)
+    # Guarantee they all exist.
+    for sec in allowed_sections:
+        if sec not in config:
+            config[sec] = dict()
+
+def parse_cfg_file(config_fn):
+    """Return as dict.
+    """
+    # New: Parse sections (case-sensitively), into sub-dicts.
+    config = dict()
+    with open(config_fn) as stream:
+        cfg2 = falcon_kit.run_support.parse_cfg_with_sections(stream)
+        update_config_from_sections(config, cfg2)
+    falcon_kit.run_support.update_job_defaults_section(config)
+    return config
 
 def run(config_fn, logging_config_fn):
     global LOG
     LOG = support.setup_logger(logging_config_fn)
 
+    config = parse_cfg_file(config_fn)
 
-    config = ConfigParser.ConfigParser()
-    config.read(config_fn)
+    cfg_unzip = config['Unzip']
 
-    job_type = 'SGE'
-    if config.has_option('General', 'job_type'):
-        job_type = config.get('General', 'job_type')
+    def update_from_legacy(new_key, new_section, legacy_key, default=None):
+        config.setdefault(new_section, {})
+        if legacy_key in cfg_unzip and new_key not in config[new_section]:
+            config[new_section][new_key] = cfg_unzip[legacy_key]
+        elif default is not None:
+            config[new_section][new_key] = default
+    update_from_legacy('JOB_OPTS', 'job.step.unzip.blasr_aln', 'sge_blasr_aln')
+    update_from_legacy('JOB_OPTS', 'job.step.unzip.hasm', 'sge_hasm')
+    update_from_legacy('JOB_OPTS', 'job.step.unzip.track_reads', 'sge_track_reads')
+    update_from_legacy('njobs', 'job.defaults', 'unzip_blasr_concurrent_jobs', default=8)
+    update_from_legacy('njobs', 'job.step.unzip.blasr_aln', 'unzip_blasr_concurrent_jobs', default=8)
+    update_from_legacy('njobs', 'job.step.unzip.phasing', 'unzip_phasing_concurrent_jobs', default=8)
 
-    job_queue = 'default'
-    if config.has_option('General', 'job_queue'):
-        job_queue = config.get('General', 'job_queue')
-
-    pwatcher_type = 'fs_based'
-    if config.has_option('General', 'pwatcher_type'):
-        pwatcher_type = config.get('General', 'pwatcher_type')
-
-    sge_option = ''
-    if config.has_option('Unzip', 'sge_option'):
-        sge_option = config.get('Unzip', 'sge_option')
-
-    sge_blasr_aln = sge_option
-    if config.has_option('Unzip', 'sge_blasr_aln'):
-        sge_blasr_aln = config.get('Unzip', 'sge_blasr_aln')
-
-    # I guess phasing is combined with the blasr job now.
-    #sge_phasing = ' -pe smp 12 -q bigmem'
-    #if config.has_option('Unzip', 'sge_phasing'):
-    #    sge_phasing = config.get('Unzip', 'sge_phasing')
-
-    sge_hasm = sge_option
-    if config.has_option('Unzip', 'sge_hasm'):
-        sge_hasm = config.get('Unzip', 'sge_hasm')
-
-    sge_track_reads = sge_option
-    if config.has_option('Unzip', 'sge_track_reads'):
-        sge_track_reads = config.get('Unzip', 'sge_track_reads') # applies to select_reads task also, for now
-
-    unzip_blasr_concurrent_jobs = 8
-    if config.has_option('Unzip', 'unzip_blasr_concurrent_jobs'):
-        unzip_blasr_concurrent_jobs = config.getint('Unzip', 'unzip_blasr_concurrent_jobs')
-
-    unzip_phasing_concurrent_jobs = 8
-    if config.has_option('Unzip', 'unzip_phasing_concurrent_jobs'):
-        unzip_phasing_concurrent_jobs = config.getint('Unzip', 'unzip_phasing_concurrent_jobs')
-
-    if config.has_option('Unzip', 'smrt_bin'):
-        LOG.warning('You have set option "smrt_bin={}" in the "Unzip" section. That will be ignored. Simply and to your $PATH.'.format(config.get('Unzip', 'smrt_bin')))
-
-    config = {'job_type': job_type,
-              'job_queue': job_queue,
-              'sge_option': sge_option,
-              'sge_blasr_aln': sge_blasr_aln,
-              'sge_hasm': sge_hasm,
-              #'sge_phasing': sge_phasing,
-              'sge_track_reads': sge_track_reads,
-              'unzip_blasr_concurrent_jobs': unzip_blasr_concurrent_jobs,
-              'unzip_phasing_concurrent_jobs': unzip_phasing_concurrent_jobs,
-              'pwatcher_type': pwatcher_type,
-              }
-    io.update_env_from_config(config, config_fn)
-
-    # support.job_type = 'SGE' #tmp hack until we have a configuration parser
+    if 'smrt_bin' in config['Unzip']:
+        LOG.error('You have set option "smrt_bin={}" in the "Unzip" section. That will be ignored. Simply add to your $PATH.'.format(config.get('Unzip', 'smrt_bin')))
 
     unzip_all(config)
