@@ -1,10 +1,8 @@
 #!/usr/bin/env python
-
 from setuptools import setup, find_packages
-
 from distutils.core import Extension
-
 import glob
+import subprocess
 
 install_requires = [
         "falcon-kit",
@@ -16,8 +14,14 @@ install_requires = [
 
 #scripts = glob.glob("src/py_scripts/*.py")
 
+try:
+    local_version = '+git.{}'.format(
+        subprocess.check_output('git rev-parse HEAD', shell=True))
+except Exception:
+    local_version = ''
+
 setup(name='falcon_unzip',
-      version='1.0.0',
+      version='1.1.0' + local_version,
       description='Falcon unzip',
       author='Jason Chin',
       author_email='jchin@pacificbiosciences.com',
