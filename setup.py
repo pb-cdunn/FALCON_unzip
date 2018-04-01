@@ -7,7 +7,7 @@ import subprocess
 install_requires = [
         "falcon-kit",
         "networkx >= 1.7",
-        "pysam>=0.8.4,<=0.13",
+        "pysam>=0.8.4",
         "msgpack-python",
         "intervaltree",
 ]

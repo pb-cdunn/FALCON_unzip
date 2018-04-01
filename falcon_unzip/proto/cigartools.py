@@ -1,4 +1,3 @@
-import pysam
 import copy
 
 CIGAR_OPS = 'MIDNSHP=X'

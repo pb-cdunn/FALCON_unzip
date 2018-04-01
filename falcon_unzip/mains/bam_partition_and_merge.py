@@ -15,6 +15,8 @@ def get_bam_header(input_bam_fofn_fn):
         with AlignmentFile(fn, 'rb', check_sq=False) as samfile:
             if header is None:
                 header = samfile.header
+                if not isinstance(header, dict):
+                    header = header.to_dict() # pysam>=0.14.0
             else:
                 header['RG'].extend(samfile.header['RG'])
     try:
@@ -201,9 +203,6 @@ def write_read2ctg_subsets(read2ctg, ctg2samfn):
 
 
 def run(input_bam_fofn, read2ctg_fn, merged_fn, max_n_open_files):
-    import pysam.version, pysam
-    LOG.warning('pysam.version={} When we switch to 0.14, we will need to use "header.to_dict()"\npysam={}'.format(pysam.version.__version__, pysam))
-
     sam_dir = os.path.dirname(merged_fn)
     log('SAM files will go into {!r}'.format(sam_dir))
     mkdirs(sam_dir)
@@ -260,7 +259,7 @@ def main(argv=sys.argv):
     args = parse_args(argv)
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s %(message)s',
+        format='[%(levelname)s %(asctime)s]%(message)s',
     )
     run(**vars(args))
 
