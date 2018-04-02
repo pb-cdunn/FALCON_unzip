@@ -10,7 +10,6 @@ import falcon_unzip.proto.tiling_path as tiling_path
 import falcon_unzip.proto.sam2m4 as sam2m4
 import collections
 import copy
-import pysam
 import falcon_unzip.proto.cigartools as cigartools
 import json
 from graphs_to_h_tigs_2_utils import (
