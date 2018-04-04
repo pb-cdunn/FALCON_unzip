@@ -449,7 +449,8 @@ def run(wd, ctg_id, extracted_ctg_fasta, p_ctg, p_ctg_tiling_path, a_ctg, a_ctg_
     # the path belonging to the primary contig, and additional
     # keys corresponding th a_ctg paths.
     ###################################################
-    all_regions = delineate_regions(ctg_id, p_paths[ctg_id], a_paths, a_placement[ctg_id])
+    a_placement_for_ctg = a_placement.get(ctg_id, {})
+    all_regions = delineate_regions(ctg_id, p_paths[ctg_id], a_paths, a_placement_for_ctg)
     regions_json = os.path.join(wd, 'regions.json')
     with open(regions_json, 'w') as fp_out:
         fp_out.write(json.dumps(all_regions))
