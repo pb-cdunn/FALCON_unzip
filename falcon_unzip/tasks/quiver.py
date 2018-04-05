@@ -240,6 +240,9 @@ def run_workflow(wf, config, rule_writer):
         dist=Dist(local=True), # TODO: lots of fasta parsing, but we must not run in tmpdir
     ))
 
+    unzip_quiver_njobs = int(config['job.step.unzip.quiver'].get('njobs', default_njobs))
+    wf.max_jobs = unzip_quiver_njobs
+
     int_gathered_fn = '4-quiver/cns-gather/intermediate/int.gathered.json'
     gen_parallel_tasks(
         wf, rule_writer,

@@ -301,6 +301,9 @@ def run_workflow(wf, config, rule_writer):
 
     gathered_rid_to_phase_fn = './3-unzip/0-phasing/gathered-rid-to-phase/gathered.json'
 
+    unzip_blasr_aln_njobs = int(config['job.step.unzip.blasr_aln'].get('njobs', default_njobs))
+    wf.max_jobs = unzip_blasr_aln_njobs
+
     gen_parallel_tasks(
         wf, rule_writer,
         phasing_all_units_fn, gathered_rid_to_phase_fn,
@@ -396,6 +399,8 @@ def run_workflow(wf, config, rule_writer):
     )
     #htigs_done_fn = './3-unzip/2-htigs/htigs.done'
 
+    unzip_phasing_njobs = int(config['job.step.unzip.phasing'].get('njobs', default_njobs))
+    wf.max_jobs = unzip_phasing_njobs
 
     job_done = './3-unzip/hasm_done'
     wf.addTask(gen_task(
@@ -411,7 +416,5 @@ def run_workflow(wf, config, rule_writer):
             rule_writer=rule_writer,
             dist=Dist(NPROC=1, job_dict=config['job.step.unzip.hasm']),
     ))
-    unzip_phasing_njobs = int(config['job.step.unzip.phasing'].get('njobs', default_njobs))
-    wf.max_jobs = unzip_phasing_njobs
 
     wf.refreshTargets()
