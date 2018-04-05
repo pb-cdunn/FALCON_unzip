@@ -29,7 +29,7 @@ def update_config_from_sections(config, cfg):
     allowed_sections = set([
             'General',
             'Unzip',
-            'job.step.uzip.track_reads',
+            'job.step.unzip.track_reads',
             'job.step.unzip.phasing',
             'job.step.unzip.blasr_aln',
             'job.step.unzip.hasm',
@@ -72,20 +72,29 @@ def parse_config(config_fn):
 
     def update_from_legacy(new_key, new_section, legacy_key, default=None):
         config.setdefault(new_section, {})
-        if legacy_key in cfg_unzip and new_key not in config[new_section]:
+        if new_key in config[new_section]:
+            return
+        if legacy_key in cfg_unzip:
             config[new_section][new_key] = cfg_unzip[legacy_key]
         elif default is not None:
             config[new_section][new_key] = default
+        #else:
+        #    msg = 'Please supply "{}" in [{}]'.format(
+        #            new_key, new_section)
+        #    raise Exception(msg)
     update_from_legacy('JOB_OPTS', 'job.step.unzip.blasr_aln', 'sge_blasr_aln')
     update_from_legacy('JOB_OPTS', 'job.step.unzip.hasm', 'sge_hasm')
     update_from_legacy('JOB_OPTS', 'job.step.unzip.track_reads', 'sge_track_reads')
-    update_from_legacy('njobs', 'job.defaults', 'unzip_concurrent_jobs', default=8)
-    update_from_legacy('njobs', 'job.step.unzip.blasr_aln', 'unzip_blasr_concurrent_jobs', default=8)
-    update_from_legacy('njobs', 'job.step.unzip.phasing', 'unzip_phasing_concurrent_jobs', default=8)
-    update_from_legacy('njobs', 'job.step.unzip.quiver', 'quiver_concurrent_jobs', default=8)
+    update_from_legacy('njobs', 'job.defaults', 'unzip_concurrent_jobs')
+    update_from_legacy('njobs', 'job.step.unzip.blasr_aln', 'unzip_blasr_concurrent_jobs')
+    update_from_legacy('njobs', 'job.step.unzip.phasing', 'unzip_phasing_concurrent_jobs')
+    update_from_legacy('njobs', 'job.step.unzip.quiver', 'quiver_concurrent_jobs')
 
     if 'smrt_bin' in config['Unzip']:
         LOG.error('You have set option "smrt_bin={}" in the "Unzip" section. That will be ignored. Simply add to your $PATH.'.format(config.get('Unzip', 'smrt_bin')))
+
+    import pprint
+    LOG.info('Using config=\n{}'.format(pprint.pformat(config)))
 
     return config
 
