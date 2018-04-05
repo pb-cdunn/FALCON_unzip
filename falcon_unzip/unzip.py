@@ -29,7 +29,7 @@ def update_config_from_sections(config, cfg):
     allowed_sections = set([
             'General',
             'Unzip',
-            'job.step.uzip.track_reads',
+            'job.step.unzip.track_reads',
             'job.step.unzip.phasing',
             'job.step.unzip.blasr_aln',
             'job.step.unzip.hasm',
