@@ -93,6 +93,9 @@ def parse_config(config_fn):
     if 'smrt_bin' in config['Unzip']:
         LOG.error('You have set option "smrt_bin={}" in the "Unzip" section. That will be ignored. Simply add to your $PATH.'.format(config.get('Unzip', 'smrt_bin')))
 
+    import pprint
+    LOG.info('Using config=\n{}'.format(pprint.pformat(config)))
+
     return config
 
 def run(config_fn, logging_config_fn):
