@@ -51,6 +51,8 @@ def create_new_rid2phase(ctg_id, rid2phase, all_regions, m4, a_paths):
         type_, edge_start_id, edge_end_id, pos_start, pos_end, htigs = all_regions[region_id]
         if type_ != 'linear':
             continue
+        if pos_end <= pos_start:
+            continue # See http://bitbucket.nanofluidics.com:7990/projects/SAT/repos/falcon_unzip_private/pull-requests/62/overview
         intervals.append(intervaltree.Interval(pos_start, pos_end, region_id))
     tree = intervaltree.IntervalTree(intervals)
 
