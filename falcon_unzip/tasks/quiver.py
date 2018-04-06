@@ -127,6 +127,7 @@ def run_workflow(wf, config, rule_writer):
         rule_writer=rule_writer,
         dist=Dist(NPROC=12, # guesstimate
             job_dict=config['job.step.unzip.track_reads'],
+            use_tmpdir=False,
         ),
     ))
 
@@ -145,6 +146,7 @@ def run_workflow(wf, config, rule_writer):
         rule_writer=rule_writer,
         dist=Dist(NPROC=4, MB=16, # actually NPROC=1, but our qsub jobs rarely report mem needs
             job_dict=config['job.step.unzip.track_reads'],
+            use_tmpdir=False,
         ),
     ))
 
@@ -167,6 +169,7 @@ def run_workflow(wf, config, rule_writer):
         rule_writer=rule_writer,
         dist=Dist(NPROC=4, MB=16, # actually NPROC=1, but our qsub jobs rarely report mem needs
             job_dict=config['job.step.unzip.track_reads'],
+            use_tmpdir=False, # until we ensure the output uses non-tmpdir paths
         ),
     ))
 
@@ -205,6 +208,7 @@ def run_workflow(wf, config, rule_writer):
         ),
         dist=Dist(NPROC=4, MB=16, # actually NPROC=1, but our qsub jobs rarely report mem needs
             job_dict=config['job.step.unzip.track_reads'],
+            use_tmpdir=False,
         ),
     )
 

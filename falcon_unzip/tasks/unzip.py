@@ -276,7 +276,11 @@ def run_workflow(wf, config, rule_writer):
             },
             parameters={},
             rule_writer=rule_writer,
-            dist=Dist(NPROC=4, job_dict=config['job.step.unzip.track_reads']),
+            dist=Dist(
+                NPROC=4,
+                job_dict=config['job.step.unzip.track_reads'],
+                use_tmpdir=False,
+            ),
     ))
 
     phasing_all_units_fn = './3-unzip/0-phasing/phasing-split/all-units-of-work.json'
@@ -394,7 +398,11 @@ def run_workflow(wf, config, rule_writer):
             },
             parameters={},
         ),
-        dist=Dist(NPROC=24, job_dict=config['job.step.unzip.blasr_aln']),
+        dist=Dist(
+            NPROC=24,
+            job_dict=config['job.step.unzip.blasr_aln'],
+            use_tmpdir=False,
+        ),
         run_script=TASK_GTOH_APPLY_UNITS_OF_WORK,
     )
     #htigs_done_fn = './3-unzip/2-htigs/htigs.done'
@@ -414,7 +422,11 @@ def run_workflow(wf, config, rule_writer):
             },
             parameters={},
             rule_writer=rule_writer,
-            dist=Dist(NPROC=1, job_dict=config['job.step.unzip.hasm']),
+            dist=Dist(
+                NPROC=1,
+                job_dict=config['job.step.unzip.hasm'],
+                use_tmpdir=False,
+            ),
     ))
 
     wf.refreshTargets()
