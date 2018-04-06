@@ -51,6 +51,8 @@ def create_new_rid2phase(ctg_id, rid2phase, all_regions, m4, a_paths):
         type_, edge_start_id, edge_end_id, pos_start, pos_end, htigs = all_regions[region_id]
         if type_ != 'linear':
             continue
+        if pos_end <= pos_start:
+            continue # See http://bitbucket.nanofluidics.com:7990/projects/SAT/repos/falcon_unzip_private/pull-requests/62/overview
         intervals.append(intervaltree.Interval(pos_start, pos_end, region_id))
     tree = intervaltree.IntervalTree(intervals)
 
@@ -77,7 +79,12 @@ def create_new_rid2phase(ctg_id, rid2phase, all_regions, m4, a_paths):
     for aln in m4:
         rid, r_ctg_id, reference_start, reference_end = aln[0], aln[1], aln[9], aln[10]
 
+        # If there is no phasing info, treat it like unphased.
+        if rid not in rid2phase:
+            continue
+
         r_ctg_id, phase_block_id, phase_id = rid2phase[rid]
+
         if phase_block_id == '-1':
             continue
 
@@ -138,9 +145,8 @@ def create_new_rid2phase(ctg_id, rid2phase, all_regions, m4, a_paths):
                 edge = htig_path[edge_id]
                 v, w = edge[1], edge[2]
                 vrid = v.split(':')[0]
-                wrid = w.split(':')[0]
-                vphase = rid2phase[vrid]
-                wphase = rid2phase[wrid]
+                # If there is no phasing info, treat it like unphased.
+                vphase = rid2phase.get(vrid, (ctg_id, '-1', '0'))
                 if vphase[1] == '-1':
                     continue
                 vphase = (vphase[0], vphase[1], int(vphase[2]))
@@ -159,9 +165,8 @@ def create_new_rid2phase(ctg_id, rid2phase, all_regions, m4, a_paths):
                 edge = htig_path[edge_id]
                 v, w = edge[1], edge[2]
                 vrid = v.split(':')[0]
-                wrid = w.split(':')[0]
-                vphase = rid2phase[vrid]
-                wphase = rid2phase[wrid]
+                # If there is no phasing info, treat it like unphased.
+                vphase = rid2phase.get(vrid, (ctg_id, '-1', '0'))
                 vphase_str = '_'.join([str(val) for val in vphase])
 
                 # Add the phases as nodes in the graph, and add edges.
