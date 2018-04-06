@@ -202,10 +202,11 @@ def run_workflow(wf, config, rule_writer):
                 'results': './4-quiver/segregate-run/{segr}/segregated-bam-fn-list.json',
             },
             parameters={},
-            dist=Dist(NPROC=4, MB=16, # actually NPROC=1, but our qsub jobs rarely report mem needs
-                job_dict=config['job.step.unzip.track_reads'],
-            ),
-    ))
+        ),
+        dist=Dist(NPROC=4, MB=16, # actually NPROC=1, but our qsub jobs rarely report mem needs
+            job_dict=config['job.step.unzip.track_reads'],
+        ),
+    )
 
     ctg2segregated_bamfn = './4-quiver/segregated-bam/ctg2segregated_bamfn.msgpack'
     # This is a separate task, consuming the output of the implicit gatherer.
@@ -257,9 +258,9 @@ def run_workflow(wf, config, rule_writer):
                 'results': './4-quiver/quiver-run/{ctg_id}/results.json',
             },
             parameters={},
-            dist=Dist(NPROC=24,
-                job_dict=config['job.step.unzip.quiver'],
-            ),
+        ),
+        dist=Dist(NPROC=24,
+            job_dict=config['job.step.unzip.quiver'],
         ),
     )
     gathered_quiver = '4-quiver/cns-gather/gathered_quiver.json'
