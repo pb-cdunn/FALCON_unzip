@@ -317,8 +317,8 @@ def run_workflow(wf, config, rule_writer):
                 'results': './3-unzip/0-phasing/{ctg_id}/phasing-result-list.json',
             },
             parameters={},
-            dist=Dist(NPROC=24, job_dict=config['job.step.unzip.blasr_aln']),
         ),
+        dist=Dist(NPROC=24, job_dict=config['job.step.unzip.blasr_aln']),
     )
 
     concatenated_rid_to_phase_fn = './3-unzip/1-hasm/concatenated-rid-to-phase/rid_to_phase.all'
