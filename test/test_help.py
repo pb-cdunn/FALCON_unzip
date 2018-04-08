@@ -15,7 +15,6 @@ import pytest
     'rr_hctg_track',
     'start_quiver',
     'start_unzip',
-    'unzip_gen_gfa_v1',
 
     # These are not actually used, but we can still check them.
     'get_ctg2bam_map',
