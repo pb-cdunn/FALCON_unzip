@@ -410,6 +410,8 @@ def reorient_haplotigs(snp_haplotigs, aln_dict, sg_edges, fp_proto_log):
     """
     fp_proto_log('Reorienting haplotigs.')
     for qname, haplotig in snp_haplotigs.iteritems():
+        if qname not in aln_dict:
+            continue
         aln = aln_dict[qname]
         qstrand, qstart, qend, qlen = aln[4:8]
         tstrand, tstart, tend, tlen = aln[8:12]
@@ -452,6 +454,8 @@ def collect_clippoints(all_regions, snp_haplotigs, aln_dict, fp_proto_log):
     bubble_tree = intervaltree.IntervalTree(bubble_intervals)
 
     for qname, haplotig in snp_haplotigs.iteritems():
+        if qname not in aln_dict:
+            continue
         aln = aln_dict[qname]
         qstrand, qstart, qend, qlen = aln[4:8]
         tstrand, tstart, tend, tlen = aln[8:12]
@@ -464,6 +468,8 @@ def fragment_haplotigs(in_haplotigs, aln_dict, clippoints, bubble_tree, fp_proto
     filtered_haplotigs = {}
 
     for qname, haplotig in in_haplotigs.iteritems():
+        if qname not in aln_dict:
+            continue
         aln = aln_dict[qname]
         new_haplotigs = fragment_single_haplotig(haplotig, aln, clippoints, bubble_tree, fp_proto_log)
         filtered_haplotigs.update(new_haplotigs)
