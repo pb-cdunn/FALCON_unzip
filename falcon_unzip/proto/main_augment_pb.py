@@ -117,11 +117,35 @@ def create_new_rid2phase(ctg_id, rid2phase, all_regions, m4, a_paths):
     # Each SV bubble with 2 phases is already phased.
     # Assign new phase to each branch, and add the relations
     # to the alias graph.
+    def get_v_phase(edge):
+        v, w = edge[1], edge[2]
+        vrid = v.split(':')[0]
+        # If there is no phasing info, treat it like unphased.
+        vphase = rid2phase.get(vrid, (ctg_id, '-1', '0'))
+        vphase = (vphase[0], vphase[1], int(vphase[2]))
+        return vphase
+
     new_htig_to_phase = {}
     for region_id in xrange(len(all_regions)):
         type_, edge_start_id, edge_end_id, pos_start, pos_end, htigs = all_regions[region_id]
         if type_ != 'simple':
             continue
+
+        # For each branch of the simple bubble, collect all phases and create
+        # a lookup of haplotigs they are related to. If each phase is related to
+        # more than 1 haplotig, then there was a problem in the phasing process,
+        # and we need to handle this special case.
+        phase_to_htig = {}
+        for htig_name, htig in htigs.iteritems():
+            htig_path = htig['path']
+            for edge_id in xrange(1, len(htig_path)):
+                edge = htig_path[edge_id]
+                vphase = get_v_phase(edge)
+                if vphase[1] == '-1':
+                    continue
+                phase_to_htig.setdefault(vphase, set())
+                phase_to_htig[vphase].add(htig_name)
+
         for htig_name, htig in htigs.iteritems():
             htig_path = htig['path']
             htig_phase = htig['phase']
@@ -141,19 +165,26 @@ def create_new_rid2phase(ctg_id, rid2phase, all_regions, m4, a_paths):
             # First, check that the phasing of the bubble was sane.
             branch_phases = set()
             is_sane = True
-            for edge_id in xrange(1, len(htig_path)):
+            for edge_id in xrange(1, len(htig_path)):   # Only `v` of each edge is used, so the last `w` is skipped.
                 edge = htig_path[edge_id]
-                v, w = edge[1], edge[2]
-                vrid = v.split(':')[0]
-                # If there is no phasing info, treat it like unphased.
-                vphase = rid2phase.get(vrid, (ctg_id, '-1', '0'))
+                vphase = get_v_phase(edge)
                 if vphase[1] == '-1':
                     continue
-                vphase = (vphase[0], vphase[1], int(vphase[2]))
                 other_vphase = (vphase[0], vphase[1], 1 - int(vphase[2]))   # Diploid
+                # Check if the other phase is present in the same branch.
                 if other_vphase in branch_phases:
                     is_sane = False
                     break
+                # Check that the same phase is not present in more than 1 branch.
+                # This would mean that the phasing process created phased reads
+                # of the same phase but in different branches of the SV bubbles,
+                # which should not be possible.
+                # But if this case would happen (and it happens in practice),
+                # the phase relation graph would become fused.
+                if vphase not in phase_to_htig or len(phase_to_htig[vphase]) != 1:
+                    is_sane = False
+                    break
+
                 branch_phases.add(vphase)
 
             # Don't add aliases for insanely phased bubbles.
@@ -163,17 +194,14 @@ def create_new_rid2phase(ctg_id, rid2phase, all_regions, m4, a_paths):
             for edge_id in xrange(1, len(htig_path)):
             # for edge in htig_path:
                 edge = htig_path[edge_id]
-                v, w = edge[1], edge[2]
-                vrid = v.split(':')[0]
-                # If there is no phasing info, treat it like unphased.
-                vphase = rid2phase.get(vrid, (ctg_id, '-1', '0'))
+                vphase = get_v_phase(edge)
+                if vphase[1] == '-1':
+                    continue
                 vphase_str = '_'.join([str(val) for val in vphase])
-
                 # Add the phases as nodes in the graph, and add edges.
-                if vphase[1] != '-1':
-                    phase_relation_graph.add_node(vphase_str)
-                    phase_relation_graph.add_edge(htig_phase_str, vphase_str)
-                    phase_relation_graph.add_edge(vphase_str, htig_phase_str)
+                phase_relation_graph.add_node(vphase_str)
+                phase_relation_graph.add_edge(htig_phase_str, vphase_str)
+                phase_relation_graph.add_edge(vphase_str, htig_phase_str)
 
     return new_rid2phase, phase_relation_graph, new_htig_to_phase
 
