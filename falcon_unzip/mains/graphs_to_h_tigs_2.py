@@ -95,6 +95,8 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger):
 
     # min_linear_len = 8
 
+    fp_proto_log('Started processing contig: %s.' % (ctg_id))
+
     #########################################################
     # Load and prepare data.
     #########################################################
@@ -271,7 +273,7 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger):
     logger.debug('')
     #########################################################
 
-    fp_proto_log('Finished.')
+    fp_proto_log('Finished processing contig: %s.' % (ctg_id))
 
 def load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase, preads):
     """
@@ -491,6 +493,8 @@ def fragment_single_haplotig(haplotig, aln, clippoints, bubble_tree, fp_proto_lo
     aln_array = cigartools.cigar_to_aln_array(sam.cigar)
     positions = cigartools.find_positions(aln_array, t_start)
 
+    # For each aligned position, check if it's in the clippoints.
+    # If it is, store the position in a new set.
     pos_set = set()
     for t_pos, q_pos_array in positions.iteritems():
         if t_pos not in clippoints:
@@ -1025,6 +1029,8 @@ def define_globals(args):
     base_dir = args.base_dir
     fasta_fn = args.fasta
 
+    LOG.info('Loading assembly graphs.')
+
     #hasm_falcon_path = os.path.join(fc_hasm_path, 'asm-falcon')
     hasm_falcon_path = fc_hasm_path # They run in same dir, for now.
 
@@ -1039,6 +1045,9 @@ def define_globals(args):
         os.path.join(fc_asm_path, "utg_data"),
         os.path.join(fc_asm_path, "ctg_paths"),
     )
+
+    LOG.info('Loading phasing info and making the read ID sets.')
+
     all_rid_to_phase = {}
     all_flat_rid_to_phase = {}
     all_read_ids = set()
@@ -1068,44 +1077,49 @@ def define_globals(args):
         all_read_ids.add(w)
 
     # Load the preads.
+    LOG.info('Loading preads.')
     seqs = load_sg_seq(all_read_ids, fasta_fn)
+    LOG.info('Done loading preads.')
 
     # Load the primary contig sequences.
+    LOG.info('Loading the 2-asm-falcon primary contigs.')
     p_ctg_seqs = load_all_seq(os.path.join(fc_asm_path, "p_ctg.fa"))
+    LOG.info('Done loading 2-asm-falcon primary contigs.')
 
+    LOG.info('Loading tiling paths.')
     # Hash the lengths of the primary contig sequences.
     # Needed to correctly assign node coords when loading tiling paths
     p_ctg_seq_lens = {}
     for p_ctg_id, ctg_seq in p_ctg_seqs.iteritems():
         p_ctg_seq_lens[p_ctg_id] = len(ctg_seq)
-
     # Load the tiling path of the primary contig, and assign coordinants to nodes.
     p_ctg_tiling_paths = tiling_path.load_tiling_paths(os.path.join(fc_asm_path, "p_ctg_tiling_path"), None, p_ctg_seq_lens)
+    LOG.info('Done loading tiling paths.')
 
     # Load the haplotig sequences (assembled with falcon_kit.mains.graph_to_contig).
+    LOG.info('Loading the 1-hasm haplotigs.')
     all_haplotigs_for_ctg, htig_name_to_original_pctg = load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase, seqs)
+    LOG.info('Done loading haplotigs.')
     # all_asm_haplotig_seqs = load_all_seq(hasm_falcon_path)
 
-    LOG.info('Loaded haplotigs.')
-
     # Load all sg_edges_list so that haplotig paths can be reversed if needed.
+    LOG.info('Loading sg_edges_list.')
     sg_edges = {}
     with open(os.path.join(fc_hasm_path, "sg_edges_list"), 'r') as fp:
         for line in fp:
             sl = line.strip().split()
             sg_edges[(sl[0], sl[1])] = sl
-
-    LOG.info('Loaded sg_edges_list.')
+    LOG.info('Done loading sg_edges_list.')
 
     # Hash the lengths of the preads.
+    LOG.info('Hashing lengths of preads.')
     seq_lens = {}
     for key, val in seqs.iteritems():
         l = len(val)
         seq_lens[key] = l
         seq_lens[key + ':B'] = l
         seq_lens[key + ':E'] = l
-
-    LOG.info('Loaded seq lens.')
+    LOG.info('Done hashing lengths of preads.')
 
 def cmd_apply(args):
     units_of_work_fn = args.units_of_work_fn
@@ -1361,7 +1375,7 @@ def main(argv=sys.argv):
     # (However, the main-thread logger does not currently propagate recs here.)
     hdlr = logging.StreamHandler(sys.stderr)
     hdlr.setLevel(logging.WARNING - 1) # We want records from execute_command() too.
-    hdlr.setFormatter(logging.Formatter('[Proto] %(levelname)s:%(name)s:%(message)s'))
+    hdlr.setFormatter(logging.Formatter('[Proto %(asctime)s] %(levelname)s:%(name)s:%(message)s', '%Y-%m-%d %H:%M:%S'))
     LOG.addHandler(hdlr)
     LOG.setLevel(logging.NOTSET) # Important, as other NOTSET loggers inherit this level.
 
@@ -1373,7 +1387,7 @@ def main(argv=sys.argv):
     #hdlr = logging.FileHandler('graphs_to_h_tigs_2.log', 'w')
     hdlr = logging.StreamHandler(sys.stderr)
     hdlr.setLevel(logging.INFO)
-    hdlr.setFormatter(logging.Formatter('[Proto] %(levelname)s:%(message)s'))
+    hdlr.setFormatter(logging.Formatter('[Proto %(asctime)s] %(levelname)s:%(message)s', '%Y-%m-%d %H:%M:%S'))
     LOG.addHandler(hdlr)
     LOG.propagate = False
 
