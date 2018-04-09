@@ -327,7 +327,8 @@ def delineate_regions(ctg_id, p_path, a_paths, a_placement):
 
                 new_region = (path_type, linear_start, linear_end, pos_start, pos_end, linear_paths)
 
-                all_regions.append(new_region)
+                if pos_end > pos_start: # Avoid zero-length regions.
+                    all_regions.append(new_region)
 
                 # Change the state.
                 num_open_branches += len(out_edges[w])
@@ -353,8 +354,10 @@ def delineate_regions(ctg_id, p_path, a_paths, a_placement):
                     path_type = 'simple'
                     new_region = construct_new_bubble_region(ctg_id, path_type, len(all_regions), p_path, a_paths, bubble_start, bubble_end, bubble_branches)
 
-                    # bubbles.append(new_region)
-                    all_regions.append(new_region)
+                    _, _, _, pos_start, pos_end, _ = new_region
+                    if pos_end > pos_start: # Avoid zero-length regions.
+                        all_regions.append(new_region)
+
                     bubble_branches = set()
                     next_state = STATE_LINEAR
 
@@ -388,8 +391,10 @@ def delineate_regions(ctg_id, p_path, a_paths, a_placement):
                     path_type = 'complex'
                     new_region = construct_new_bubble_region(ctg_id, path_type, len(all_regions), p_path, a_paths, bubble_start, bubble_end, bubble_branches)
 
-                    # bubbles.append(new_region)
-                    all_regions.append(new_region)
+                    _, _, _, pos_start, pos_end, _ = new_region
+                    if pos_end > pos_start: # Avoid zero-length regions.
+                        all_regions.append(new_region)
+
                     bubble_branches = set()
                     next_state = STATE_LINEAR
 
@@ -405,7 +410,9 @@ def delineate_regions(ctg_id, p_path, a_paths, a_placement):
         path_type = 'simple' if (current_state == STATE_SIMPLE_BUBBLE) else 'complex'
         new_region = construct_new_bubble_region(ctg_id, path_type, len(all_regions), p_path, a_paths, bubble_start, bubble_end, bubble_branches)
 
-        all_regions.append(new_region)
+        _, _, _, pos_start, pos_end, _ = new_region
+        if pos_end > pos_start: # Avoid zero-length regions.
+            all_regions.append(new_region)
 
     else:
         path_type = 'linear'
@@ -425,7 +432,10 @@ def delineate_regions(ctg_id, p_path, a_paths, a_placement):
         linear_paths = {path_base_name: path_htig.__dict__}
 
         new_region = (path_type, linear_start, linear_end, pos_start, pos_end, linear_paths)
-        all_regions.append(new_region)
+
+        _, _, _, pos_start, pos_end, _ = new_region
+        if pos_end > pos_start: # Avoid zero-length regions.
+            all_regions.append(new_region)
 
     return all_regions
 
