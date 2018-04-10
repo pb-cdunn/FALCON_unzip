@@ -738,12 +738,13 @@ def regions_to_haplotig_graph(ctg_id, all_regions, phase_alias_map, fp_proto_log
     for region_id in xrange(len(all_regions)):
         region = all_regions[region_id]
         region_type, edge_start, edge_end, region_pos_start, region_pos_end, region_haplotigs = region
-        if region_type == 'complex':
-            # Complex regions are sketchy, better just break the graph here.
-            continue
         fp_proto_log('    - region_id = {}, region_type = {}, region_pos_start = {}, region_pos_end = {}'.format(region_id, region_type, region_pos_start, region_pos_end))
         for key, htig in region_haplotigs.iteritems():
-            fp_proto_log('      - key = {}'.format(key))
+            if region_type == 'complex' and key.endswith('_base') == False:
+                # Keep the complex regions as collapsed.
+                fp_proto_log('      - [haplotig graph, adding node] key = {} skipped because region_type == "{}" and key does not end in "_base"'.format(key, region_type))
+                continue
+            fp_proto_log('      - [haplotig graph, adding node] key = {}'.format(key))
             v = htig['name']
             vphase = htig['phase']
             vphase_alias = phase_alias_map.get(vphase, -1)
@@ -759,13 +760,23 @@ def regions_to_haplotig_graph(ctg_id, all_regions, phase_alias_map, fp_proto_log
         region_type, edge_start, edge_end, region_pos_start, region_pos_end, region_haplotigs = region
         next_region = all_regions[region_id]
         next_region_type, next_edge_start, next_edge_end, next_region_pos_start, next_region_pos_end, next_region_haplotigs = next_region
-        if region_type == 'complex' or next_region_type == 'complex':
-            # Complex regions are sketchy, better just break the graph here.
-            continue
         for htig_name, htig in region_haplotigs.iteritems():
             v = htig_name
+
+            if region_type == 'complex' and v.endswith('_base') == False:
+                # Keep the complex regions as collapsed.
+                fp_proto_log('      - [haplotig graph, adding edge] v = {} skipped because region_type == "{}" and key does not end in "_base"'.format(v, region_type))
+                continue
+
             for next_htig_name, next_htig in next_region_haplotigs.iteritems():
                 w = next_htig_name
+
+                if next_region_type == 'complex' and w.endswith('_base') == False:
+                    # Keep the complex regions as collapsed.
+                    fp_proto_log('      - [haplotig graph, adding edge] w = {} skipped because next_region_type == "{}" and key does not end in "_base"'.format(w, next_region_type))
+                    continue
+
+                fp_proto_log('      - [haplotig graph, adding edge] v = {}, w = {}'.format(v, w))
                 haplotig_graph.add_edge(v, w, weight=10000)
 
     return haplotig_graph
