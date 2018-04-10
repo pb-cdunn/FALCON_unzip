@@ -10,7 +10,6 @@ def mkdir(d):
     if not os.path.isdir(d):
         os.makedirs(d)
 
-
 def reverse_end(node_id):
     node_id, end = node_id.split(":")
     new_end = "B" if end == "E" else "E"
