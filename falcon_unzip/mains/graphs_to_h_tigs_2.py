@@ -1256,9 +1256,6 @@ def cmd_combine(args):
     combined = collections.defaultdict(list)
     for result in results:
         h_ctg_fn = result['h_ctg']
-        if not io.exists_and_not_empty(h_ctg_fn):
-            LOG.warning('Skipping missing or empty {!r}'.format(h_ctg_fn))
-            continue
         run_dir = os.path.normpath(os.path.dirname(h_ctg_fn))
         ctg_id = result['ctg_id']
         combined['h_ctg'].append(h_ctg_fn)
