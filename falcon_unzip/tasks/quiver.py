@@ -112,7 +112,7 @@ python -m falcon_unzip.mains.bam_segregate --merged-bam-fn={input.merged_bam_fn}
 def run_workflow(wf, config, rule_writer):
     default_njobs = int(config['job.defaults']['njobs'])
     #import pdb; pdb.set_trace()
-    input_bam_fofn = os.path.relpath(config['input_bam_fofn']) # All input paths should be relative, for snakemake.
+    input_bam_fofn = os.path.relpath(config['Unzip']['input_bam_fofn']) # All input paths should be relative, for snakemake.
     track_reads_rr2c = './4-quiver/track-reads/rawread_to_contigs'
     wf.addTask(gen_task(
         script=TASK_TRACK_READS_H_SCRIPT,

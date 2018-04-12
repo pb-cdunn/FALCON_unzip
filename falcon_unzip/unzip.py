@@ -65,11 +65,10 @@ def parse_config(config_fn):
     # We might need these in the top-level.
     config.setdefault('max_n_open_files',
             config['General'].get('max_n_open_files', 300))
-    input_bam_fofn = 'input_bam.fofn'
-    config.setdefault('input_bam_fofn',
-            config['Unzip'].get('input_bam_fofn'))
-    cfg_unzip = config['Unzip']
 
+    assert 'input_bam_fofn' in config['Unzip']
+
+    cfg_unzip = config['Unzip']
     def update_from_legacy(new_key, new_section, legacy_key, default=None):
         config.setdefault(new_section, {})
         if new_key in config[new_section]:
