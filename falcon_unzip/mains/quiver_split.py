@@ -64,6 +64,7 @@ def run(p_ctg_fasta_fn, h_ctg_fasta_fn, ctg2bamfn_fn, split_fn, bash_template_fn
         #wd = os.path.join(os.getcwd(), '..', 'quiver_run', ctg_id)
         cns_fasta = 'cns.fasta.gz'
         cns_fastq = 'cns.fastq.gz'
+        cns_vcf = 'cns.vcf'
         job_done = 'quiver_done'
         out_ctg_type_fn = 'ctg_type'
         new_job = {}
@@ -79,6 +80,7 @@ def run(p_ctg_fasta_fn, h_ctg_fasta_fn, ctg2bamfn_fn, split_fn, bash_template_fn
         new_job['output'] = dict(
                 cns_fasta=cns_fasta,
                 cns_fastq=cns_fastq,
+                cns_vcf=cns_vcf,
                 job_done=job_done,
                 ctg_type_again=out_ctg_type_fn,
         )
