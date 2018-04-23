@@ -12,7 +12,7 @@ import collections
 import copy
 import falcon_unzip.proto.cigartools as cigartools
 import json
-from graphs_to_h_tigs_2_utils import (
+from falcon_unzip.proto.graphs_to_h_tigs_2_utils import (
         mkdir,
         extract_unphased_haplotig_paths,
         extract_weakly_unphased_haplotig_paths,
