@@ -892,9 +892,7 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, all_haplotig_dict, phase_a
             for edge in tp:
                 # Example tiling path line from 2-asm-falcon:
                 #   ["000000F", "000000040:E", "000000217:E", "000000217", "14608", "33796", "14608", "99.86"]
-                # Example path line from 3-unzip/1-hasm/000000F:
-                #   000000F 002560539:B 002559985:B 002559985 12404 0 8446 97.93 1 0
-                edge_ctg_id, edge_v, edge_w, edge_wid, edge_b, edge_e, edge_score, edge_idt = edge[0:8]
+                edge_ctg_id, edge_v, edge_w, edge_wid, edge_b, edge_e, edge_score, edge_idt = edge
 
                 # Compose the path line.
                 new_path_line = [new_ctg_id, edge_v, edge_w, edge_wid, edge_b, edge_e, edge_score, edge_idt, phase[1], phase[2]]
