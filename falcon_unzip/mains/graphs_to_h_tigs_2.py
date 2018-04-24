@@ -1022,9 +1022,15 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, all_haplotig_dict, phase_a
 
                 # Actually delete the edges and nodes.
                 for v, w in edges_to_remove:
-                    sub_hg2.remove_edge(v, w)
+                    try:
+                        sub_hg2.remove_edge(v, w)
+                    except:
+                        pass
                 for v in node_path:
-                    sub_hg2.remove_node(v)
+                    try:
+                        sub_hg2.remove_node(v)
+                    except:
+                        pass
 
                 # Loop through all associate haplotigs.
                 num_hctg = 0
