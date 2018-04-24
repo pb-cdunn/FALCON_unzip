@@ -24,16 +24,21 @@ touch {output.job_done}
 # This will run in 3-unzip/0-phasing/(ctg_id)/
 TASK_PHASING_RUN_SCRIPT = """\
 
-# BLASR
-ctg_aln_out='blasr/{params.ctg_id}_sorted.bam'
-mkdir -p blasr
-time blasr {input.read_fasta} {input.ref_fasta} --noSplitSubreads --clipping subread\
- --hitPolicy randombest --randomSeed 42 --bestn 1 --minPctIdentity 70.0\
- --minMatch 12  --nproc 24 --bam --out tmp_aln.bam
-#samtools view -bS tmp_aln.sam | samtools sort - {params.ctg_id}_sorted
+threads_aln=24
+
+# Alignment.
+aln_dir=alignment
+ctg_aln_out=${{aln_dir}}/'{params.ctg_id}_sorted.bam'
+mkdir -p ${{aln_dir}}
+time minimap2 -a -x map-pb -t ${{threads_aln}} {input.ref_fasta} {input.read_fasta} > tmp_aln.sam
+
+# Remove the secondary (0x100) and supplementary (0x800) alignments.
+time samtools view -bS -F 0x900 tmp_aln.sam > tmp_aln.bam
+
 samtools sort tmp_aln.bam -o ${{ctg_aln_out}}
 samtools index ${{ctg_aln_out}}
 rm tmp_aln.bam
+rm tmp_aln.sam
 
 bam_fn=${{ctg_aln_out}}
 fasta_fn={input.ref_fasta}
@@ -77,7 +82,7 @@ python -m falcon_unzip.proto.extract_phased_preads \
     --out proto/preads.fasta
 
 ln -sf {input.ref_fasta} proto/ref.fa
-minimap2 -a -x map-pb proto/ref.fa proto/preads.fasta > proto/preads.sam
+time minimap2 -a -x map-pb -t ${{threads_aln}} proto/ref.fa proto/preads.fasta > proto/preads.sam
 
 python -m falcon_unzip.proto.main_augment_pb \
     --wd ./proto/ \
