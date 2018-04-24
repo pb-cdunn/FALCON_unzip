@@ -1003,15 +1003,15 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, all_haplotig_dict, phase_a
                 ##################################
                 fp_proto_log('Extracting the associate haplotigs for p_ctg_id = {}'.format(p_ctg_id))
 
-                # Remove the primary path from the graph.
+                # Make a copy where we'll delete stuff.
                 sub_hg2 = sub_hg.copy()
-                for v, w in zip(node_path[:-1], node_path[1:]):
-                    sub_hg2.remove_edge(v, w)
-                for v in node_path:
-                    sub_hg2.remove_node(v)
-
-                # Remove any ambiguous edges.
                 edges_to_remove = set()
+
+                # Mark the primary path for deletion.
+                for v, w in zip(node_path[:-1], node_path[1:]):
+                    edges_to_remove.add((v, w))
+
+                # Mark any ambiguous edges for deletion.
                 for v in sub_hg2.nodes():
                     in_edges = set(sub_hg2.in_edges(v))
                     if len(in_edges) > 1:
@@ -1019,8 +1019,12 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, all_haplotig_dict, phase_a
                     out_edges = set(sub_hg2.out_edges(v))
                     if len(out_edges) > 1:
                         edges_to_remove.update(out_edges)
+
+                # Actually delete the edges and nodes.
                 for v, w in edges_to_remove:
                     sub_hg2.remove_edge(v, w)
+                for v in node_path:
+                    sub_hg2.remove_node(v)
 
                 # Loop through all associate haplotigs.
                 num_hctg = 0
