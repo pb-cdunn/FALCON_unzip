@@ -1,4 +1,7 @@
-from ..io import (serialize, deserialize, yield_bam_fn, log, AlignmentFile, mkdirs)
+from ..io import (
+        serialize, deserialize, yield_bam_fn, log, mkdirs,
+        AlignmentFile, AlignmentHeader,
+)
 import collections
 import copy
 import heapq
@@ -132,11 +135,15 @@ def merge_and_split_alignments(input_bam_fofn_fn, read2ctg, ctg2samfn, samfn2wri
 
 
 def open_sam_writers(header, sam_fns):
+    """
+    header: dict
+    sam_fns: list of filenames
+    """
     samfn2writer = dict()
     n = 0
     n_next = 1
     for samfn in sam_fns:
-        writer = AlignmentFile(samfn, 'wb', header=header)
+        writer = AlignmentFile(samfn, 'wb', header=AlignmentHeader.from_dict(header))
         samfn2writer[samfn] = writer
 
         # log-logging
