@@ -10,9 +10,9 @@ import re
 
 def fetch_ref_and_reads(
         fofn, ctg_id, min_ctg_lenth,
-        base_dir, ctg_list_fn,
+        base_dir, p_ctg_fn, ctg_list_fn,
         ):
-    ctg_fa = os.path.join(base_dir, '2-asm-falcon', 'p_ctg.fa')
+    ctg_fa = p_ctg_fn
 
     out_dir = '.'
     read_map_dir = '.'
@@ -134,6 +134,9 @@ def parse_args(argv):
     parser.add_argument(
         '--base-dir', type=str, default='../..',
         help='the base working dir of a falcon assembly')
+    parser.add_argument(
+        '--p-ctg-fn', type=str, default='{base_dir}/2-asm-falcon/p_ctg.fa',
+        help='Primary contigs of falcon assembly. (FASTA)')
     parser.add_argument(
         '--fofn', type=str, default='../../input.fofn',
         help='path to the file of the list of raw read fasta files')

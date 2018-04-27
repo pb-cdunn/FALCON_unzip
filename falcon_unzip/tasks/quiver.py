@@ -14,10 +14,9 @@ LOG = logging.getLogger(__name__)
 
 # For now, in/outputs are in various directories, by convention, including '0-rawreads/m_*/*.msgpack'
 TASK_TRACK_READS_H_SCRIPT = """\
-python -m falcon_unzip.mains.get_read_hctg_map --base-dir={params.topdir} --output=read_to_contig_map
-# formerly generated ./4-quiver/read_maps/read_to_contig_map
+python -m falcon_unzip.mains.get_read_hctg_map --base-dir={params.topdir} --output=./read_to_contig_map
 
-fc_rr_hctg_track.py --base-dir={params.topdir} --stream --read-to-contig-map=read_to_contig_map
+fc_rr_hctg_track.py --stream  --db={input.r_db} --las-fofn={input.r_las_fofn} --phased-reads={input.all_phased_reads} --rawread-ids={input.rawread_ids} --read-to-contig-map=./read_to_contig_map
 # That writes into 0-rawreads/m_*/
 # n_core is actually limited by number of files, but in theory we could use whole machine,
 # Note: We also use a proc for LA4Falcon, so this is half.
@@ -114,11 +113,23 @@ def run_workflow(wf, config, rule_writer):
     default_njobs = int(config['job.defaults']['njobs'])
     #import pdb; pdb.set_trace()
     input_bam_fofn = os.path.relpath(config['Unzip']['input_bam_fofn']) # All input paths should be relative, for snakemake.
+    rawreads_db_fn = './0-rawreads/build/raw_reads.db'
+    #preads_db_fn = './1-preads_ovl/build/preads.db'
+    r_las_fofn_fn = './0-rawreads/las-merge-combine/las_fofn.json'
+    #p_las_fofn_fn = './1-preads_ovl/las-merge-combine/las_fofn.json'
+    all_phased_reads_fn = './3-unzip/all_phased_reads'
+    rawread_ids_fn = './3-unzip/reads/dump_rawread_ids/rawread_ids'
+
     track_reads_rr2c = './4-quiver/track-reads/rawread_to_contigs'
+
     wf.addTask(gen_task(
         script=TASK_TRACK_READS_H_SCRIPT,
         inputs={
             #'input_bam_fofn': input_bam_fofn,
+            'r_db': rawreads_db_fn,
+            'r_las_fofn': r_las_fofn_fn,
+            'all_phased_reads': all_phased_reads_fn,
+            'rawread_ids': rawread_ids_fn,
             'hasm_done': './3-unzip/hasm_done',
         },
         outputs={
