@@ -1083,7 +1083,12 @@ def get_rid2proto_dir(gath_fn):
         ctg_id = os.path.basename(os.path.dirname(phasing_run_dir))
         # I guess ctg_id == rid?
         result[ctg_id] = proto_dir
-    LOG.debug('From {!r}, rid2proto_dir dict={!r}'.format(gath_fn, result))
+    LOG.info('From {!r}, rid2proto_dir len(dict)={!r}'.format(
+        gath_fn, len(result)))
+    if result:
+        arbitrary_key = next(iter(result))
+        LOG.info(' For example: dict[{!r}]->\n  {!r}'.format(
+            arbitrary_key, result[arbitrary_key]))
     return result
 
 def define_globals(args):
