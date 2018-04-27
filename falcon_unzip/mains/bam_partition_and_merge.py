@@ -1,5 +1,6 @@
 from ..io import (serialize, deserialize, yield_bam_fn, log, AlignmentFile, mkdirs)
 import collections
+import copy
 import heapq
 import logging
 import math
@@ -16,7 +17,7 @@ def get_bam_header(input_bam_fofn_fn):
             if header is None:
                 header = samfile.header
                 if not isinstance(header, dict):
-                    header = header.to_dict() # pysam>=0.14.0
+                    header = copy.deepcopy(header.to_dict()) # pysam>=0.14.0
             else:
                 header['RG'].extend(samfile.header['RG'])
     try:
