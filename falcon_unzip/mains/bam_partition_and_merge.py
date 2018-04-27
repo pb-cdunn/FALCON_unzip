@@ -1,5 +1,9 @@
-from ..io import (serialize, deserialize, yield_bam_fn, log, AlignmentFile, mkdirs)
+from ..io import (
+        serialize, deserialize, yield_bam_fn, mkdirs,
+        AlignmentFile, AlignmentHeader,
+)
 import collections
+import copy
 import heapq
 import logging
 import math
@@ -8,7 +12,13 @@ import os
 LOG = logging.getLogger()
 
 
+def log(*msgs):
+    LOG.info(' '.join(repr(m) for m in msgs))
+
+
 def get_bam_header(input_bam_fofn_fn):
+    """As a dict.
+    """
     log('Getting BAM header')
     header = None
     for fn in yield_bam_fn(input_bam_fofn_fn):
@@ -16,12 +26,11 @@ def get_bam_header(input_bam_fofn_fn):
             if header is None:
                 header = samfile.header
                 if not isinstance(header, dict):
-                    header = header.to_dict() # pysam>=0.14.0
+                    header = copy.deepcopy(header.to_dict()) # pysam>=0.14.0
             else:
                 header['RG'].extend(samfile.header['RG'])
     try:
         PG = header.pop('PG')  # remove PG line as there might be a bug that generates no readable chrs
-        # print PG
     except KeyError:
         pass
     log(" Num records in header:", len(header))
@@ -131,11 +140,15 @@ def merge_and_split_alignments(input_bam_fofn_fn, read2ctg, ctg2samfn, samfn2wri
 
 
 def open_sam_writers(header, sam_fns):
+    """
+    header: dict
+    sam_fns: list of filenames
+    """
     samfn2writer = dict()
     n = 0
     n_next = 1
     for samfn in sam_fns:
-        writer = AlignmentFile(samfn, 'wb', header=header)
+        writer = AlignmentFile(samfn, 'wb', header=AlignmentHeader.from_dict(header))
         samfn2writer[samfn] = writer
 
         # log-logging

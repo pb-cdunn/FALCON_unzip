@@ -9,10 +9,10 @@ import subprocess
 
 try:
     # pylint: disable=no-name-in-module, import-error, fixme, line-too-long
-    from pysam.calignmentfile import AlignmentFile
+    from pysam.calignmentfile import AlignmentFile, AlignmentHeader
 except ImportError:
     # pylint: disable=no-name-in-module, import-error, fixme, line-too-long
-    from pysam.libcalignmentfile import AlignmentFile
+    from pysam.libcalignmentfile import AlignmentFile, AlignmentHeader
 
 LOG = logging.getLogger()
 
