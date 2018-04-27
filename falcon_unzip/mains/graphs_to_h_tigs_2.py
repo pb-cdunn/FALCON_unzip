@@ -203,8 +203,12 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger):
     if len(snp_haplotigs.keys()) > 0:
         # BLASR crashes on empty files, so address that.
         blasr_params = '--minMatch 15 --maxMatch 25 --advanceHalf --advanceExactMatches 10 --bestn 1 --nproc {} --noSplitSubreads'.format(num_threads)
-        excomm('blasr {} {} {} --sam --out {}.sam'.format(
+        excomm('blasr {} {} {} --sam --out {}.tmp.sam'.format(
                 blasr_params, aln_snp_hasm_ctg_path, mapping_ref, mapping_out_prefix))
+        excomm('samtools sort {pre}.tmp.sam -o {pre}.sam'.format(
+                pre=mapping_out_prefix))
+        excomm('rm -f {pre}.tmp.sam'.format(
+                pre=mapping_out_prefix))
     aln_dict = load_and_hash_sam(sam_path, fp_proto_log)
 
     #########################################################
