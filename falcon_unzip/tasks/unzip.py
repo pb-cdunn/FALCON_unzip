@@ -13,10 +13,10 @@ LOG = logging.getLogger(__name__)
 
 TASK_TRACK_READS_SCRIPT = """\
 # Also require read_to_contig_map.
-python -m falcon_unzip.mains.rr_ctg_track --base-dir={params.topdir} --output={output.rawread_to_contigs}
-python -m falcon_unzip.mains.pr_ctg_track --base-dir={params.topdir} --output={output.pread_to_contigs}
+python -m falcon_unzip.mains.rr_ctg_track --db={input.r_db} --las-fofn={input.r_las_fofn} --output={output.rawread_to_contigs}
+python -m falcon_unzip.mains.pr_ctg_track --db={input.p_db} --las-fofn={input.p_las_fofn} --output={output.pread_to_contigs}
 # Those outputs are used only by fetch_reads.
-python -m falcon_unzip.mains.fetch_reads --base-dir={params.topdir} --fofn={input.fofn} --ctg-list={output.ctg_list_file}
+python -m falcon_unzip.mains.fetch_reads --p-ctg={input.p_ctg} --fofn={input.fofn} --ctg-list={output.ctg_list_file}
 touch {output.job_done}
 """
 # TODO: Proper scattering (currently in fetch_reads.py)
@@ -249,12 +249,13 @@ def create_tasks_read_to_contig_map(wf, rule_writer, falcon_asm_done, raw_reads_
 
 def run_workflow(wf, config, rule_writer):
     default_njobs = int(config['job.defaults']['njobs'])
-    #default_njobs = int(config['job.defaults'].get('njobs', 8))
-    #wf.max_jobs = config['job.defaults']['njobs']
 
     falcon_asm_done_fn = './2-asm-falcon/falcon_asm_done'
-    raw_reads_db_fn = './0-rawreads/raw_reads.db'
-    preads_db_fn = './1-preads_ovl/preads.db'
+    p_ctg_fn = './2-asm-falcon/p_ctg.fa'
+    raw_reads_db_fn = './0-rawreads/build/raw_reads.db'
+    preads_db_fn = './1-preads_ovl/build/preads.db'
+    r_las_fofn_fn = './0-rawreads/las-merge-combine/las_fofn.json'
+    p_las_fofn_fn = './1-preads_ovl/las-merge-combine/las_fofn.json'
 
     read_to_contig_map_fn = '3-unzip/reads/get_read_ctg_map/read_to_contig_map'
     rawread_ids_fn = '3-unzip/reads/dump_rawread_ids/rawread_ids'
@@ -265,13 +266,18 @@ def run_workflow(wf, config, rule_writer):
     ctg_list_fn = './3-unzip/reads/ctg_list'
     rawread_to_contigs_fn = './3-unzip/reads/rawread_to_contigs'
     pread_to_contigs_fn = './3-unzip/reads/pread_to_contigs'
-    fofn_file = config.get('input_fofn', './input.fofn') # from user config, usually
+    fasta_fofn_fn = config.get('input_fofn', './input.fofn') # from user config, usually
 
     wf.addTask(gen_task(
             script=TASK_TRACK_READS_SCRIPT,
             inputs={
-                'fofn': fofn_file,
+                'fofn': fasta_fofn_fn,
                 'read_to_contig_map': read_to_contig_map_fn,
+                'p_ctg': p_ctg_fn,
+                'r_db': raw_reads_db_fn,
+                'p_db': preads_db_fn,
+                'r_las_fofn': r_las_fofn_fn,
+                'p_las_fofn': p_las_fofn_fn,
             },
             outputs={
                 'job_done': './3-unzip/reads/track_reads_done',
@@ -344,7 +350,6 @@ def run_workflow(wf, config, rule_writer):
     ))
 
     preads4falcon_fn = './1-preads_ovl/db2falcon/preads4falcon.fasta'
-    las_fofn_fn = './1-preads_ovl/las-gather/las_fofn.json'
 
     hasm_p_ctg_fn = './3-unzip/1-hasm/p_ctg.fa'
     wf.addTask(gen_task(
@@ -352,7 +357,7 @@ def run_workflow(wf, config, rule_writer):
             inputs={
                 'preads_db': preads_db_fn,
                 'preads4falcon': preads4falcon_fn,
-                'las_fofn': las_fofn_fn,
+                'las_fofn': p_las_fofn_fn,
                 'rid_to_phase_all': concatenated_rid_to_phase_fn,
             },
             outputs={
