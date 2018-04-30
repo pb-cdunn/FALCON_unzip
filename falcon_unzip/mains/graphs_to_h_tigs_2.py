@@ -1,3 +1,8 @@
+"""
+I think this has implicit dependencies:
+* 3-unzip/2-hasm/p_ctg_tiling_path
+* and?
+"""
 from falcon_kit.fc_asm_graph import AsmGraph
 from falcon_kit.FastaReader import FastaReader
 import os

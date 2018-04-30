@@ -35,8 +35,8 @@ time minimap2 -a -x map-pb -t ${{threads_aln}} {input.ref_fasta} {input.read_fas
 # Remove the secondary (0x100) and supplementary (0x800) alignments.
 time samtools view -bS -F 0x900 tmp_aln.sam > tmp_aln.bam
 
-samtools sort tmp_aln.bam -o ${{ctg_aln_out}}
-samtools index ${{ctg_aln_out}}
+time samtools sort tmp_aln.bam -o ${{ctg_aln_out}}
+time samtools index ${{ctg_aln_out}}
 rm tmp_aln.bam
 rm tmp_aln.sam
 
@@ -266,7 +266,10 @@ def run_workflow(wf, config, rule_writer):
     ctg_list_fn = './3-unzip/reads/ctg_list'
     rawread_to_contigs_fn = './3-unzip/reads/rawread_to_contigs'
     pread_to_contigs_fn = './3-unzip/reads/pread_to_contigs'
-    fasta_fofn_fn = config.get('input_fofn', './input.fofn') # from user config, usually
+
+    LOG.info('config=\n {}'.format(config))
+    Unzip_config = config['Unzip']
+    fasta_fofn_fn = Unzip_config.get('input_fofn') #, './input.fofn') # from user config, usually
 
     wf.addTask(gen_task(
             script=TASK_TRACK_READS_SCRIPT,
