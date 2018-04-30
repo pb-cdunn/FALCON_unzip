@@ -95,6 +95,7 @@ def parse_config(config_fn):
     import pprint
     LOG.info('Using config=\n{}'.format(pprint.pformat(config)))
 
+    io.validate_config(config)
     return config
 
 def run(config_fn, logging_config_fn):

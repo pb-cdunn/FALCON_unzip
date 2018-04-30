@@ -28,19 +28,8 @@ def test_eng():
     assert '0.1MB' == M.eng(2**17)
 
 
-def test_update_env_from_config(tmpdir, monkeypatch):
-    which_cmd = M.capture('which which').strip()
-
-    monkeypatch.setenv('PATH', '')
-    config = {}
-    M.update_env_from_config(config, None)
-
-    monkeypatch.setenv('PATH', os.path.dirname(which_cmd))
-    with pytest.raises(Exception) as excinfo:
-        config = {}
-        M.update_env_from_config(config, None)
-    assert "Call 'which " in str(excinfo.value)
-
+def test_validate_config(tmpdir, monkeypatch):
+    #which_cmd = M.capture('which which').strip()
     cmds = [
         'blasr', 'samtools', 'pbalign', 'variantCaller',
         'minimap2',
@@ -51,11 +40,9 @@ def test_update_env_from_config(tmpdir, monkeypatch):
         p = tmpdir.join(cmd)
         p.write('#!/bin/bash')
         p.chmod(0o777)
-
-    config = {
-        'smrt_bin': str(tmpdir)
-    }
-    M.update_env_from_config(config, None)
+    config = dict()
+    monkeypatch.setenv('PATH', str(tmpdir))
+    M.validate_config(config)
 
 
 def test_valid_samtools():
