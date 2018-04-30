@@ -27,6 +27,10 @@ cwd=$(pwd)
 cd {params.topdir}
 fc_rr_hctg_track2.exe --read-to-contig-map=${{cwd}}/read_to_contig_map --output=${{abs_rawread_to_contigs}} --partials-fn=${{cwd}}/partials.json
 cd -
+
+# Clean up.
+python -m falcon_unzip.mains.remove_all --fofn=./partials.json
+
 ls -l {output.rawread_to_contigs}
 """
 
