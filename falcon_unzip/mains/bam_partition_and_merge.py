@@ -1,6 +1,6 @@
 from ..io import (
         serialize, deserialize, yield_bam_fn, mkdirs,
-        AlignmentFile, AlignmentHeader,
+        AlignmentFile,# AlignmentHeader,
 )
 import collections
 import copy
@@ -148,7 +148,7 @@ def open_sam_writers(header, sam_fns):
     n = 0
     n_next = 1
     for samfn in sam_fns:
-        writer = AlignmentFile(samfn, 'wb', header=AlignmentHeader.from_dict(header))
+        writer = AlignmentFile(samfn, 'wb', header=header) #AlignmentHeader.from_dict(header))
         samfn2writer[samfn] = writer
 
         # log-logging

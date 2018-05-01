@@ -16,16 +16,21 @@ LOG = logging.getLogger(__name__)
 TASK_TRACK_READS_H_SCRIPT = """\
 python -m falcon_unzip.mains.get_read_hctg_map --base-dir={params.topdir} --output=./read_to_contig_map
 
-fc_rr_hctg_track.py --stream  --db={input.r_db} --las-fofn={input.r_las_fofn} --phased-reads={input.all_phased_reads} --rawread-ids={input.rawread_ids} --read-to-contig-map=./read_to_contig_map
-# That writes into 0-rawreads/m_*/
-# n_core is actually limited by number of files, but in theory we could use whole machine,
-# Note: We also use a proc for LA4Falcon, so this is half.
+fc_rr_hctg_track.py --stream  --db={input.r_db} --las-fofn={input.r_las_fofn} --phased-reads={input.all_phased_reads} --rawread-ids={input.rawread_ids} --read-to-contig-map=./read_to_contig_map --partials-fn=./partials.json
+# That writes a msgpack partial for each raw_reads.*.las file.
+# Default n_core is n_cpu/2. TODO: Configure --n-core
+# (We also use a proc for LA4Falcon, so this is half.)
+# It is actually limited by number of files, but in theory we could use whole machine if we have enough blocks.
 
 abs_rawread_to_contigs=$(readlink -f {output.rawread_to_contigs}) #TODO: No readlink
 cwd=$(pwd)
 cd {params.topdir}
-fc_rr_hctg_track2.exe --read-to-contig-map=${{cwd}}/read_to_contig_map --output=${{abs_rawread_to_contigs}}
+fc_rr_hctg_track2.exe --read-to-contig-map=${{cwd}}/read_to_contig_map --output=${{abs_rawread_to_contigs}} --partials-fn=${{cwd}}/partials.json
 cd -
+
+# Clean up.
+python -m falcon_unzip.mains.remove_all --fofn=./partials.json
+
 ls -l {output.rawread_to_contigs}
 """
 
