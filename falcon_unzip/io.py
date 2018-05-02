@@ -1,3 +1,4 @@
+from __future__ import division
 from falcon_kit.io import (
         serialize, deserialize, log, mkdirs, syscall, capture, eng,
         rm, touch, filesize, exists_and_not_empty,
@@ -19,7 +20,7 @@ except ImportError:
     # pylint: disable=no-name-in-module, import-error, fixme, line-too-long
     from pysam.libcalignmentfile import AlignmentFile#, AlignmentHeader
 
-LOG = logging.getLogger()
+LOG = logging.getLogger(__name__)
 
 
 def validate_samtools(samtools_output):

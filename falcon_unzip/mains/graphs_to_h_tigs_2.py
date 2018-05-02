@@ -117,9 +117,9 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger):
 
     # Load the linear sequences for alignment.
     p_ctg_path = os.path.join(unzip_dir, 'reads', ctg_id, 'ref.fa')
-    assert os.path.exists(p_ctg_path)
+    assert os.path.exists(p_ctg_path), p_ctg_path
     linear_p_ctg_path = os.path.join(proto_dir, 'p_ctg_linear_%s.fasta' % (ctg_id))
-    assert os.path.exists(linear_p_ctg_path)
+    assert os.path.exists(linear_p_ctg_path), linear_p_ctg_path
 
     fp_proto_log('Loading linear seqs from {} .'.format(linear_p_ctg_path))
     linear_seqs = load_all_seq(linear_p_ctg_path)
@@ -1038,12 +1038,12 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, all_haplotig_dict, phase_a
                 for v, w in edges_to_remove:
                     try:
                         sub_hg2.remove_edge(v, w)
-                    except:
+                    except Exception:
                         pass
                 for v in node_path:
                     try:
                         sub_hg2.remove_node(v)
-                    except:
+                    except Exception:
                         pass
 
                 # Loop through all associate haplotigs.
@@ -1468,23 +1468,27 @@ def main(argv=sys.argv):
     # Write all warnings to stderr, including from thread-loggers.
     # (However, the main-thread logger does not currently propagate recs here.)
     hdlr = logging.StreamHandler(sys.stderr)
-    hdlr.setLevel(logging.WARNING - 1) # We want records from execute_command() too.
-    hdlr.setFormatter(logging.Formatter('[Proto %(asctime)s] %(levelname)s:%(name)s:%(message)s', '%Y-%m-%d %H:%M:%S'))
+    #hdlr.setLevel(logging.WARNING - 1) # We want records from execute_command() too.
+    hdlr.setLevel(logging.INFO)
+    #hdlr.setFormatter(logging.Formatter('[Proto %(asctime)s] %(levelname)s:%(name)s:t%(message)s', '%Y-%m-%d %H:%M:%S'))
+    hdlr.setFormatter(logging.Formatter('[%(levelname)s %(asctime)s] %(message)s', '%Y-%m-%d %H:%M:%S'))
     LOG.addHandler(hdlr)
     LOG.setLevel(logging.NOTSET) # Important, as other NOTSET loggers inherit this level.
 
-    # In main thread, log to a special file.
-    # (Turn this off if too verbose.)
-    # This handler will not see the thread-logger
-    # log-records at all.
-    LOG = logging.getLogger('mainthread')
-    #hdlr = logging.FileHandler('graphs_to_h_tigs_2.log', 'w')
-    hdlr = logging.StreamHandler(sys.stderr)
-    hdlr.setLevel(logging.INFO)
-    hdlr.setFormatter(logging.Formatter('[Proto %(asctime)s] %(levelname)s:%(message)s', '%Y-%m-%d %H:%M:%S'))
-    LOG.addHandler(hdlr)
-    LOG.propagate = False
+    # When we were multi-threads, we wanted separate logging per thread.
+    #### In main thread, log to a special file.
+    #### (Turn this off if too verbose.)
+    #### This handler will not see the thread-logger
+    #### log-records at all.
+    ###LOG = logging.getLogger('mainthread')
+    ####hdlr = logging.FileHandler('graphs_to_h_tigs_2.log', 'w')
+    ###hdlr = logging.StreamHandler(sys.stderr)
+    ###hdlr.setLevel(logging.INFO)
+    ###hdlr.setFormatter(logging.Formatter('[Proto %(asctime)s] %(levelname)s:%(message)s', '%Y-%m-%d %H:%M:%S'))
+    ###LOG.addHandler(hdlr)
+    ###LOG.propagate = False
 
+    #import pdb; pdb.set_trace()
     logging.addLevelName(logging.WARNING-1, 'EXECUTE')
 
     args.func(args)

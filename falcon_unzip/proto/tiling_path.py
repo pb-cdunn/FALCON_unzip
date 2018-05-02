@@ -1,3 +1,6 @@
+from falcon_kit import io
+import sys
+
 class TilingPathEdge:
     def __init__(self, split_line = None):
         self.ctg_id, self.v, self.w, self.b, self.e, self.score, self.identity = None, None, None, None, None, None, None
