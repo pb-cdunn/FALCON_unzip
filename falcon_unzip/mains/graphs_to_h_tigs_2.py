@@ -41,7 +41,6 @@ global all_flat_rid_to_phase
 global all_haplotigs_for_ctg
 global sg_edges
 global seqs
-global seq_lens
 global p_ctg_seqs
 global p_ctg_tiling_paths
 global LOG
@@ -92,7 +91,6 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger):
 
     global all_haplotigs_for_ctg
     global seqs
-    global seq_lens
     global p_ctg_seqs
     global sg_edges
     global p_ctg_tiling_paths
@@ -1115,7 +1113,6 @@ def define_globals(args):
     global p_asm_G
     global h_asm_G
     global seqs
-    global seq_lens
     global p_ctg_seqs
     global sg_edges
     global p_ctg_tiling_paths
@@ -1218,16 +1215,6 @@ def define_globals(args):
             sg_edges[(sl[0], sl[1])] = sl
     del counter
     LOG.info('Done loading sg_edges_list.')
-
-    # Hash the lengths of the preads.
-    LOG.info('Hashing lengths of preads.')
-    seq_lens = {}
-    for key, val in seqs.iteritems():
-        l = len(val)
-        seq_lens[key] = l
-        seq_lens[key + ':B'] = l
-        seq_lens[key + ':E'] = l
-    LOG.info('Done hashing lengths of preads.')
 
 def cmd_apply(args):
     units_of_work_fn = args.units_of_work_fn
