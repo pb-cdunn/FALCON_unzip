@@ -116,11 +116,11 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger):
     # Load the linear sequences for alignment.
     p_ctg_path = os.path.join(unzip_dir, 'reads', ctg_id, 'ref.fa')
     assert os.path.exists(p_ctg_path), p_ctg_path
-    linear_p_ctg_path = os.path.join(proto_dir, 'p_ctg_linear_%s.fasta' % (ctg_id))
-    assert os.path.exists(linear_p_ctg_path), linear_p_ctg_path
+    minced_ctg_path = os.path.join(proto_dir, 'minced.fasta')
+    assert os.path.exists(minced_ctg_path), minced_ctg_path
 
-    fp_proto_log('Loading linear seqs from {} .'.format(linear_p_ctg_path))
-    linear_seqs = load_all_seq(linear_p_ctg_path)
+    fp_proto_log('Loading minced ctg seqs from {} .'.format(minced_ctg_path))
+    minced_ctg_seqs = load_all_seq(minced_ctg_path)
 
     # Load the phase relation graph, and build a dict of the weakly connected components.
     phase_relation_graph = nx.read_gexf(os.path.join(proto_dir, "phase_relation_graph.gexf"))
@@ -196,7 +196,6 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger):
     #########################################################
     num_threads = 16
     mapping_out_prefix = os.path.join(out_dir, 'aln_snp_hasm_ctg')
-    mapping_ref = linear_p_ctg_path
     mapping_ref = p_ctg_path
     sam_path = mapping_out_prefix + '.sam'
 
