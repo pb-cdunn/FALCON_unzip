@@ -1,3 +1,5 @@
+from falcon_kit import io
+
 class TilingPathEdge:
     def __init__(self, split_line = None):
         self.ctg_id, self.v, self.w, self.b, self.e, self.score, self.identity = None, None, None, None, None, None, None
@@ -20,7 +22,6 @@ class TilingPathEdge:
     #     seq_id = self.w.split(':')[1]
     #     return '%s %s %s %s %d %d %d %.2f' % (self.ctg_id, self.v, self.w, seq_id, self.b, self.e, int(self.score), self.identity)
 
-import sys
 
 class TilingPath:
     def __init__(self, edge_list, contig_sequence_len = None):
@@ -134,8 +135,10 @@ def load_tiling_paths(tp_file, whitelist_seqs, contig_lens, contig_prefix = None
                         the tiling path coordinates.
     """
     tiling_path_edges = {}
+    counter = io.FilePercenter(tp_file)
     with open(tp_file) as fp:
         for line in fp:     # Example row: "0 000000007:B 000000005:B 000000005 9 0 1980 99.95"
+            counter(len(line))
             line = line.strip()
             if len(line) == 0: return
             sl = line.split()
@@ -148,6 +151,7 @@ def load_tiling_paths(tp_file, whitelist_seqs, contig_lens, contig_prefix = None
                 continue
             tiling_path_edges.setdefault(ctg_id, [])
             tiling_path_edges[ctg_id].append(new_edge)
+    del counter
     # Convert the flat lists to objects for easier comprehention.
     tiling_paths = {}
     for ctg_id, edges in tiling_path_edges.iteritems():

@@ -41,7 +41,6 @@ global all_flat_rid_to_phase
 global all_haplotigs_for_ctg
 global sg_edges
 global seqs
-global seq_lens
 global p_ctg_seqs
 global p_ctg_tiling_paths
 global LOG
@@ -92,7 +91,6 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger):
 
     global all_haplotigs_for_ctg
     global seqs
-    global seq_lens
     global p_ctg_seqs
     global sg_edges
     global p_ctg_tiling_paths
@@ -101,7 +99,7 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger):
 
     # min_linear_len = 8
 
-    fp_proto_log('Started processing contig: %s.' % (ctg_id))
+    fp_proto_log('Started processing contig: "{}".'.format(ctg_id))
 
     #########################################################
     # Load and prepare data.
@@ -117,9 +115,9 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger):
 
     # Load the linear sequences for alignment.
     p_ctg_path = os.path.join(unzip_dir, 'reads', ctg_id, 'ref.fa')
-    assert os.path.exists(p_ctg_path)
+    assert os.path.exists(p_ctg_path), p_ctg_path
     linear_p_ctg_path = os.path.join(proto_dir, 'p_ctg_linear_%s.fasta' % (ctg_id))
-    assert os.path.exists(linear_p_ctg_path)
+    assert os.path.exists(linear_p_ctg_path), linear_p_ctg_path
 
     fp_proto_log('Loading linear seqs from {} .'.format(linear_p_ctg_path))
     linear_seqs = load_all_seq(linear_p_ctg_path)
@@ -305,13 +303,14 @@ def load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase, preads):
     #
     htig_name_to_original_pctg = {}
 
-    LOG.info('Loading haplotigs.')
-
     # Load the primary contig tiling paths.
     p_tiling_paths = os.path.join(hasm_falcon_path, 'p_ctg_tiling_path')
     tiling_paths = tiling_path.load_tiling_paths(p_tiling_paths, None, None)
 
+    LOG.info('Loading haplotigs.')
+
     # Process the tiling paths for each assembled haplotig.
+    counter = io.Percenter('tiling_paths', len(tiling_paths))
     num_hctg = 0
     for hctg, hpath in tiling_paths.iteritems():
         num_hctg += 1
@@ -346,6 +345,7 @@ def load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase, preads):
         # Info needed to construct a haplotig.
         # Seq is generated from path, to avoid proper/improper confusion.
         h_tig_name = '%s-HAP%s-%s.%s.%s' % (phase_ctg, hctg, phase_ctg, str(phase_block), str(phase_id))
+        counter(1, label=h_tig_name)
         complete_phase = vphase
         path = hpath.dump_as_split_lines()
         seq = path_to_seq(preads, path, True)
@@ -359,7 +359,7 @@ def load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase, preads):
         def verbose_haplotig(haplotig):
             return 'phase = %s, h_tig_name = %s, num_edges = %d, len(seq) = %d' % (str(haplotig.phase), haplotig.name, len(haplotig.path), len(haplotig.seq))
 
-        LOG.info('[{}] Loaded haplotig: {}'.format(num_hctg, verbose_haplotig(new_haplotig)))
+        LOG.debug('[{}] Loaded haplotig: {}'.format(num_hctg, verbose_haplotig(new_haplotig)))
 
         # Append the haplotig to the right place.
         # Secondary haplotigs for any phase will be filtered later.
@@ -1038,12 +1038,12 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, all_haplotig_dict, phase_a
                 for v, w in edges_to_remove:
                     try:
                         sub_hg2.remove_edge(v, w)
-                    except:
+                    except Exception:
                         pass
                 for v in node_path:
                     try:
                         sub_hg2.remove_node(v)
-                    except:
+                    except Exception:
                         pass
 
                 # Loop through all associate haplotigs.
@@ -1113,7 +1113,6 @@ def define_globals(args):
     global p_asm_G
     global h_asm_G
     global seqs
-    global seq_lens
     global p_ctg_seqs
     global sg_edges
     global p_ctg_tiling_paths
@@ -1123,14 +1122,14 @@ def define_globals(args):
     base_dir = args.base_dir
     fasta_fn = args.fasta
 
-    LOG.info('Loading assembly graphs.')
-
     #hasm_falcon_path = os.path.join(fc_hasm_path, 'asm-falcon')
     hasm_falcon_path = fc_hasm_path # They run in same dir, for now.
 
+    LOG.info('Loading p assembly graph.')
     p_asm_G = AsmGraph(os.path.join(fc_asm_path, "sg_edges_list"),
                        os.path.join(fc_asm_path, "utg_data"),
                        os.path.join(fc_asm_path, "ctg_paths"))
+    LOG.info('Loading h assembly graph.')
     h_asm_G = AsmGraph(os.path.join(fc_hasm_path, "sg_edges_list"),
                        os.path.join(fc_hasm_path, "utg_data"),
                        os.path.join(fc_hasm_path, "ctg_paths"))
@@ -1142,11 +1141,14 @@ def define_globals(args):
 
     LOG.info('Loading phasing info and making the read ID sets.')
 
+    counter = io.FilePercenter(args.rid_phase_map, LOG.info)
+
     all_rid_to_phase = {}
     all_flat_rid_to_phase = {}
     all_read_ids = set()
     with open(args.rid_phase_map) as f:
         for row in f:
+            counter(len(row))
             row = row.strip().split()
             all_rid_to_phase.setdefault(row[1], {})
             all_rid_to_phase[row[1]][row[0]] = (int(row[2]), int(row[3]))
@@ -1154,7 +1156,9 @@ def define_globals(args):
             all_read_ids.add(row[0])
     assert all_read_ids, 'Empty all_read_ids and all_rid_to_phase. Maybe empty rid_phase_map file? {!r}'.format(
         args.rid_phase_map)
+    counter = io.Percenter('p_asm_G.sg_edges', len(p_asm_G.sg_edges), LOG.info)
     for v, w in p_asm_G.sg_edges:
+        counter(1)
         if p_asm_G.sg_edges[(v, w)][-1] != "G":
             continue
         v = v.split(":")[0]
@@ -1162,13 +1166,16 @@ def define_globals(args):
         all_read_ids.add(v)
         all_read_ids.add(w)
 
+    counter = io.Percenter('h_asm_G.sg_edges', len(h_asm_G.sg_edges), LOG.info)
     for v, w in h_asm_G.sg_edges:
+        counter(1)
         if h_asm_G.sg_edges[(v, w)][-1] != "G":
             continue
         v = v.split(":")[0]
         w = w.split(":")[0]
         all_read_ids.add(v)
         all_read_ids.add(w)
+    del counter
 
     # Load the preads.
     LOG.info('Loading preads.')
@@ -1199,21 +1206,15 @@ def define_globals(args):
     # Load all sg_edges_list so that haplotig paths can be reversed if needed.
     LOG.info('Loading sg_edges_list.')
     sg_edges = {}
-    with open(os.path.join(fc_hasm_path, "sg_edges_list"), 'r') as fp:
+    sg_edges_list_fn = os.path.join(fc_hasm_path, 'sg_edges_list')
+    counter = io.FilePercenter(sg_edges_list_fn)
+    with open(sg_edges_list_fn, 'r') as fp:
         for line in fp:
+            counter(len(line))
             sl = line.strip().split()
             sg_edges[(sl[0], sl[1])] = sl
+    del counter
     LOG.info('Done loading sg_edges_list.')
-
-    # Hash the lengths of the preads.
-    LOG.info('Hashing lengths of preads.')
-    seq_lens = {}
-    for key, val in seqs.iteritems():
-        l = len(val)
-        seq_lens[key] = l
-        seq_lens[key + ':B'] = l
-        seq_lens[key + ':E'] = l
-    LOG.info('Done hashing lengths of preads.')
 
 def cmd_apply(args):
     units_of_work_fn = args.units_of_work_fn
@@ -1468,23 +1469,27 @@ def main(argv=sys.argv):
     # Write all warnings to stderr, including from thread-loggers.
     # (However, the main-thread logger does not currently propagate recs here.)
     hdlr = logging.StreamHandler(sys.stderr)
-    hdlr.setLevel(logging.WARNING - 1) # We want records from execute_command() too.
-    hdlr.setFormatter(logging.Formatter('[Proto %(asctime)s] %(levelname)s:%(name)s:%(message)s', '%Y-%m-%d %H:%M:%S'))
+    #hdlr.setLevel(logging.WARNING - 1) # We want records from execute_command() too.
+    hdlr.setLevel(logging.INFO)
+    #hdlr.setFormatter(logging.Formatter('[Proto %(asctime)s] %(levelname)s:%(name)s:t%(message)s', '%Y-%m-%d %H:%M:%S'))
+    hdlr.setFormatter(logging.Formatter('[%(levelname)s %(asctime)s] %(message)s', '%Y-%m-%d %H:%M:%S'))
     LOG.addHandler(hdlr)
     LOG.setLevel(logging.NOTSET) # Important, as other NOTSET loggers inherit this level.
 
-    # In main thread, log to a special file.
-    # (Turn this off if too verbose.)
-    # This handler will not see the thread-logger
-    # log-records at all.
-    LOG = logging.getLogger('mainthread')
-    #hdlr = logging.FileHandler('graphs_to_h_tigs_2.log', 'w')
-    hdlr = logging.StreamHandler(sys.stderr)
-    hdlr.setLevel(logging.INFO)
-    hdlr.setFormatter(logging.Formatter('[Proto %(asctime)s] %(levelname)s:%(message)s', '%Y-%m-%d %H:%M:%S'))
-    LOG.addHandler(hdlr)
-    LOG.propagate = False
+    # When we were multi-threads, we wanted separate logging per thread.
+    #### In main thread, log to a special file.
+    #### (Turn this off if too verbose.)
+    #### This handler will not see the thread-logger
+    #### log-records at all.
+    ###LOG = logging.getLogger('mainthread')
+    ####hdlr = logging.FileHandler('graphs_to_h_tigs_2.log', 'w')
+    ###hdlr = logging.StreamHandler(sys.stderr)
+    ###hdlr.setLevel(logging.INFO)
+    ###hdlr.setFormatter(logging.Formatter('[Proto %(asctime)s] %(levelname)s:%(message)s', '%Y-%m-%d %H:%M:%S'))
+    ###LOG.addHandler(hdlr)
+    ###LOG.propagate = False
 
+    #import pdb; pdb.set_trace()
     logging.addLevelName(logging.WARNING-1, 'EXECUTE')
 
     args.func(args)

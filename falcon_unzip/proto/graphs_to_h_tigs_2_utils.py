@@ -1,8 +1,12 @@
 from falcon_kit.FastaReader import FastaReader
+import logging
 import os
 import re
 import networkx as nx
-import falcon_unzip.proto.sam2m4 as sam2m4
+from . import sam2m4
+from .. import io as system
+
+LOG = logging.getLogger(__name__)
 
 RCMAP = dict(zip("ACGTacgtNn-", "TGCAtgcaNn-"))
 
