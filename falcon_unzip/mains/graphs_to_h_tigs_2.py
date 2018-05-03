@@ -22,7 +22,7 @@ from falcon_unzip.proto.graphs_to_h_tigs_2_utils import (
         extract_unphased_haplotig_paths,
         extract_weakly_unphased_haplotig_paths,
         load_aln, nx_to_gfa,
-        load_all_seq, load_sg_seq, path_to_seq,
+        load_all_seq, load_sg_seq,
         revcmp_seq, reverse_end,
         write_haplotigs,
 )
@@ -1136,7 +1136,6 @@ def define_globals(args):
 
     all_rid_to_phase = {}
     all_flat_rid_to_phase = {}
-    all_read_ids = set()
     with open(args.rid_phase_map) as f:
         for row in f:
             counter(len(row))
@@ -1144,29 +1143,6 @@ def define_globals(args):
             all_rid_to_phase.setdefault(row[1], {})
             all_rid_to_phase[row[1]][row[0]] = (int(row[2]), int(row[3]))
             all_flat_rid_to_phase[row[0]] = (row[1], int(row[2]), int(row[3]))
-            all_read_ids.add(row[0])
-    assert all_read_ids, 'Empty all_read_ids and all_rid_to_phase. Maybe empty rid_phase_map file? {!r}'.format(
-        args.rid_phase_map)
-    counter = io.Percenter('p_asm_G.sg_edges', len(p_asm_G.sg_edges), LOG.info)
-    for v, w in p_asm_G.sg_edges:
-        counter(1)
-        if p_asm_G.sg_edges[(v, w)][-1] != "G":
-            continue
-        v = v.split(":")[0]
-        w = w.split(":")[0]
-        all_read_ids.add(v)
-        all_read_ids.add(w)
-
-    counter = io.Percenter('h_asm_G.sg_edges', len(h_asm_G.sg_edges), LOG.info)
-    for v, w in h_asm_G.sg_edges:
-        counter(1)
-        if h_asm_G.sg_edges[(v, w)][-1] != "G":
-            continue
-        v = v.split(":")[0]
-        w = w.split(":")[0]
-        all_read_ids.add(v)
-        all_read_ids.add(w)
-    del counter
 
     # Load the primary contig sequences.
     LOG.info('Loading the 2-asm-falcon primary contigs.')
