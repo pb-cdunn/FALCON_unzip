@@ -533,16 +533,31 @@ def run(wd, ctg_id, extracted_ctg_fasta, p_ctg, p_ctg_tiling_path, a_ctg, a_ctg_
     # Write the FASTA sequences for the linear
     # and the bubble regions.
     ###################################################
-    linear_p_ctg_parts_path = os.path.join(wd, 'p_ctg_linear_%s.fasta' % (ctg_id))
-    with open(linear_p_ctg_parts_path, 'w') as fp_out:
+    minced_ctg_path = os.path.join(wd, 'minced.fasta')
+    with open(minced_ctg_path, 'w') as fp_out:
         for region_id in xrange(len(all_regions)):
             type_, edge_start_id, edge_end_id, pos_start, pos_end, htigs = all_regions[region_id]
-            if type_ != 'linear':
-                continue
-            # region_name = '%s-linear-%d-%s_%s' % (ctg_id, region_id, pos_start, pos_end)
-            region_name = htigs.keys()[0]
-            region_seq = seqs[ctg_id][pos_start:pos_end]
-            fp_out.write('>%s\n%s\n' % (region_name, region_seq))
+            if type_ == 'linear':
+                region_name = htigs.keys()[0]
+                region_seq = seqs[ctg_id][pos_start:pos_end]
+                fp_out.write('>%s\n%s\n' % (region_name, region_seq))
+            else:
+                for htig_name, htig in htigs.iteritems():
+                    region_name = htig_name
+                    if htig_name.endswith('_base'):
+                        # This is the 'base' part of any bubble. Literally, a region
+                        # of the primary contig.
+                        # The primary contigs should ideally be `proper`.
+                        region_seq = seqs[ctg_id][pos_start:pos_end]
+                        fp_out.write('>%s\n%s\n' % (region_name, region_seq))
+                    else:
+                        # Branches other than 'base' are actually the a_ctg sequences.
+                        # All p_ctg and a_ctg are loaded in the seqs dict.
+                        # If the region_name is not here, let the process fail.
+                        # The a_ctg here should not contain the first read
+                        # (they should be `improper`).
+                        region_seq = seqs[region_name]
+                        fp_out.write('>%s\n%s\n' % (region_name, region_seq))
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(

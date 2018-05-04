@@ -41,6 +41,7 @@ def load_all_seq(fasta_fn):
     return seqs
 
 def path_to_seq(preads, path, with_first_read):
+    # no longer used
     ret = ''
 
     if len(path) == 0:

@@ -22,7 +22,7 @@ from falcon_unzip.proto.graphs_to_h_tigs_2_utils import (
         extract_unphased_haplotig_paths,
         extract_weakly_unphased_haplotig_paths,
         load_aln, nx_to_gfa,
-        load_all_seq, load_sg_seq, path_to_seq,
+        load_all_seq, load_sg_seq,
         revcmp_seq, reverse_end,
         write_haplotigs,
 )
@@ -40,7 +40,6 @@ global all_rid_to_phase
 global all_flat_rid_to_phase
 global all_haplotigs_for_ctg
 global sg_edges
-global seqs
 global p_ctg_seqs
 global p_ctg_tiling_paths
 global LOG
@@ -90,7 +89,6 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger):
     # proto_dir is specific to this ctg_id.
 
     global all_haplotigs_for_ctg
-    global seqs
     global p_ctg_seqs
     global sg_edges
     global p_ctg_tiling_paths
@@ -114,24 +112,22 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger):
     #proto_dir = os.path.join(unzip_dir, '0-phasing', ctg_id, 'proto')
 
     # Load the linear sequences for alignment.
-    p_ctg_path = os.path.join(unzip_dir, 'reads', ctg_id, 'ref.fa')
-    assert os.path.exists(p_ctg_path), p_ctg_path
-    linear_p_ctg_path = os.path.join(proto_dir, 'p_ctg_linear_%s.fasta' % (ctg_id))
-    assert os.path.exists(linear_p_ctg_path), linear_p_ctg_path
+    minced_ctg_path = os.path.join(proto_dir, 'minced.fasta')
 
-    fp_proto_log('Loading linear seqs from {} .'.format(linear_p_ctg_path))
-    linear_seqs = load_all_seq(linear_p_ctg_path)
+    fp_proto_log('Loading minced ctg seqs from {!r} .'.format(minced_ctg_path))
+    minced_ctg_seqs = load_all_seq(minced_ctg_path)
 
     # Load the phase relation graph, and build a dict of the weakly connected components.
-    phase_relation_graph = nx.read_gexf(os.path.join(proto_dir, "phase_relation_graph.gexf"))
-    fp_proto_log('Loading the phase relation graph from {} .'.format(phase_relation_graph))
+    phase_relation_graph_path = os.path.join(proto_dir, "phase_relation_graph.gexf")
+    phase_relation_graph = nx.read_gexf(phase_relation_graph_path)
+    fp_proto_log('Loading the phase relation graph from {!r} .'.format(phase_relation_graph_path))
     phase_alias_map, alias_to_phase_list = create_phase_alias_map(phase_relation_graph)
 
     # Load the regions as built previous in the 0-phasing step.
     # The structure of each region in the list is:
     #   type_, edge_start_id, edge_end_id, pos_start, pos_end, htigs = all_regions[i]
     all_regions_path = os.path.join(proto_dir, 'regions.json')
-    fp_proto_log('Loading all regions from {} .'.format(all_regions_path))
+    fp_proto_log('Loading all regions from {!r} .'.format(all_regions_path))
     all_regions = json.load(open(all_regions_path))
 
     # Create a list of bubble regions, for easier merging with the diploid groups.
@@ -153,17 +149,11 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger):
     fp_proto_log('Assigning sequences to all regions.')
     for region in all_regions:
         region_type, first_edge, last_edge, pos_start, pos_end, region_htigs = region
-        if region_type == 'linear':
-            # For linear regions, we can take a shortcut by directly
-            # extracting them from the
-            region_name = region_htigs.keys()[0]
-            region_htigs[region_name]['seq'] = p_ctg_seq[pos_start:pos_end]
-        else:
-            # For any bubble component, generate the sequence here to
-            # ensure that the 'proper' approach is not applied.
-            # This is important to make good tiling of the sequences.
-            for htig_name, htig in region_htigs.iteritems():
-                htig['seq'] = path_to_seq(seqs, htig['path'], False)
+        # Assigning sequences to the regions. This could have also been stored in the
+        # json/msgpack file where the regions are loaded from, the code would be
+        # simpler then.
+        for htig_name, htig in region_htigs.iteritems():
+            htig['seq'] = minced_ctg_seqs[htig_name]
 
     # Get all the haplotig objects corresponding to this contig only.
     fp_proto_log('Getting snp_haplotigs.')
@@ -196,8 +186,7 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger):
     #########################################################
     num_threads = 16
     mapping_out_prefix = os.path.join(out_dir, 'aln_snp_hasm_ctg')
-    mapping_ref = linear_p_ctg_path
-    mapping_ref = p_ctg_path
+    mapping_ref = os.path.join(unzip_dir, 'reads', ctg_id, 'ref.fa')
     sam_path = mapping_out_prefix + '.sam'
 
     def excomm(cmd):
@@ -288,7 +277,7 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger):
 
     fp_proto_log('Finished processing contig: %s.' % (ctg_id))
 
-def load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase, preads):
+def load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase):
     """
     Returns a dict `haplotigs_for_ctg`, where:
         haplotigs_for_ctg[ctg_id][htig.name] = Haplotig(...)
@@ -306,6 +295,9 @@ def load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase, preads):
     # Load the primary contig tiling paths.
     p_tiling_paths = os.path.join(hasm_falcon_path, 'p_ctg_tiling_path')
     tiling_paths = tiling_path.load_tiling_paths(p_tiling_paths, None, None)
+
+    p_ctg_fasta = os.path.join(hasm_falcon_path, 'p_ctg.fa')
+    hasm_p_ctg_seqs = load_all_seq(p_ctg_fasta)
 
     LOG.info('Loading haplotigs.')
 
@@ -348,7 +340,7 @@ def load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase, preads):
         counter(1, label=h_tig_name)
         complete_phase = vphase
         path = hpath.dump_as_split_lines()
-        seq = path_to_seq(preads, path, True)
+        seq = hasm_p_ctg_seqs[hctg] # The seq should contain the first read (be `proper`).
 
         new_haplotig = Haplotig(name = h_tig_name, phase = complete_phase, seq = seq, path = path, edges = [])
 
@@ -1112,7 +1104,6 @@ def define_globals(args):
     global all_haplotigs_for_ctg
     global p_asm_G
     global h_asm_G
-    global seqs
     global p_ctg_seqs
     global sg_edges
     global p_ctg_tiling_paths
@@ -1141,46 +1132,14 @@ def define_globals(args):
 
     LOG.info('Loading phasing info and making the read ID sets.')
 
-    counter = io.FilePercenter(args.rid_phase_map, LOG.info)
-
     all_rid_to_phase = {}
     all_flat_rid_to_phase = {}
-    all_read_ids = set()
-    with open(args.rid_phase_map) as f:
+    with io.open_progress(args.rid_phase_map) as f:
         for row in f:
-            counter(len(row))
             row = row.strip().split()
             all_rid_to_phase.setdefault(row[1], {})
             all_rid_to_phase[row[1]][row[0]] = (int(row[2]), int(row[3]))
             all_flat_rid_to_phase[row[0]] = (row[1], int(row[2]), int(row[3]))
-            all_read_ids.add(row[0])
-    assert all_read_ids, 'Empty all_read_ids and all_rid_to_phase. Maybe empty rid_phase_map file? {!r}'.format(
-        args.rid_phase_map)
-    counter = io.Percenter('p_asm_G.sg_edges', len(p_asm_G.sg_edges), LOG.info)
-    for v, w in p_asm_G.sg_edges:
-        counter(1)
-        if p_asm_G.sg_edges[(v, w)][-1] != "G":
-            continue
-        v = v.split(":")[0]
-        w = w.split(":")[0]
-        all_read_ids.add(v)
-        all_read_ids.add(w)
-
-    counter = io.Percenter('h_asm_G.sg_edges', len(h_asm_G.sg_edges), LOG.info)
-    for v, w in h_asm_G.sg_edges:
-        counter(1)
-        if h_asm_G.sg_edges[(v, w)][-1] != "G":
-            continue
-        v = v.split(":")[0]
-        w = w.split(":")[0]
-        all_read_ids.add(v)
-        all_read_ids.add(w)
-    del counter
-
-    # Load the preads.
-    LOG.info('Loading preads.')
-    seqs = load_sg_seq(all_read_ids, fasta_fn)
-    LOG.info('Done loading preads.')
 
     # Load the primary contig sequences.
     LOG.info('Loading the 2-asm-falcon primary contigs.')
@@ -1199,21 +1158,17 @@ def define_globals(args):
 
     # Load the haplotig sequences (assembled with falcon_kit.mains.graph_to_contig).
     LOG.info('Loading the 1-hasm haplotigs.')
-    all_haplotigs_for_ctg, htig_name_to_original_pctg = load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase, seqs)
+    all_haplotigs_for_ctg, htig_name_to_original_pctg = load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase)
     LOG.info('Done loading haplotigs.')
-    # all_asm_haplotig_seqs = load_all_seq(hasm_falcon_path)
 
     # Load all sg_edges_list so that haplotig paths can be reversed if needed.
     LOG.info('Loading sg_edges_list.')
     sg_edges = {}
     sg_edges_list_fn = os.path.join(fc_hasm_path, 'sg_edges_list')
-    counter = io.FilePercenter(sg_edges_list_fn)
-    with open(sg_edges_list_fn, 'r') as fp:
+    with io.open_progress(sg_edges_list_fn, 'r') as fp:
         for line in fp:
-            counter(len(line))
             sl = line.strip().split()
             sg_edges[(sl[0], sl[1])] = sl
-    del counter
     LOG.info('Done loading sg_edges_list.')
 
 def cmd_apply(args):
