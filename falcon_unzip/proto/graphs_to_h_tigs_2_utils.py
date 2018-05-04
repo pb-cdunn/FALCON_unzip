@@ -54,7 +54,7 @@ def path_to_seq(preads, path, with_first_read):
     for edge in path:
         ctg_id, v, w, wrid, sp, tp = edge[0:6]
         sp, tp = int(sp), int(tp)
-        ret += preads[wrid][sp:tp] if sp < tp else "".join([RCMAP[c] for c in preads[wrid][sp:tp:-1]])
+        ret += preads[wrid][sp:tp] if sp < tp else "".join([RCMAP[c] for c in preads[wrid][tp:sp][::-1]])
 
     ret = ''.join([str(val) for val in ret])
 
