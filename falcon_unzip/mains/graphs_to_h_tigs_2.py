@@ -1132,13 +1132,10 @@ def define_globals(args):
 
     LOG.info('Loading phasing info and making the read ID sets.')
 
-    counter = io.FilePercenter(args.rid_phase_map, LOG.info)
-
     all_rid_to_phase = {}
     all_flat_rid_to_phase = {}
-    with open(args.rid_phase_map) as f:
+    with io.open_progress(args.rid_phase_map) as f:
         for row in f:
-            counter(len(row))
             row = row.strip().split()
             all_rid_to_phase.setdefault(row[1], {})
             all_rid_to_phase[row[1]][row[0]] = (int(row[2]), int(row[3]))
@@ -1168,13 +1165,10 @@ def define_globals(args):
     LOG.info('Loading sg_edges_list.')
     sg_edges = {}
     sg_edges_list_fn = os.path.join(fc_hasm_path, 'sg_edges_list')
-    counter = io.FilePercenter(sg_edges_list_fn)
-    with open(sg_edges_list_fn, 'r') as fp:
+    with io.open_progress(sg_edges_list_fn, 'r') as fp:
         for line in fp:
-            counter(len(line))
             sl = line.strip().split()
             sg_edges[(sl[0], sl[1])] = sl
-    del counter
     LOG.info('Done loading sg_edges_list.')
 
 def cmd_apply(args):
