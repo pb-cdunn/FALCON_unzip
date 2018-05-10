@@ -4,7 +4,7 @@ import logging
 import os
 import sys
 from .. import io
-from ..tasks.quiver import TASK_QUIVER_RUN_SCRIPT
+from ..tasks.unzip import TASK_QUIVER_RUN_SCRIPT
 
 LOG = logging.getLogger()
 
