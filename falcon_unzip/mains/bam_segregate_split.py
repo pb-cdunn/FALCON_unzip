@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 from .. import io
-from ..tasks.quiver import TASK_SEGREGATE_RUN_SCRIPT
+from ..tasks.unzip import TASK_SEGREGATE_RUN_SCRIPT
 
 LOG = logging.getLogger()
 

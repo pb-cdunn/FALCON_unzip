@@ -13,7 +13,6 @@ import pytest
     'phased_ovlp_to_graph',
     'phasing_readmap',
     'rr_hctg_track',
-    'start_quiver',
     'start_unzip',
 
     # These are not actually used, but we can still check them.
