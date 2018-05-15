@@ -178,6 +178,7 @@ TASK_HASM_COLLECT_SCRIPT = """\
 ## prepare for quviering the haplotig
 ## (assume we are in 3-unzip/somewhere/)
 
+# TODO: Stop using job_done.
 python -m falcon_unzip.mains.graphs_to_h_tigs_2 combine --results-fn={input.results} --done-fn={output.job_done}
 
 find ./0-phasing -name "phased_reads" | sort | xargs cat >| all_phased_reads
@@ -529,6 +530,9 @@ def run_workflow(wf, config, rule_writer):
             },
             outputs={
                 'job_done': job_done,
+                'all_phased_reads': './3-unzip/all_phased_reads',
+                'p_ctg_fa': './3-unzip/all_p_ctg.fa',
+                'h_ctg_fa': './3-unzip/all_h_ctg.fa',
             },
             parameters={},
             rule_writer=rule_writer,
