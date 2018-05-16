@@ -23,23 +23,38 @@ except ImportError:
 LOG = logging.getLogger(__name__)
 
 
+def get_version(s):
+    """
+    >>> get_version('Version: 1.3.0')
+    (1, 3, 0)
+    >>> get_version('Version: 1.6')
+    (1, 6, None)
+    """
+    re_Version = re.compile(r'Version: (?P<major>\d+)(?P<minor>\.\d+)(?P<subminor>\.\d+)?')
+    mo = re_Version.search(s)
+    major = int(mo.group('major'))
+    minor = int(mo.group('minor')[1:])
+    subminor = int(mo.group('subminor')[1:]) if mo.group('subminor') else None
+    return major, minor, subminor
+
+
 def validate_samtools(samtools_output):
     """Given the result of a bare call to 'samtools',
     prove our $PATH is using at least version 1.3.0
     """
-    re_Version = re.compile(r'Version: (?P<major>\d+)\.(?P<minor>\d+)\.(?P<subminor>\d+)')
-    mo = re_Version.search(samtools_output)
-    if not mo:
+    try:
+        major, minor, subminor = get_version(samtools_output)
+    except Exception:
         msg = samtools_output + '\n---\nCould not discern version of samtools. We need at least 1.3.0. Good luck!'
-        LOG.warning(msg)
+        LOG.exception(msg)
         return
-    major = int(mo.group('major'))
-    minor = int(mo.group('minor'))
+    version = '{}.{}.{}'.format(major, minor, subminor)
     if major < 1 or (major == 1 and minor < 3):
-        msg = 'samtools is version {}.{}.{}'.format(
-                major, minor, mo.group('subminor'))
-        msg += ', but we require >= 1.3.0'
+        msg = 'samtools is version {}, but we require >= 1.3.0'.format(
+                version)
         raise Exception(msg)
+    else:
+        LOG.info('samtools {} is >= 1.3'.format(version))
 
 
 def validate_config(config):
@@ -56,17 +71,17 @@ def validate_config(config):
     ]
     LOG.info('PATH={}'.format(os.environ['PATH']))
     try:
-        capture('which which')
+        syscall('which which')
     except Exception:
         LOG.warning('Could not find "which" command. Skipping checks for "blasr", etc.')
         return
     for cmd in smrt_bin_cmds + path_cmds:
         syscall('which ' + cmd)
-    syscall('show-coords -h')
     syscall('nucmer --version')
     syscall('minimap2 --version')
+    capture('show-coords -h')
 
-    samtools_output = commands.getoutput('samtools')
+    samtools_output = capture('samtools', nocheck=True)
     validate_samtools(samtools_output)
 
 

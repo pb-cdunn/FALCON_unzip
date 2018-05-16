@@ -6,6 +6,7 @@ import subprocess
 
 install_requires = [
         "falcon-kit>=1.2.0",
+        "pypeflow>=2.0.3",
         "networkx>=1.7",
         "pysam>=0.8.4",
         "msgpack-python",

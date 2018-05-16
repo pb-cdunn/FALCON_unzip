@@ -52,3 +52,4 @@ def test_valid_samtools():
 
     M.validate_samtools('Version: 1.3.1')
     M.validate_samtools('Version: 2.1.0')
+    M.validate_samtools('Version: 1.6 (using htslib 1.7)')
