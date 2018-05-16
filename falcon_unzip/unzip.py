@@ -2,7 +2,8 @@ from falcon_kit import run_support as support
 from falcon_kit import snakemake
 from falcon_kit.FastaReader import FastaReader
 from pypeflow.simple_pwatcher_bridge import (
-    PypeProcWatcherWorkflow)
+    PypeProcWatcherWorkflow,
+)
 from .tasks import unzip as tasks_unzip
 from . import io
 import glob
@@ -10,7 +11,6 @@ import logging
 import os
 import re
 import time
-#import ConfigParser
 import falcon_kit.run_support
 
 LOG = logging.getLogger(__name__)
@@ -97,10 +97,26 @@ def parse_config(config_fn):
     io.validate_config(config)
     return config
 
+def symlink_if_missing(src, name):
+    if not os.path.exists(name):
+        LOG.info(' ln -s {} {}'.format(src, name))
+        os.symlink(src, name)
+
+def update_falcon_symlinks():
+    # We might be able to use an older Falcon run if we create the needed symlinks.
+    with io.cd('0-rawreads'):
+        symlink_if_missing('build', '.')
+        symlink_if_missing('las-gather', 'las-merge-combine')
+    with io.cd('1-preads_ovl'):
+        symlink_if_missing('build', '.')
+        symlink_if_missing('las-gather', 'las-merge-combine')
+    LOG.info('Falcon directories up-to-date.')
+
 def run(config_fn, logging_config_fn):
     global LOG
     LOG = support.setup_logger(logging_config_fn)
 
     config = parse_config(config_fn)
+    update_falcon_symlinks()
 
     unzip_all(config)
