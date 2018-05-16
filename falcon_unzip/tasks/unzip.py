@@ -1,8 +1,6 @@
 from __future__ import absolute_import
-#from falcon_kit.pype import (wrap_gen_task as gen_task, gen_parallel_tasks, Dist)
 from falcon_kit.pype import Dist
 from falcon_kit import pype_tasks
-#from .pype import gen_task, gen_parallel_tasks
 from falcon_kit.pype import (wrap_gen_task as gen_task, gen_parallel_tasks, Dist)
 from .. import io
 import logging
