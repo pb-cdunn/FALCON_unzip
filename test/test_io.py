@@ -45,7 +45,7 @@ def test_validate_config(tmpdir, monkeypatch):
     M.validate_config(config)
 
 
-def test_valid_samtools():
+def test_validate_samtools():
     with pytest.raises(Exception) as excinfo:
         M.validate_samtools('Version: 1.2.11')
     assert 'but we require' in str(excinfo.value)
