@@ -6,7 +6,10 @@ import os
 import glob
 import sys
 import re
-
+import logging
+import time
+global LOG
+LOG = logging.getLogger()
 
 def fetch_ref_and_reads(
         fofn, ctg_id, min_ctg_lenth,
@@ -83,15 +86,6 @@ def fetch_ref_and_reads(
                 read_set[o_id] = hit_ctg
                 ctg_id_hits[hit_ctg] = ctg_id_hits.get(hit_ctg, 0) + 1
 
-    with open(os.path.join(out_dir, ctg_list_fn), 'w') as f:
-        for ctg_id in sorted(list(all_ctg_ids)):
-            if ctg_id_hits.get(ctg_id, 0) < 5:
-                continue
-            # ignore small circle contigs, they need different approach
-            if ctg_id[-1] not in ['F', 'R']:
-                continue
-            print >>f, ctg_id
-
     read_out_files = {}
 
     @contextlib.contextmanager
@@ -123,6 +117,29 @@ def fetch_ref_and_reads(
                         print >>read_out, '>' + rid
                         print >>read_out, r.sequence
 
+    with open(os.path.join(out_dir, ctg_list_fn), 'w') as f:
+        for ctg_id in sorted(list(all_ctg_ids)):
+
+            if ctg_id_hits.get(ctg_id, 0) < 5:
+                LOG.info('Skipping contig: {}. Reason: not enough reads (ctg_id_hits.get(ctg_id, 0) = {} < 5).'.format(ctg_id, ctg_id_hits.get(ctg_id, 0)))
+                continue
+
+            # ignore small circle contigs, they need different approach
+            if ctg_id[-1] not in ['F', 'R']:
+                LOG.info('Skipping contig: {}. Reason: ignoring small circular contigs.'.format(ctg_id))
+                continue
+
+            reads_fa_path = os.path.join(out_dir, ctg_id, 'reads.fa')
+            if not io.check_nonempty_file_exists(reads_fa_path):
+                LOG.info('Skipping contig: {}. Reason: non-existent or empty reads file ({}).'.format(ctg_id, reads_fa_path))
+                continue
+
+            ref_fa_path = os.path.join(out_dir, ctg_id, 'ref.fa')
+            if not io.check_nonempty_file_exists(ref_fa_path):
+                LOG.info('Skipping contig: {}. Reason: non-existent or empty ref file ({}).'.format(ctg_id, ref_fa_path))
+                continue
+
+            print >>f, ctg_id
 
 def parse_args(argv):
     description = 'Using the read to contig mapping data, to partition the reads (into {ctg_id}_reads.fa and {ctg_id}_ref.fa) grouped by contigs.'
@@ -157,6 +174,11 @@ def parse_args(argv):
 
 def main(argv=sys.argv):
     args = parse_args(argv)
+    logging.Formatter.converter = time.gmtime
+    logging.basicConfig(
+        level=logging.INFO,
+        format='[INFO %(asctime)s GMT] %(message)s',
+    )
     fetch_ref_and_reads(**vars(args))
 
 

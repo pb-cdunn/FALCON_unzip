@@ -108,3 +108,11 @@ def substitute(yourdict):
         if '{' in v:
             mydict[k] = v.format(**mydict)
     return mydict
+
+def check_nonempty_file_exists(file_path):
+    if not os.path.exists(file_path):
+        return False
+    if os.stat(file_path).st_size == 0:
+        return False
+    return True
+
