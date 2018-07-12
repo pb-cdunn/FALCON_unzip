@@ -1,6 +1,7 @@
+import sys
 from falcon_kit import io
 
-class TilingPathEdge:
+class TilingPathEdge(object):
     def __init__(self, split_line = None):
         self.ctg_id, self.v, self.w, self.b, self.e, self.score, self.identity = None, None, None, None, None, None, None
         self.parsed = False
@@ -23,7 +24,7 @@ class TilingPathEdge:
     #     return '%s %s %s %s %d %d %d %.2f' % (self.ctg_id, self.v, self.w, seq_id, self.b, self.e, int(self.score), self.identity)
 
 
-class TilingPath:
+class TilingPath(object):
     def __init__(self, edge_list, contig_sequence_len = None):
         self.edges = edge_list  # These are TilingPathEdge objects.
 
@@ -35,6 +36,8 @@ class TilingPath:
         # which can be calculated from the tiling path.
         if contig_sequence_len != None:
             _, tiling_len = calc_node_coords(edge_list)
+            if contig_sequence_len < tiling_len:
+                sys.stderr.write('ERROR: Assertion will fail here, because contig_sequence_len = {} is smaller than tiling_len = {}\n'.format(contig_sequence_len, tiling_len))
             assert(contig_sequence_len >= tiling_len)
             offset = contig_sequence_len - tiling_len   # This is the length of the first node.
 
