@@ -3,7 +3,7 @@
 import os
 import sys
 import argparse
-import tiling_path
+from falcon_kit import tiling_path
 import phasing_block
 import intervaltree.intervaltree as intervaltree
 #from intervaltree import * # Let's avoid this.
@@ -221,7 +221,7 @@ def construct_new_bubble_region(ctg_id, path_type, region_id, p_path, a_paths, p
         new_phase = (ctg_id, region_phase_block_id, phase_id)
         path_htig = haplotig.Haplotig(key, phase = new_phase)
         path_htig.seq = ''
-        path_htig.path = [edge.split_line for edge in a_paths[key].edges]
+        path_htig.path = [edge.get_split_line() for edge in a_paths[key].edges]
         path_htig.edges = []
         path_htig.cstart = pos_start
         path_htig.cend = pos_end
@@ -235,7 +235,7 @@ def construct_new_bubble_region(ctg_id, path_type, region_id, p_path, a_paths, p
     new_phase = (ctg_id, region_phase_block_id, phase_id)
     path_htig = haplotig.Haplotig(path_base_name, phase = new_phase)
     path_htig.seq = ''
-    path_htig.path = [edge.split_line for edge in p_path.edges[path_start:path_end]]
+    path_htig.path = [edge.get_split_line() for edge in p_path.edges[path_start:path_end]]
     path_htig.edges = []
     path_htig.cstart = pos_start
     path_htig.cend = pos_end
@@ -319,7 +319,7 @@ def delineate_regions(ctg_id, p_path, a_paths, a_placement):
 
                 path_htig = haplotig.Haplotig(path_base_name, phase = (ctg_id, -1, 0))
                 path_htig.seq = ''
-                path_htig.path = [edge.split_line for edge in p_path.edges[linear_start:linear_end]]
+                path_htig.path = [edge.get_split_line() for edge in p_path.edges[linear_start:linear_end]]
                 path_htig.edges = []
                 path_htig.cstart = pos_start
                 path_htig.cend = pos_end
@@ -425,7 +425,7 @@ def delineate_regions(ctg_id, p_path, a_paths, a_placement):
 
         path_htig = haplotig.Haplotig(path_base_name, phase = (ctg_id, -1, 0))
         path_htig.seq = ''
-        path_htig.path = [edge.split_line for edge in p_path.edges[linear_start:linear_end]]
+        path_htig.path = [edge.get_split_line() for edge in p_path.edges[linear_start:linear_end]]
         path_htig.edges = []
         path_htig.cstart = pos_start
         path_htig.cend = pos_end
@@ -471,13 +471,15 @@ def run(wd, ctg_id, extracted_ctg_fasta, p_ctg, p_ctg_tiling_path, a_ctg, a_ctg_
     ###################################################
     seqs, seq_lens = load_seqs([p_ctg, a_ctg])
 
+    seqs_for_ctg = {key: val for key, val in seqs.iteritems() if key.startswith(ctg_id)}
+
     ###################################################
     # Load tiling paths with coords, and filter the
     # deduplicated tiling paths (based on their presence
     # in the a_ctg.fa file).
     ###################################################
-    p_paths = tiling_path.load_tiling_paths(p_ctg_tiling_path, seqs, seq_lens, ctg_id)
-    a_paths = tiling_path.load_tiling_paths(a_ctg_tiling_path, seqs, None, ctg_id)
+    p_paths = tiling_path.load_tiling_paths(p_ctg_tiling_path, whitelist_seqs=seqs_for_ctg, contig_lens=seq_lens)
+    a_paths = tiling_path.load_tiling_paths(a_ctg_tiling_path, whitelist_seqs=seqs_for_ctg, contig_lens=None)
     # Find the associate contig placement. `a_placement` is a dict:
     #   placement[p_ctg_id][a_ctg_id] = (start, end, p_ctg_id, a_ctg_id, first_node, last_node)
     a_placement = tiling_path.find_a_ctg_placement(p_paths, a_paths)
