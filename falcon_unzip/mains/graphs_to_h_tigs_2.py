@@ -3,21 +3,9 @@ I think this has implicit dependencies:
 * 3-unzip/2-hasm/p_ctg_tiling_path
 * and?
 """
-from falcon_kit.fc_asm_graph import AsmGraph
-from falcon_kit.FastaReader import FastaReader
-import os
-import networkx as nx
-from multiprocessing import Pool
-import re
-import falcon_unzip.proto.execute as execute
-from falcon_unzip.proto.haplotig import Haplotig
-import falcon_unzip.proto.tiling_path as tiling_path
-import falcon_unzip.proto.sam2m4 as sam2m4
-import collections
-import copy
-import falcon_unzip.proto.cigartools as cigartools
-import json
-from falcon_unzip.proto.graphs_to_h_tigs_2_utils import (
+from ..proto import (cigartools, execute, sam2m4, tiling_path, haplotig as Haplotig)
+from ..proto.haplotig import Haplotig
+from ..proto.graphs_to_h_tigs_2_utils import (
         mkdir,
         extract_unphased_haplotig_paths,
         extract_weakly_unphased_haplotig_paths,
@@ -26,12 +14,21 @@ from falcon_unzip.proto.graphs_to_h_tigs_2_utils import (
         revcmp_seq, reverse_end,
         write_haplotigs,
 )
+from falcon_kit.fc_asm_graph import AsmGraph
+from falcon_kit.FastaReader import FastaReader
+from falcon_kit import io # (de)serialize()
+from pypeflow.io import cd
+from multiprocessing import Pool
+import collections
+import copy
+import json
+import networkx as nx
+import os
+import re
 import intervaltree
 import argparse
 import sys
 import logging
-from falcon_kit import io # (de)serialize()
-from pypeflow.io import cd
 
 # for shared memory usage
 global p_asm_G
@@ -330,6 +327,29 @@ def load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase):
             assert(wrid in all_flat_rid_to_phase)
             wphase = all_flat_rid_to_phase[wrid]
             assert(wphase == vphase)
+
+        # Skip the circular haplotigs, since this makes no sense in the diploid context.
+        # This is legal and valid output from FALCON's graph_to_contig.py, but in the
+        # context of Unzipping a linear assembly, these are an artifact of the input
+        # data (e.g. missing adapters).
+        if hpath.edges[0].v == hpath.edges[-1].w:
+            LOG.debug('[{}] Skipping haplotig because it\'s circular: {}'.format(num_hctg, hctg))
+            continue
+
+        # Sanity check for a case which should absolutely never happen in practice, but better
+        # be safe and log + skip it.
+        # If the same node is used in multiple places of the same tiling path,
+        # there is some degeneracy here and we should skip the entire haplotig.
+        occ_count_dict = collections.defaultdict(int)
+        do_skip_haplotig = False
+        for e in hpath.edges:
+            occ_count_dict[e.v] += 1
+            occ_count_dict[e.w] += 1
+            if occ_count_dict[e.v] > 2 or occ_count_dict[e.w]:
+                do_skip_haplotig = True
+        if do_skip_haplotig == True:
+            LOG.debug('[{}] Skipping an invalid haplotig because contains nodes used multiple times in the path: {}'.format(num_hctg, hctg))
+            continue
 
         ###########################
         # Construct the haplotig. #
