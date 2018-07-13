@@ -3,7 +3,7 @@ I think this has implicit dependencies:
 * 3-unzip/2-hasm/p_ctg_tiling_path
 * and?
 """
-from ..proto import (cigartools, execute, sam2m4, tiling_path, haplotig as Haplotig)
+from ..proto import (cigartools, execute, sam2m4, haplotig as Haplotig)
 from ..proto.haplotig import Haplotig
 from ..proto.graphs_to_h_tigs_2_utils import (
         mkdir,
@@ -14,6 +14,7 @@ from ..proto.graphs_to_h_tigs_2_utils import (
         revcmp_seq, reverse_end,
         write_haplotigs,
 )
+from falcon_kit import tiling_path
 from falcon_kit.fc_asm_graph import AsmGraph
 from falcon_kit.FastaReader import FastaReader
 from falcon_kit import io # (de)serialize()
@@ -291,7 +292,7 @@ def load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase):
 
     # Load the primary contig tiling paths.
     p_tiling_paths = os.path.join(hasm_falcon_path, 'p_ctg_tiling_path')
-    tiling_paths = tiling_path.load_tiling_paths(p_tiling_paths, None, None)
+    tiling_paths = tiling_path.load_tiling_paths(p_tiling_paths, contig_lens=None, whitelist_seqs=None)
 
     p_ctg_fasta = os.path.join(hasm_falcon_path, 'p_ctg.fa')
     hasm_p_ctg_seqs = load_all_seq(p_ctg_fasta)
@@ -552,7 +553,8 @@ def fragment_single_haplotig(haplotig, aln, clippoints, bubble_tree, fp_proto_lo
 
     # Here we extract the subsequence and the subpath of the tiling path.
     ret_haplotigs = {}
-    tp = tiling_path.convert_split_lines_to_tiling_path(haplotig.path, len(haplotig.seq))
+    tp_dict = tiling_path.load_tiling_paths_from_split_lines(haplotig.path, contig_lens={haplotig.name: len(haplotig.seq)}, whitelist_seqs=None)
+    tp = tp_dict[haplotig.name]
 
     for region_of_interest in regions_of_interest:
         start, end, q_name, q_len, t_name, t_len, q_phase = region_of_interest
@@ -1173,7 +1175,7 @@ def define_globals(args):
     for p_ctg_id, ctg_seq in p_ctg_seqs.iteritems():
         p_ctg_seq_lens[p_ctg_id] = len(ctg_seq)
     # Load the tiling path of the primary contig, and assign coordinants to nodes.
-    p_ctg_tiling_paths = tiling_path.load_tiling_paths(os.path.join(fc_asm_path, "p_ctg_tiling_path"), None, p_ctg_seq_lens)
+    p_ctg_tiling_paths = tiling_path.load_tiling_paths(os.path.join(fc_asm_path, "p_ctg_tiling_path"), contig_lens=p_ctg_seq_lens, whitelist_seqs=None)
     LOG.info('Done loading tiling paths.')
 
     # Load the haplotig sequences (assembled with falcon_kit.mains.graph_to_contig).
