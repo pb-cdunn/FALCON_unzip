@@ -32,6 +32,7 @@ def update_config_from_sections(config, cfg):
             'job.step.unzip.phasing',
             'job.step.unzip.blasr_aln',
             'job.step.unzip.hasm',
+            'job.step.unzip.quiver',
             'job.defaults',
     ])
     all_sections = set(k for k,v in cfg.items() if isinstance(v, dict))
