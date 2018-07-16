@@ -346,7 +346,7 @@ def load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase):
         for e in hpath.edges:
             occ_count_dict[e.v] += 1
             occ_count_dict[e.w] += 1
-            if occ_count_dict[e.v] > 2 or occ_count_dict[e.w]:
+            if occ_count_dict[e.v] > 2 or occ_count_dict[e.w] > 2:
                 do_skip_haplotig = True
         if do_skip_haplotig == True:
             LOG.debug('[{}] Skipping an invalid haplotig because contains nodes used multiple times in the path: {}'.format(num_hctg, hctg))
@@ -553,8 +553,9 @@ def fragment_single_haplotig(haplotig, aln, clippoints, bubble_tree, fp_proto_lo
 
     # Here we extract the subsequence and the subpath of the tiling path.
     ret_haplotigs = {}
-    tp_dict = tiling_path.load_tiling_paths_from_split_lines(haplotig.path, contig_lens={haplotig.name: len(haplotig.seq)}, whitelist_seqs=None)
-    tp = tp_dict[haplotig.name]
+    tp_ctg_id = None if len(haplotig.path) == 0 else haplotig.path[0][0]    # The original "contig" ID from 3-unzip/1-hasm is still used in the tiling path. 
+    tp_dict = tiling_path.load_tiling_paths_from_split_lines(haplotig.path, contig_lens={tp_ctg_id: len(haplotig.seq)}, whitelist_seqs=None)
+    tp = tp_dict[tp_ctg_id]
 
     for region_of_interest in regions_of_interest:
         start, end, q_name, q_len, t_name, t_len, q_phase = region_of_interest
