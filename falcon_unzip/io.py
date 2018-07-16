@@ -93,7 +93,10 @@ def yield_bam_fn(input_bam_fofn_fn):
         else:
             return os.path.join(fofn_basedir, maybe_rel_fn)
     for row in open(input_bam_fofn_fn):
-        yield abs_fn(row.strip())
+        fn = row.strip()
+        if not fn:
+            continue
+        yield abs_fn(fn)
 
 
 def substitute(yourdict):

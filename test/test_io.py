@@ -1,3 +1,4 @@
+from StringIO import StringIO
 import os
 import pytest
 import subprocess
@@ -53,3 +54,24 @@ def test_validate_samtools():
     M.validate_samtools('Version: 1.3.1')
     M.validate_samtools('Version: 2.1.0')
     M.validate_samtools('Version: 1.6 (using htslib 1.7)')
+
+
+# In the future, this can be used to learn the directory of the current file.
+@pytest.fixture
+def thisdir(request):
+    return os.path.dirname(request.module.__file__)
+
+fofn = """\
+/pbi/1.subreads.bam
+/pbi/2.subreads.bam
+
+"""
+
+def test_yield_bam_fn(tmpdir):
+    assert fofn.endswith('\n\n')
+    with tmpdir.as_cwd():
+        fofn_fn = './foo.fn'
+        with open(fofn_fn, 'w') as stream:
+            stream.write(fofn)
+        fns = list(M.yield_bam_fn(fofn_fn))
+        assert fns == ['/pbi/1.subreads.bam', '/pbi/2.subreads.bam']
