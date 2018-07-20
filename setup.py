@@ -7,7 +7,7 @@ import subprocess
 install_requires = [
         "falcon-kit>=1.2.0",
         "pypeflow>=2.0.3",
-        "networkx>=1.7",
+        "networkx>=1.9.1",
         "pysam>=0.8.4",
         "msgpack-python",
         "intervaltree",
@@ -22,7 +22,7 @@ except Exception:
     local_version = ''
 
 setup(name='falcon_unzip',
-      version='1.1.1' + local_version,
+      version='1.1.2' + local_version,
       description='Falcon unzip',
       author='Jason Chin',
       author_email='jchin@pacificbiosciences.com',

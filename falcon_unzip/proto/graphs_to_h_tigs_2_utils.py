@@ -113,7 +113,7 @@ def extract_unphased_haplotig_paths(sub_hg, weight_param='weight'):
 
     # Handle a special case.
     if len(sub_hg.nodes()) == 1:
-        best_path = [1, [sub_hg.nodes()[0]], sub_hg.nodes()[0], sub_hg.nodes()[0]]
+        best_path = [1, [list(sub_hg.nodes())[0]], list(sub_hg.nodes())[0], list(sub_hg.nodes())[0]]
         return best_path
 
     sources = [v for v in sub_hg.nodes() if sub_hg.in_degree(v) == 0]
@@ -131,7 +131,7 @@ def extract_unphased_haplotig_paths(sub_hg, weight_param='weight'):
 
             path_score = 0
             for v, w in zip(path[:-1], path[1:]):
-                path_score += sub_hg.edge[v][w][weight_param]
+                path_score += sub_hg.get_edge_data(v, w)[weight_param]
 
             s_path.append([path_score, path, s, t])
 

@@ -1152,7 +1152,7 @@ def run(args):
             free_edges.remove((rw, rv))
 
             while w in simple_nodes:
-                w, w_ = sg2.out_edges(w)[0]
+                w, w_ = list(sg2.out_edges(w))[0]
                 if (w, w_) not in free_edges:
                     break
                 rw_, rw = reverse_end(w_), reverse_end(w)
