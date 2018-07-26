@@ -50,9 +50,7 @@ def test_pysam_to_m4_no_query():
     assert M.pysam_to_m4(aln) == None
 def test_pysam_to_m4_no_aln():
     aln = Aln(cigar=[(7,0)], query_sequence='A', query_alignment_start=0, query_alignment_end=0)
-    with pytest.raises(Exception) as excinfo:
-        M.pysam_to_m4(aln)
-    assert 'This would lead to division-by-zero' in str(excinfo.value)
+    assert M.pysam_to_m4(aln) == None
 def test_pysam_to_m4():
     aln = Aln(
             cigar=[(7,0)], query_sequence='A', query_length=9,

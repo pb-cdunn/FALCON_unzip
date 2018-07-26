@@ -50,9 +50,13 @@ def pysam_to_m4(aln, ref_lens = None, skip_supplementary=True, skip_secondary=Tr
         return ret
     if aln.query_sequence == None or len(aln.query_sequence) == 0:
         return ret
+    assert aln_query_len >= 0, 'Negative value should not be possible: {}-{}=={}'.format(
+            aln.query_alignment_end, aln.query_alignment_start, aln_query_len)
     if aln_query_len == 0:
-        msg = 'len(aln.query_sequence) is {}, but actual end-start is zero. This would lead to division-by-zero. You probably need to upgrade blasr for pbbam CIGAR-string fixes.'.format(len(aln.query_sequence)) # TAG-2756
-        raise Exception(msg)
+        msg = 'Alignment length should not be zero for alignments marked as mapped! (qname = {}) Skipping.'.format(
+            aln.qname)
+        LOG.warning(msg)
+        return ret
 
     ref_len = (ref_lens[aln.reference_name]) if ref_lens != None else 0
 
