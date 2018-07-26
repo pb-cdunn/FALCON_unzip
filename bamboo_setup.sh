@@ -1,5 +1,6 @@
 type module >& /dev/null || . /mnt/software/Modules/current/init/bash
 
+module purge
 module load gcc
 module load ccache
 module load python/2-UCS4

@@ -24,7 +24,7 @@ pip -v install --user --no-deps --use-wheel --find-links=dist/ .
 pip install --user pytest pytest-cov pylint
 export MY_TEST_FLAGS="-v -s --durations=0 --cov=falcon_unzip --cov-report=term-missing --cov-report=xml:coverage.xml --cov-branch"
 make test
-sed -i -e 's@filename="@filename="./falcon_unzip/@g' coverage.xml
+#sed -i -e 's@filename="@filename="./falcon_unzip/@g' coverage.xml
 
 pylint --errors-only falcon_unzip
 
