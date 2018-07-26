@@ -3,21 +3,9 @@
 import re
 import sys
 from ..io import AlignmentFile
+import logging
 
-################################
-######### Utility tools ########
-import sys;
-import os;
-from time import gmtime, strftime
-import traceback;
-import fnmatch;
-### Logs messages to STDERR and an output log file if provided (opened elsewhere).
-def log(message, fp_log=sys.stderr):
-  timestamp = strftime("%Y/%m/%d %H:%M:%S", gmtime());
-  if (fp_log != None):
-      fp_log.write('[%s] %s\n' % (timestamp, message))
-      fp_log.flush();
-################################
+LOG = logging.getLogger() # root, to inherit from sub-loggers
 
 CIGAR_M = 0
 CIGAR_I = 1
@@ -50,6 +38,8 @@ def open_sam_bam_for_writing(file_path, header):
 def pysam_to_m4(aln, ref_lens = None, skip_supplementary=True, skip_secondary=True):
     ret = None
 
+    aln_query_len = (aln.query_alignment_end - aln.query_alignment_start)
+
     if aln.is_unmapped == True:
         return ret
     if aln.is_supplementary == True and skip_supplementary == True:
@@ -60,6 +50,9 @@ def pysam_to_m4(aln, ref_lens = None, skip_supplementary=True, skip_secondary=Tr
         return ret
     if aln.query_sequence == None or len(aln.query_sequence) == 0:
         return ret
+    if aln_query_len == 0:
+        msg = 'len(aln.query_sequence) is {}, but actual end-start is zero. This would lead to division-by-zero. You probably need to upgrade blasr for pbbam CIGAR-string fixes.'.format(len(aln.query_sequence)) # TAG-2756
+        raise Exception(msg)
 
     ref_len = (ref_lens[aln.reference_name]) if ref_lens != None else 0
 
@@ -88,7 +81,7 @@ def pysam_to_m4(aln, ref_lens = None, skip_supplementary=True, skip_secondary=Tr
             dels += count
 
     score = 0 - (mismatches + ins + dels)
-    identity = 100.0 * float(matches) / float(aln.query_alignment_end - aln.query_alignment_start)
+    identity = 100.0 * float(matches) / float(aln_query_len)
     ret = [aln.qname, aln.reference_name, score, identity,
                 0, aln.query_alignment_start, aln.query_alignment_end, aln.query_length,
                 (1 if aln.is_reverse == True else 0), aln.reference_start, aln.reference_end, ref_len, 254, aln]
@@ -109,41 +102,11 @@ def sam_to_m4(in_path):
     for sam in it_fp_in:
         num_lines += 1
         if (num_lines % 10000 == 0):
-            log('Loaded %d lines.' % ((num_lines - 1)));
+            LOG.info('Loaded {} lines.'.format((num_lines - 1)))
 
         m4 = pysam_to_m4(sam, ref_lens)
         if m4 == None:
             continue
         ret.append(m4)
-
-        # if sam.is_unmapped == True: continue
-
-        # m = 0
-        # matches = 0
-        # mismatches = 0
-        # ins = 0
-        # dels = 0
-        # for op, count in sam.cigar:
-        #     if op == CIGAR_EQ:
-        #         matches += count
-        #         m += count
-        #     elif op == CIGAR_X:
-        #         mismatches += count
-        #         m += count
-        #     elif op == CIGAR_M:
-        #         # assert(op != CIGAR_M and "Cannot calculate match rate from 'M' operations.'")
-        #         matches += count
-        #         mismatches += count
-        #         m += count
-        #     elif op == CIGAR_I:
-        #         ins += count
-        #     elif op == CIGAR_D:
-        #         dels += count
-
-        # score = 0 - (mismatches + ins + dels)
-        # identity = 100.0 * float(matches) / float(sam.query_alignment_end - sam.query_alignment_start)
-        # ret.append([sam.qname, sam.reference_name, score, identity,
-        #             0, sam.query_alignment_start, sam.query_alignment_end, sam.query_length,
-        #             (1 if sam.is_reverse == True else 0), sam.reference_start, sam.reference_end, ref_lens[sam.reference_name], 254, sam])
 
     return ret
