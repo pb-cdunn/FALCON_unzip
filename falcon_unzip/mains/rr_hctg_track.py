@@ -189,7 +189,7 @@ class TrackReads(object):
             # we still want it to crash in that case.
             msg = 'DAZZLER DB {!r} does not exist.'.format(self.db_fn)
             raise Exception(msg)
-        self.file_list = list(io.yield_validated_fns(las_fofn_fn))
+        self.file_list = [os.path.realpath(fn) for fn in io.yield_validated_fns(las_fofn_fn)]
         self.file_list.sort()
         io.LOG('file list: {!r}'.format(self.file_list))
 
