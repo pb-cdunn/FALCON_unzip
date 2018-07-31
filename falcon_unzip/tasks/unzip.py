@@ -345,6 +345,7 @@ def create_tasks_read_to_contig_map(wf, rule_writer, falcon_asm_done, raw_reads_
 
 def run_workflow(wf, config, rule_writer):
     default_njobs = int(config['job.defaults']['njobs'])
+    wf.max_jobs = default_njobs
 
     falcon_asm_done_fn = './2-asm-falcon/falcon_asm_done'
     p_ctg_fn = './2-asm-falcon/p_ctg.fa'
@@ -414,9 +415,6 @@ def run_workflow(wf, config, rule_writer):
     ))
 
     gathered_rid_to_phase_fn = './3-unzip/0-phasing/gathered-rid-to-phase/gathered.json'
-
-    unzip_blasr_aln_njobs = int(config['job.step.unzip.blasr_aln'].get('njobs', default_njobs))
-    wf.max_jobs = unzip_blasr_aln_njobs
 
     gen_parallel_tasks(
         wf, rule_writer,
@@ -514,10 +512,6 @@ def run_workflow(wf, config, rule_writer):
         ),
         run_script=TASK_GTOH_APPLY_UNITS_OF_WORK,
     )
-    #htigs_done_fn = './3-unzip/2-htigs/htigs.done'
-
-    unzip_phasing_njobs = int(config['job.step.unzip.phasing'].get('njobs', default_njobs))
-    wf.max_jobs = unzip_phasing_njobs
 
     job_done = './3-unzip/hasm_done'
     wf.addTask(gen_task(
@@ -540,8 +534,6 @@ def run_workflow(wf, config, rule_writer):
                 use_tmpdir=False,
             ),
     ))
-
-    wf.refreshTargets() # TODO: Is this needed?
 
     ################
     # 4-quiver stage
@@ -690,9 +682,6 @@ def run_workflow(wf, config, rule_writer):
         rule_writer=rule_writer,
         dist=Dist(local=True), # TODO: lots of fasta parsing, but we must not run in tmpdir
     ))
-
-    unzip_quiver_njobs = int(config['job.step.unzip.quiver'].get('njobs', default_njobs))
-    wf.max_jobs = unzip_quiver_njobs
 
     int_gathered_fn = '4-quiver/cns-gather/intermediate/int.gathered.json'
     gen_parallel_tasks(
