@@ -23,7 +23,7 @@ def unzip_all(config):
         job_defaults=job_defaults,
         use_tmpdir=use_tmpdir,
     )
-    with open('foo.snake', 'w') as snakemake_writer:
+    with open('/dev/null', 'w') as snakemake_writer:
         rule_writer = snakemake.SnakemakeRuleWriter(snakemake_writer)
         tasks_unzip.run_workflow(wf, config, rule_writer)
 
