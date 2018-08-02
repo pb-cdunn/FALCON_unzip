@@ -49,16 +49,16 @@ def run(p_ctg_fasta_fn, h_ctg_fasta_fn, ctg2bamfn_fn, split_fn, bash_template_fn
         # The segregated *.sam were created in task_segregate.
         # Network latency should not matter (much) because we have already waited for the 'done' file.
         #m_ctg_id = ctg_id.split('-')[0] # Why did we care about this? It used to be the workdir.
-        ref_fasta = os.path.abspath(os.path.join('refs', ctg_id, 'ref.fa'))
+        ref_fasta = os.path.join('./refs', ctg_id, 'ref.fa')
         if not os.path.exists(ref_fasta):
             io.mkdirs(os.path.dirname(ref_fasta))
-            # TODO(CD): Up to 50MB of seq data. Should do this on remote host.
+            # Note: Up to 50MB of seq data. Should do this on remote host.
             #   See https://github.com/PacificBiosciences/FALCON_unzip/issues/59
             sequence = ref_seq_data[ctg_id]
             with open(ref_fasta, 'w') as f:
                 print >>f, '>' + ctg_id
                 print >>f, sequence
-        ctg_type_fn = os.path.abspath(os.path.join('refs', ctg_id, 'ctg_type'))
+        ctg_type_fn = os.path.join('./refs', ctg_id, 'ctg_type')
         with open(ctg_type_fn, 'w') as ofs:
             ofs.write(ctg_type) # just a letter
         #wd = os.path.join(os.getcwd(), '..', 'quiver_run', ctg_id)

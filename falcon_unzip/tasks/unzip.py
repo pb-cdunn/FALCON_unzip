@@ -123,11 +123,11 @@ rm -f preads.p_ovl
 
 ln -sf {input.preads4falcon} .
 
+rm -f {output.p_ctg}
+
 # Given sg_edges_list, utg_data, ctg_paths, preads4falcon.fasta,
 # write p_ctg.fa and a_ctg_all.fa,
-# plus a_ctg_base.fa, p_ctg_tiling_path, a_ctg_tiling_path, a_ctg_base_tiling_path:
-
-rm -f {output.p_ctg}
+# plus p_ctg_tiling_path, a_ctg_tiling_path:
 time python -m falcon_kit.mains.graph_to_contig
 
 if [[ ! -e {output.p_ctg} ]]; then
@@ -680,7 +680,11 @@ def run_workflow(wf, config, rule_writer):
         },
         parameters={},
         rule_writer=rule_writer,
-        dist=Dist(local=True), # TODO: lots of fasta parsing, but we must not run in tmpdir
+        #dist=Dist(local=True),
+        # lots of fasta parsing, so must not run locally
+        dist=Dist(NPROC=1,
+            job_dict=config['job.step.unzip.quiver'],
+        ),
     ))
 
     int_gathered_fn = '4-quiver/cns-gather/intermediate/int.gathered.json'
