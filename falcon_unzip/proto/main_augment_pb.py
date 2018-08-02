@@ -337,7 +337,8 @@ def delineate_regions(ctg_id, p_path, a_paths, a_placement):
                 next_state = STATE_SIMPLE_BUBBLE if num_open_branches == 1 else STATE_COMPLEX_BUBBLE
 
             if w in in_edges:
-                assert(False and "FATAL ERROR: Cycles in the graph?")
+                msg = 'FATAL ERROR: Cycles in the graph? w={!r}, len(in_edges)={}'.format(w, len(in_edges))
+                raise Exception(msg)
 
         elif current_state == STATE_SIMPLE_BUBBLE:
 
