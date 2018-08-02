@@ -253,7 +253,7 @@ hostname
 date
 
 samtools faidx {input.ref_fasta}
-pbalign --tmpDir=/scratch/ --nproc=24 --minAccuracy=0.75 --minLength=50\
+pbalign --tmpDir=$(pwd)/tmp --nproc=24 --minAccuracy=0.75 --minLength=50\
           --minAnchorSize=12 --maxDivergence=30 --concordant --algorithm=blasr\
           --algorithmOptions=--useQuality --maxHits=1 --hitPolicy=random --seed=1\
             {input.read_bam} {input.ref_fasta} aln-{params.ctg_id}.bam
@@ -696,7 +696,6 @@ def run_workflow(wf, config, rule_writer):
             outputs={
                 'results': './4-quiver/quiver-run/{ctg_id}/results.json',
             },
-            parameters={},
         ),
         dist=Dist(NPROC=24,
             job_dict=config['job.step.unzip.quiver'],

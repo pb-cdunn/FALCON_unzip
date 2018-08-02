@@ -17,8 +17,11 @@ LOG = logging.getLogger(__name__)
 
 
 def unzip_all(config):
+    job_defaults = config['job.defaults']
+    use_tmpdir = job_defaults['use_tmpdir'] # None/False is fine.
     wf = PypeProcWatcherWorkflow(
-        job_defaults=config['job.defaults'],
+        job_defaults=job_defaults,
+        use_tmpdir=use_tmpdir,
     )
     with open('foo.snake', 'w') as snakemake_writer:
         rule_writer = snakemake.SnakemakeRuleWriter(snakemake_writer)
