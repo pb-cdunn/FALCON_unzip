@@ -101,7 +101,7 @@ def fetch_ref_and_reads(
         read_out.close()
 
     for r_fn in io.yield_abspath_from_fofn(fofn):
-            # TODO: will soon handle .dexta too
+            # handles .fasta.gz and .dexta too
             with open_fasta_reader(r_fn) as read_fa_file:
                 for r in read_fa_file:
                     rid = r.name.split()[0]

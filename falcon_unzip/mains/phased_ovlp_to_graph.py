@@ -1420,7 +1420,7 @@ def run(args):
                 path_length += length
                 path_score += score
                 assert len(ug.out_edges(t, keys=True)) == 1  # t is "simple_out" node
-                t0, t, v = ug.out_edges(t, keys=True)[0]
+                t0, t, v = list(ug.out_edges(t, keys=True))[0]
 
             path.append((t0, t, v))
             length, score, path_or_edges, type_ = u_edge_data[(t0, t, v)]
