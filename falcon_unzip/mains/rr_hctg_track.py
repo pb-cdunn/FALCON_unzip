@@ -313,7 +313,7 @@ def setup(debug, silent, stream, **kwds):
 
 def main(argv=sys.argv):
     args = parse_args(argv)
-    args.n_core = 0  # REMOVE ######################################
+    #args.n_core = 0 # for testing
     setup(**vars(args))
     if args.debug:
         args.n_core = 0
