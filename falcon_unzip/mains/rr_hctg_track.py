@@ -193,20 +193,20 @@ class TrackReads(object):
         self.file_list.sort()
         io.LOG('file list: {!r}'.format(self.file_list))
 
-    def try_finish_track_reads(self, read_to_contig_map, bestn, output):
+    def try_finish_track_reads(self, read_to_contig_map_fn, bestn, output):
         io.LOG('starting try_finish_track_reads')
         try:
-            finish_track_reads(read_to_contig_map, self.file_list, bestn, self.db_fn, output)
+            finish_track_reads(read_to_contig_map_fn, self.file_list, bestn, self.db_fn, output)
             io.LOG('finished finish_track_reads')
         except:
             io.LOG('Exception in finish_track_reads')
 
-    def try_run_track_reads(self, n_core, phased_read_file, read_to_contig_map, rawread_ids, min_len, bestn, o_partials_fn):
+    def try_run_track_reads(self, n_core, phased_reads_fn, read_to_contig_map_fn, rawread_ids_fn, min_len, bestn, o_partials_fn):
         io.LOG('starting try_run_track_reads')
 
         n_core = min(n_core, len(self.file_list))
 
-        define_global_constants(phased_read_file, read_to_contig_map, rawread_ids)
+        define_global_constants(phased_reads_fn, read_to_contig_map_fn, rawread_ids_fn)
         io.LOG('defined global constants')
         io.logstats()
 
@@ -223,12 +223,12 @@ class TrackReads(object):
             raise
 
 
-def run1(db_fn, las_fofn_fn, partials_fn, n_core, phased_read_file, read_to_contig_map, rawread_ids, min_len, bestn):
-    TrackReads(db_fn, las_fofn_fn).try_run_track_reads(n_core, phased_read_file, read_to_contig_map, rawread_ids, min_len, bestn, partials_fn)
+def run1(db_fn, las_fofn_fn, partials_fn, n_core, phased_reads_fn, read_to_contig_map_fn, rawread_ids_fn, min_len, bestn):
+    TrackReads(db_fn, las_fofn_fn).try_run_track_reads(n_core, phased_reads_fn, read_to_contig_map_fn, rawread_ids_fn, min_len, bestn, partials_fn)
 
 
-def run2(db_fn, las_fofn_fn, read_to_contig_map, bestn, output):
-    TrackReads(db_fn, las_fofn_fn).try_finish_track_reads(read_to_contig_map, bestn, output)
+def run2(db_fn, las_fofn_fn, read_to_contig_map_fn, bestn, output):
+    TrackReads(db_fn, las_fofn_fn).try_finish_track_reads(read_to_contig_map_fn, bestn, output)
 
 
 ######
@@ -313,7 +313,7 @@ def setup(debug, silent, stream, **kwds):
 
 def main(argv=sys.argv):
     args = parse_args(argv)
-    args.n_core = 0  # REMOVE ######################################
+    #args.n_core = 0 # for testing
     setup(**vars(args))
     if args.debug:
         args.n_core = 0
@@ -321,13 +321,14 @@ def main(argv=sys.argv):
         db_fn=args.db_fn,
         las_fofn_fn=args.las_fofn_fn,
         partials_fn=args.partials_fn,
-        read_to_contig_map=args.read_to_contig_map_fn,
+        read_to_contig_map_fn=args.read_to_contig_map_fn,
         bestn=args.bestn,
-        phased_read_file=args.phased_reads_fn,
-        rawread_ids=args.rawread_ids_fn,
+        phased_reads_fn=args.phased_reads_fn,
+        rawread_ids_fn=args.rawread_ids_fn,
         min_len=args.min_len,
         n_core=args.n_core,
     )
+    io.LOG('run1({})'.format(kwds))
     run1(**kwds)
 
 
@@ -340,10 +341,11 @@ def main2(argv=sys.argv):
     kwds = dict(
         db_fn=args.db_fn,
         las_fofn_fn=args.las_fofn_fn,
-        read_to_contig_map=args.read_to_contig_map_fn,
+        read_to_contig_map_fn=args.read_to_contig_map_fn,
         bestn=args.bestn,
         output=args.output,
     )
+    io.LOG('run2({})'.format(kwds))
     run2(**kwds)
 
 
