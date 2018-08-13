@@ -11,8 +11,8 @@ LOG = logging.getLogger(__name__)
 
 TASK_TRACK_READS_SCRIPT = """\
 # Also require read_to_contig_map.
-python -m falcon_unzip.mains.rr_ctg_track --db={input.r_db} --las-fofn={input.r_las_fofn} --output={output.rawread_to_contigs}
-python -m falcon_unzip.mains.pr_ctg_track --db={input.p_db} --las-fofn={input.p_las_fofn} --output={output.pread_to_contigs}
+python -m falcon_unzip.mains.rr_ctg_track --n-core={params.pypeflow_nproc} --db={input.r_db} --las-fofn={input.r_las_fofn} --output={output.rawread_to_contigs}
+python -m falcon_unzip.mains.pr_ctg_track --n-core={params.pypeflow_nproc} --db={input.p_db} --las-fofn={input.p_las_fofn} --output={output.pread_to_contigs}
 # Those outputs are used only by fetch_reads.
 python -m falcon_unzip.mains.fetch_reads --p-ctg={input.p_ctg} --fofn={input.fofn} --ctg-list={output.ctg_list_file}
 touch {output.job_done}
@@ -388,7 +388,7 @@ def run_workflow(wf, config, rule_writer):
             parameters={},
             rule_writer=rule_writer,
             dist=Dist(
-                NPROC=4,
+                #NPROC=4, # no longer hard-coded
                 job_dict=config['job.step.unzip.track_reads'],
                 use_tmpdir=False,
             ),
