@@ -9,7 +9,7 @@ install_requires = [
         "pypeflow>=2.0.3",
         "networkx>=1.9.1",
         "pysam>=0.8.4",
-        "msgpack-python",
+        "msgpack",
         "intervaltree",
 ]
 
