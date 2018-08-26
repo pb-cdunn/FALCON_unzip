@@ -5,3 +5,5 @@ build/
 /test-reports/
 *.xml
 .pytest_cache/
+.coverage
+/wheelhouse/
