@@ -1,11 +1,13 @@
 MY_TEST_FLAGS?=-vs --durations=0
+WHEELHOUSE?="/mnt/software/p/python/wheelhouse/develop/"
 
 default:
 pylint:
 	pylint --errors-only falcon_unzip
 wheel:
-	# This is basically a syntax check.
-	python setup.py bdist_wheel
+	which pip
+	pip wheel -v --wheel-dir=./wheelhouse --no-deps .
+	ls -larth ${WHEELHOUSE}
 install-wheel: wheel
 	pip -v install --user --no-deps --use-wheel --find-links=dist/ .
 test:

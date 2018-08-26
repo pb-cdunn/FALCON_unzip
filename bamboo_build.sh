@@ -28,4 +28,4 @@ pylint --errors-only falcon_unzip
 
 ls -larth
 
-#bash bamboo_wheel.sh
+bash bamboo_wheel.sh
