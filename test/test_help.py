@@ -8,7 +8,7 @@ import pytest
     'dedup_h_tigs',
     'get_read2ctg',
     'get_read_hctg_map',
-    'graphs_to_h_tigs',
+    'graphs_to_h_tigs_2',
     'ovlp_filter_with_phase',
     'phased_ovlp_to_graph',
     'phasing_readmap',

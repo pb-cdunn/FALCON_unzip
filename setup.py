@@ -34,7 +34,6 @@ setup(name='falcon_unzip',
           # We do not really need most of these, but mobs might depend on them.
           'fc_dedup_h_tigs.py=falcon_unzip.mains.dedup_h_tigs:main',
           'fc_get_read_hctg_map.py=falcon_unzip.mains.get_read_hctg_map:main',
-          'fc_graphs_to_h_tigs.py=falcon_unzip.mains.graphs_to_h_tigs:main',
           'fc_ovlp_filter_with_phase.py=falcon_unzip.mains.ovlp_filter_with_phase:main',
           'fc_phased_ovlp_to_graph.py=falcon_unzip.mains.phased_ovlp_to_graph:main',
           'fc_phasing_readmap.py=falcon_unzip.mains.phasing_readmap:main',
