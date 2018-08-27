@@ -6,7 +6,7 @@ pylint:
 	pylint --errors-only falcon_unzip
 wheel:
 	which pip
-	pip wheel -v --wheel-dir=./wheelhouse --no-deps .
+	pip wheel -v --wheel-dir=${WHEELHOUSE} --no-deps .
 	ls -larth ${WHEELHOUSE}
 install-wheel: wheel
 	pip -v install --user --no-deps --use-wheel --find-links=dist/ .
