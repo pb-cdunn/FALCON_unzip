@@ -55,7 +55,7 @@ tstrand, tstart, tend, tlen = aln[8:12]
 ### The main method for processing a single ctg_id. ###
 #######################################################
 def run_generate_haplotigs_for_ctg(input_):
-    ctg_id, proto_dir, out_dir, base_dir = input_
+    ctg_id, proto_dir, out_dir, base_dir, allow_multiple_primaries = input_
     LOG.info('Entering generate_haplotigs_for_ctg(ctg_id={!r}, out_dir={!r}, base_dir={!r}'.format(
         ctg_id, out_dir, base_dir))
     mkdir(out_dir)
@@ -71,7 +71,7 @@ def run_generate_haplotigs_for_ctg(input_):
 
     try:
         unzip_dir = os.path.join(base_dir, '3-unzip')
-        return generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger)
+        return generate_haplotigs_for_ctg(ctg_id, allow_multiple_primaries, out_dir, unzip_dir, proto_dir, logger)
     except Exception:
         LOG.exception('Failure in generate_haplotigs_for_ctg({!r})'.format(input_))
         raise
@@ -83,7 +83,7 @@ def run_generate_haplotigs_for_ctg(input_):
         # Each thread accumulates some portion of the old loggers in disuse.
         # This will not cause any problems, as there is never a O(n) logger search.
 
-def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger):
+def generate_haplotigs_for_ctg(ctg_id, allow_multiple_primaries, out_dir, unzip_dir, proto_dir, logger):
     # proto_dir is specific to this ctg_id.
 
     global all_haplotigs_for_ctg
@@ -253,7 +253,7 @@ def generate_haplotigs_for_ctg(ctg_id, out_dir, unzip_dir, proto_dir, logger):
         nx_to_gfa(ctg_id, haplotig_graph, all_haplotig_dict, fp_out)
 
     # Extract the p_ctg and h_ctg sequences.
-    extract_and_write_all_ctg(ctg_id, haplotig_graph, all_haplotig_dict, phase_alias_map, out_dir, fp_proto_log)
+    extract_and_write_all_ctg(ctg_id, haplotig_graph, all_haplotig_dict, phase_alias_map, out_dir, allow_multiple_primaries, fp_proto_log)
 
     #########################################################
     # Debug verbose.
@@ -876,7 +876,7 @@ def update_haplotig_graph(haplotig_graph, phase_alias_map):
 
     return haplotig_graph2
 
-def extract_and_write_all_ctg(ctg_id, haplotig_graph, all_haplotig_dict, phase_alias_map, out_dir, fp_proto_log):
+def extract_and_write_all_ctg(ctg_id, haplotig_graph, all_haplotig_dict, phase_alias_map, out_dir, allow_multiple_primaries, fp_proto_log):
     """
     Finds an arbitrary (shortest) walk down the haplotig DAG, and denotes it
     as "p_ctg.fa".
@@ -953,7 +953,11 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, all_haplotig_dict, phase_a
             # Each weakly connected component will be output as a new primary contig, and
             # haplotigs will be extracted for that component right after.
             # Placement can be now be determined directly from the walk down the haplotig graph.
-            for sub_hg in nx.weakly_connected_component_subgraphs(haplotig_graph):
+            for sub_hg_id, sub_hg in enumerate(nx.weakly_connected_component_subgraphs(haplotig_graph)):
+                if (not allow_multiple_primaries) and sub_hg_id > 0:
+                    msg = 'Skipping additional subgraphs of the primary contig: {ctg_id}. The graph has multiple primary components.'.format(ctg_id=ctg_id)
+                    raise Exception(msg)
+
                 best_path = extract_unphased_haplotig_paths(sub_hg)
                 if best_path == None: continue
 
@@ -965,7 +969,7 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, all_haplotig_dict, phase_a
                 ##################################
                 # Form the primary contig.
                 num_prim_ctg += 1
-                p_ctg_id = '%sp%02d' % (ctg_id, num_prim_ctg)
+                p_ctg_id = ctg_id if not allow_multiple_primaries else '%sp%02d' % (ctg_id, num_prim_ctg)
                 fp_proto_log('Extracting primary contig: p_ctg_id = {}'.format(p_ctg_id))
                 p_ctg_seq, p_ctg_path, p_ctg_edges = construct_ctg_path_and_edges(all_haplotig_dict, p_ctg_id, node_path)
 
@@ -1068,7 +1072,7 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, all_haplotig_dict, phase_a
 
                     # Form the haplotig.
                     num_hctg += 1
-                    h_ctg_id = '%s_%05d' % (p_ctg_id, num_hctg)
+                    h_ctg_id = '%s_%03d' % (p_ctg_id, num_hctg)
                     h_ctg_seq, h_ctg_path, h_ctg_edges = construct_ctg_path_and_edges(all_haplotig_dict, h_ctg_id, htig_node_path)
 
                     # Determine placement.
@@ -1224,7 +1228,7 @@ def cmd_apply(args):
         out_dir = os.path.join('.', 'uow-{}'.format(ctg_id))
         base_dir = sub_args.base_dir
 
-        exe_list.append((ctg_id, proto_dir, out_dir, base_dir))
+        exe_list.append((ctg_id, proto_dir, out_dir, base_dir, False))
 
     LOG.info('Running {} units of work.'.format(len(exe_list)))
 

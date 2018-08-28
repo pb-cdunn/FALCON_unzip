@@ -22,7 +22,7 @@ except Exception:
     local_version = ''
 
 setup(name='falcon_unzip',
-      version='1.1.2' + local_version,
+      version='1.1.3' + local_version,
       description='Falcon unzip',
       author='Jason Chin',
       author_email='jchin@pacificbiosciences.com',
