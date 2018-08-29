@@ -1104,15 +1104,20 @@ def get_rid2proto_dir(gath_fn):
     LOG.info('Reading {!r} to create rid2proto_dir map.'.format(gath_fn))
     gath = io.deserialize(gath_fn)
     result = dict()
+    gath_dn = os.path.dirname(gath_fn)
+    def fixpath(path):
+        if os.path.isabs(path):
+            return path
+        return os.path.normpath(os.path.join(gath_dn, path))
     for rec in gath:
-        rid_to_phase_fn = os.path.normpath(rec['rid_to_phase_out'])
+        rid_to_phase_fn = fixpath(rec['rid_to_phase_out'])
         # That was the output-name for TASK_PHASING_RUN_SCRIPT,
         # specified in phasing_split.py.
         # We now assume that its ctg_id is two dirs up, and
         # the proto/ directory is next to the rid_to_phase file.
         phasing_run_dir = os.path.dirname(rid_to_phase_fn)
         proto_dir = os.path.join(phasing_run_dir, 'proto')
-        assert os.path.isdir(proto_dir)
+        assert os.path.isdir(proto_dir), 'Missing proto_dir {!r}'.format(proto_dir)
         ctg_id = os.path.basename(os.path.dirname(phasing_run_dir))
         # I guess ctg_id == rid?
         result[ctg_id] = proto_dir
@@ -1208,14 +1213,18 @@ def cmd_apply(args):
         LOG.warning('No units of work in {!r}'.format(units_of_work_fn))
         io.serialize(results_fn, list())
         return
-
+    units_of_work_dn = os.path.dirname(units_of_work_fn)
+    def fixpath(path):
+        if os.path.isabs(path):
+            return path
+        return os.path.normpath(os.path.join(units_of_work_dn, path))
     uow = units_of_work[0] # Get the common args from the first UOW.
     sub_args = lambda: None # for attribute storage
-    sub_args.fc_asm_path = uow['input']['fc_asm_path']
-    sub_args.fc_hasm_path = uow['input']['fc_hasm_path']
-    sub_args.base_dir = uow['input']['base_dir']
-    sub_args.fasta = uow['input']['fasta_fn']
-    sub_args.rid_phase_map = uow['input']['rid_phase_map']
+    sub_args.fc_asm_path = fixpath(uow['input']['fc_asm_path'])
+    sub_args.fc_hasm_path = fixpath(uow['input']['fc_hasm_path'])
+    sub_args.base_dir = fixpath(uow['input']['base_dir'])
+    sub_args.fasta = fixpath(uow['input']['fasta_fn'])
+    sub_args.rid_phase_map = fixpath(uow['input']['rid_phase_map'])
 
     define_globals(sub_args)
 
@@ -1320,9 +1329,14 @@ def cmd_combine(args):
     done_fn = args.done_fn
     results = io.deserialize(results_fn)
     combined = collections.defaultdict(list)
+    results_dn = os.path.dirname(results_fn)
+    def fixpath(path):
+        if os.path.isabs(path):
+            return os.path.normpath(path)
+        return os.path.normpath(os.path.join(results_dn, path))
     for result in results:
-        h_ctg_fn = result['h_ctg']
-        run_dir = os.path.normpath(os.path.dirname(h_ctg_fn))
+        h_ctg_fn = fixpath(result['h_ctg'])
+        run_dir = os.path.dirname(h_ctg_fn)
         ctg_id = result['ctg_id']
         combined['h_ctg'].append(h_ctg_fn)
         combined['p_ctg'].append(os.path.join(run_dir, 'p_ctg.{}.fa'.format(ctg_id)))
