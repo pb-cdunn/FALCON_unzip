@@ -2,6 +2,7 @@
 """
 import argparse
 import logging
+import os
 import sys
 from .. import io
 
@@ -17,6 +18,11 @@ def run(rm_intermediates,
     # 'p_ctg': list(sorted(p_ctg_out)), # cns_fasta_fn, cns_fastq_fn
     # 'h_ctg': list(sorted(h_ctg_out)), # cns_fasta_fn, cns_fastq_fn
 
+    gathered_quiver_dn = os.path.dirname(gathered_quiver_fn)
+    def fixpath(path):
+        if os.path.isabs(path):
+            return path
+        return os.path.normpath(os.path.join(gathered_quiver_dn, path))
     used_files = list()
 
     io.rm(cns_p_ctg_fasta_fn)
@@ -24,6 +30,8 @@ def run(rm_intermediates,
     io.rm(cns_p_ctg_fastq_fn)
     io.touch(cns_p_ctg_fastq_fn)
     for cns_fasta_fn, cns_fastq_fn in gathered_dict['p_ctg']:
+            cns_fasta_fn = fixpath(cns_fasta_fn)
+            cns_fastq_fn = fixpath(cns_fastq_fn)
             io.syscall('zcat {cns_fasta_fn} >> {cns_p_ctg_fasta_fn}'.format(**locals()))
             io.syscall('zcat {cns_fastq_fn} >> {cns_p_ctg_fastq_fn}'.format(**locals()))
             used_files.append(cns_fasta_fn)
@@ -34,6 +42,8 @@ def run(rm_intermediates,
     io.rm(cns_h_ctg_fastq_fn)
     io.touch(cns_h_ctg_fastq_fn)
     for cns_fasta_fn, cns_fastq_fn in gathered_dict['h_ctg']:
+            cns_fasta_fn = fixpath(cns_fasta_fn)
+            cns_fastq_fn = fixpath(cns_fastq_fn)
             io.syscall('zcat {cns_fasta_fn} >> {cns_h_ctg_fasta_fn}'.format(**locals()))
             io.syscall('zcat {cns_fastq_fn} >> {cns_h_ctg_fastq_fn}'.format(**locals()))
 
