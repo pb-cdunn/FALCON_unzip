@@ -252,11 +252,11 @@ def parse_args(argv):
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '--read2ctg-fn', type=str,
-        default='./4-quiver/select_reads/read2ctg.msgpack',
+        default='./4-polish/select_reads/read2ctg.msgpack',
         help='Input msgpack from prev step.')
     parser.add_argument(
         '--merged-fn', type=str,
-        default='./4-quiver/merge_reads/merged.fofn',
+        default='./4-polish/merge_reads/merged.fofn',
         help='FOFN of merged.bam files. The actual merged files will (probably) be in subdirs of the same directory.')
     parser.add_argument(
         '--max-n-open-files', type=int, default=300,

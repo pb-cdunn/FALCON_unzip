@@ -9,7 +9,7 @@ class HelpF(argparse.RawTextHelpFormatter, argparse.ArgumentDefaultsHelpFormatte
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(
-        description='Run stage 3-unzip and stage 4-quiver, given the results of stage 2-asm-falcon.',
+        description='Run stage 3-unzip and stage 4-polish, given the results of stage 2-asm-falcon.',
         formatter_class=HelpF,
     )
     parser.add_argument(

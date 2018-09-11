@@ -75,7 +75,7 @@ import sys
 
 
 def parse_args(argv):
-    epilog = 'Typically run in ./4-quiver/select_reads/'
+    epilog = 'Typically run in ./4-polish/select_reads/'
     parser = argparse.ArgumentParser(
         description='Map ctg->BAM filename.',
         epilog=epilog,
@@ -89,7 +89,7 @@ def parse_args(argv):
         help='the base working dir of a falcon assembly')
     parser.add_argument(
         '--rawread-to-contigs', type=str,
-        default='./{base_dir}/4-quiver/track-reads/rawread_to_contigs',
+        default='./{base_dir}/4-polish/track-reads/rawread_to_contigs',
         help='rawread_to_contigs file (from "fc_rr_hctg_track.py", not "fc_rr_ctg_track.py")')
     parser.add_argument(
         '--rawread-ids', type=str,
