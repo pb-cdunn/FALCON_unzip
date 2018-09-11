@@ -255,13 +255,14 @@ trap 'touch {output.job_done}.exit' EXIT
 hostname
 date
 
+nproc={params.pypeflow_nproc}
 samtools faidx {input.ref_fasta}
-pbalign --tmpDir=$(pwd)/tmp --nproc=24 --minAccuracy=0.75 --minLength=50\
+pbalign --tmpDir=$(pwd)/tmp --nproc=$nproc --minAccuracy=0.75 --minLength=50\
           --minAnchorSize=12 --maxDivergence=30 --concordant --algorithm=blasr\
           --algorithmOptions=--useQuality --maxHits=1 --hitPolicy=random --seed=1\
             {input.read_bam} {input.ref_fasta} aln-{params.ctg_id}.bam
 #python -c 'import ConsensusCore2 as cc2; print cc2' # So quiver likely works.
-(variantCaller --algorithm=arrow -x 5 -X 120 -q 20 -j 24 -r {input.ref_fasta} aln-{params.ctg_id}.bam\
+(variantCaller --algorithm=arrow -x 5 -X 120 -q 20 -j $nproc -r {input.ref_fasta} aln-{params.ctg_id}.bam\
             -o {output.cns_fasta} -o {output.cns_fastq} --minConfidence 0 -o {output.cns_vcf}) || echo WARNING quiver failed. Maybe no reads for this block.
 touch {output.cns_fasta}
 touch {output.cns_fastq}
