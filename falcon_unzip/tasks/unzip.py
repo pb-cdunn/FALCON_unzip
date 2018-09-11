@@ -540,7 +540,7 @@ def run_workflow(wf, config, rule_writer):
     ))
 
     ################
-    # 4-quiver stage
+    # 4-polish stage
 
     input_bam_fofn = os.path.relpath(config['Unzip']['input_bam_fofn']) # All input paths should be relative, for snakemake.
     rawreads_db_fn = './0-rawreads/build/raw_reads.db'
@@ -550,7 +550,7 @@ def run_workflow(wf, config, rule_writer):
     all_phased_reads_fn = './3-unzip/all_phased_reads'
     rawread_ids_fn = './3-unzip/reads/dump_rawread_ids/rawread_ids'
 
-    track_reads_rr2c = './4-quiver/track-reads/rawread_to_contigs'
+    track_reads_rr2c = './4-polish/track-reads/rawread_to_contigs'
 
     wf.addTask(gen_task(
         script=TASK_TRACK_READS_H_SCRIPT,
@@ -573,7 +573,7 @@ def run_workflow(wf, config, rule_writer):
         ),
     ))
 
-    read2ctg = './4-quiver/select-reads/read2ctg.msgpack'
+    read2ctg = './4-polish/select-reads/read2ctg.msgpack'
     wf.addTask(gen_task(
         script=TASK_SELECT_READS_H_SCRIPT,
         inputs={
@@ -595,7 +595,7 @@ def run_workflow(wf, config, rule_writer):
     #read2ctg_plf = makePypeLocalFile(read2ctg)
     #input_bam_fofn_plf = makePypeLocalFile(input_bam_fofn)
 
-    merged_fofn = './4-quiver/merge-reads/merged.fofn'
+    merged_fofn = './4-polish/merge-reads/merged.fofn'
     wf.addTask(gen_task(
         script=TASK_MERGE_READS_SCRIPT,
         inputs={
@@ -615,8 +615,8 @@ def run_workflow(wf, config, rule_writer):
         ),
     ))
 
-    segr_all_units_fn ='./4-quiver/segregate-split/all-units-of-work.json'
-    segr_run_bash_template_fn ='./4-quiver/segregate-split/bash-template.sh'
+    segr_all_units_fn ='./4-polish/segregate-split/all-units-of-work.json'
+    segr_run_bash_template_fn ='./4-polish/segregate-split/bash-template.sh'
     wf.addTask(gen_task(
         script=TASK_SEGREGATE_SPLIT_SCRIPT,
         inputs=dict(
@@ -633,7 +633,7 @@ def run_workflow(wf, config, rule_writer):
 
     # Segregate reads from merged BAM files in parallel.
     # (If this were not done in Python, it could probably be in serial.)
-    gathered_fn = './4-quiver/segregate-gathered/segregated-bam.json'
+    gathered_fn = './4-polish/segregate-gathered/segregated-bam.json'
     gen_parallel_tasks(
         wf, rule_writer,
         segr_all_units_fn, gathered_fn,
@@ -641,10 +641,10 @@ def run_workflow(wf, config, rule_writer):
             bash_template_fn=segr_run_bash_template_fn,
             script=TASK_SEGREGATE_RUN_SCRIPT,
             inputs={
-                'units_of_work': './4-quiver/segregate-chunks/{segr}/some-units-of-work.json',
+                'units_of_work': './4-polish/segregate-chunks/{segr}/some-units-of-work.json',
             },
             outputs={
-                'results': './4-quiver/segregate-run/{segr}/segregated-bam-fn-list.json',
+                'results': './4-polish/segregate-run/{segr}/segregated-bam-fn-list.json',
             },
             parameters={},
         ),
@@ -654,7 +654,7 @@ def run_workflow(wf, config, rule_writer):
         ),
     )
 
-    ctg2segregated_bamfn = './4-quiver/segregated-bam/ctg2segregated_bamfn.msgpack'
+    ctg2segregated_bamfn = './4-polish/segregated-bam/ctg2segregated_bamfn.msgpack'
     # This is a separate task, consuming the output of the implicit gatherer.
     wf.addTask(gen_task(
         script=TASK_MAP_SEGREGATED_BAM_SCRIPT,
@@ -669,8 +669,8 @@ def run_workflow(wf, config, rule_writer):
         dist=Dist(local=True),
     ))
 
-    quiver_all_units_fn ='./4-quiver/quiver-split/all-units-of-work.json'
-    quiver_run_bash_template_fn ='./4-quiver/quiver-split/bash-template.sh'
+    quiver_all_units_fn ='./4-polish/quiver-split/all-units-of-work.json'
+    quiver_run_bash_template_fn ='./4-polish/quiver-split/bash-template.sh'
     wf.addTask(gen_task(
         script=TASK_QUIVER_SPLIT_SCRIPT,
         inputs={
@@ -691,7 +691,7 @@ def run_workflow(wf, config, rule_writer):
         ),
     ))
 
-    int_gathered_fn = '4-quiver/cns-gather/intermediate/int.gathered.json'
+    int_gathered_fn = '4-polish/cns-gather/intermediate/int.gathered.json'
     gen_parallel_tasks(
         wf, rule_writer,
         quiver_all_units_fn, int_gathered_fn,
@@ -699,17 +699,17 @@ def run_workflow(wf, config, rule_writer):
             bash_template_fn=quiver_run_bash_template_fn,
             script=TASK_QUIVER_RUN_SCRIPT,
             inputs={
-                'units_of_work': './4-quiver/quiver-chunks/{ctg_id}/some-units-of-work.json',
+                'units_of_work': './4-polish/quiver-chunks/{ctg_id}/some-units-of-work.json',
             },
             outputs={
-                'results': './4-quiver/quiver-run/{ctg_id}/results.json',
+                'results': './4-polish/quiver-run/{ctg_id}/results.json',
             },
         ),
         dist=Dist(NPROC=24,
             job_dict=config['job.step.unzip.quiver'],
         ),
     )
-    gathered_quiver = '4-quiver/cns-gather/gathered_quiver.json'
+    gathered_quiver = '4-polish/cns-gather/gathered_quiver.json'
     wf.addTask(gen_task(
         script=TASK_SEPARATE_GATHERED_QUIVER_SCRIPT,
         inputs={
@@ -729,11 +729,11 @@ def run_workflow(wf, config, rule_writer):
             'gathered_quiver': gathered_quiver,
         },
         outputs={
-            'cns_p_ctg_fasta': '4-quiver/cns-output/cns_p_ctg.fasta',
-            'cns_p_ctg_fastq': '4-quiver/cns-output/cns_p_ctg.fastq',
-            'cns_h_ctg_fasta': '4-quiver/cns-output/cns_h_ctg.fasta',
-            'cns_h_ctg_fastq': '4-quiver/cns-output/cns_h_ctg.fastq',
-            'job_done': '4-quiver/cns-output/job_done',
+            'cns_p_ctg_fasta': '4-polish/cns-output/cns_p_ctg.fasta',
+            'cns_p_ctg_fastq': '4-polish/cns-output/cns_p_ctg.fastq',
+            'cns_h_ctg_fasta': '4-polish/cns-output/cns_h_ctg.fasta',
+            'cns_h_ctg_fastq': '4-polish/cns-output/cns_h_ctg.fastq',
+            'job_done': '4-polish/cns-output/job_done',
         },
         rule_writer=rule_writer,
         dist=Dist(NPROC=1),

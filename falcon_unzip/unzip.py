@@ -116,11 +116,32 @@ def update_falcon_symlinks():
         symlink_if_missing('las-gather', 'las-merge-combine')
     LOG.info('Falcon directories up-to-date.')
 
+def backward_compatible_dirs():
+    # We will symlink the new 4-polish
+    # directory from the old 4-quiver name.
+    quiver_dn = '4-quiver'
+    polish_dn = '4-polish'
+    if os.path.lexists(quiver_dn):
+        if os.path.islink(quiver_dn):
+            # This is fine.
+            assert os.readlink(quiver_dn) == polish_dn
+        elif os.path.isdir(quiver_dn):
+            # If 4-quiver already exists as a directory, we first move it, unless 4-polish exists.
+            if os.path.lexists(polish_dn):
+                msg = 'Both {} and {} exist already.'.format(quiver_dn, polish_dn)
+                raise Exception(msg)
+            os.rename(quiver_dn, polish_dn)
+        else:
+            msg = '{} is a file, not a directory or symlink.'.format(quiver_dn)
+            raise Exception(msg)
+    symlink_if_missing(polish_dn, quiver_dn)
+
 def run(config_fn, logging_config_fn):
     global LOG
     LOG = support.setup_logger(logging_config_fn)
 
     config = parse_config(config_fn)
     update_falcon_symlinks()
+    backward_compatible_dirs()
 
     unzip_all(config)

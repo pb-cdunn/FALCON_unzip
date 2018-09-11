@@ -95,7 +95,7 @@ It assumes the inputs are already generated.
         '--h-ctg-ids-fn', default='{base_dir}/3-unzip/all_h_ctg_ids',
         help='haplotype contig ids filename')
     parser.add_argument(
-        '--output-fn', default='{base_dir}/4-quiver/read_maps/read_to_contig_map',
+        '--output-fn', default='{base_dir}/4-polish/read_maps/read_to_contig_map',
         help='output read_to_contig_map filename')
     args = parser.parse_args(argv[1:])
     args.rawread_ids_fn = args.rawread_ids_fn.format(**vars(args))

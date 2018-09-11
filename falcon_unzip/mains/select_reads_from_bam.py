@@ -137,7 +137,7 @@ def parse_args(argv):
         '--rawread-ids', type=str,
         default='./2-asm-falcon/read_maps/dump_rawread_ids/rawread_ids', help='rawread_ids file (from where?)')
     parser.add_argument(
-        '--sam-dir', type=str, default='./4-quiver/reads', help='Output directory for ctg.sam files')
+        '--sam-dir', type=str, default='./4-polish/reads', help='Output directory for ctg.sam files')
     parser.add_argument(
         '--max-n-open-files', type=int, default='50',
         help='We write sam files several at-a-time, limited by this.')
