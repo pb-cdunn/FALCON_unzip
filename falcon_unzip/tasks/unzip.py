@@ -705,7 +705,7 @@ def run_workflow(wf, config, rule_writer):
                 'results': './4-polish/quiver-run/{ctg_id}/results.json',
             },
         ),
-        dist=Dist(NPROC=24,
+        dist=Dist(
             job_dict=config['job.step.unzip.quiver'],
         ),
     )
