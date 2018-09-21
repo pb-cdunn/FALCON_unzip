@@ -102,17 +102,21 @@ def parse_config(config_fn):
     return config
 
 def symlink_if_missing(src, name):
-    if not os.path.exists(name):
+    if not os.path.lexists(name):
         LOG.info(' ln -s {} {}'.format(src, name))
         os.symlink(src, name)
+    elif os.path.islink(name):
+        rn = os.readlink(name)
+        if not os.path.samefile(src, rn):
+            LOG.warning('"{}" != "{}" in {}'.format(src, rn, os.getcwd()))
 
 def update_falcon_symlinks():
     # We might be able to use an older Falcon run if we create the needed symlinks.
     with io.cd('0-rawreads'):
-        symlink_if_missing('build', '.')
+        symlink_if_missing('.', 'build')
         symlink_if_missing('las-gather', 'las-merge-combine')
     with io.cd('1-preads_ovl'):
-        symlink_if_missing('build', '.')
+        symlink_if_missing('.', 'build')
         symlink_if_missing('las-gather', 'las-merge-combine')
     LOG.info('Falcon directories up-to-date.')
 
