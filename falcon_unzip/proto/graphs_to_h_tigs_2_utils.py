@@ -174,12 +174,12 @@ def generic_nx_to_gfa(graph, fp_out, node_len_dict=None):
         line = 'L\t%s\t+\t%s\t+\t0M' % (v, w)
         fp_out.write(line + '\n')
 
-def nx_to_gfa(ctg_id, haplotig_graph, all_haplotig_dict, fp_out):
+def nx_to_gfa(ctg_id, haplotig_graph, fp_out):
     line = 'H\tVN:Z:1.0'
     fp_out.write(line + '\n')
 
     for v in haplotig_graph.nodes():
-        line = 'S\t%s\t%s\tLN:i:%d' % (v, '*', len(all_haplotig_dict[v]['seq']))
+        line = 'S\t%s\t%s\tLN:i:%d' % (v, '*', len(haplotig_graph.node[v]['htig']['seq']))
         fp_out.write(line + '\n')
 
     for v, w in haplotig_graph.edges():
