@@ -29,6 +29,9 @@ def make_dummy_linear_region(ctg_id, seq, pos_start, pos_end):
     complete_phase = (ctg_id, '-1', '0')
     path = [[ctg_id, '000000001:B', '000000002:B', '000000002', '4', '10', '1986', '99.95']]
     new_haplotig = Haplotig(name = htig_name, phase = complete_phase, seq = seq, path = path, edges = [])
+    new_haplotig.cstart = pos_start
+    new_haplotig.cend = pos_end
+
     new_region_htigs = {htig_name: new_haplotig.__dict__}
 
     new_region = (region_type, first_edge, last_edge, pos_start, pos_end, new_region_htigs)
@@ -44,11 +47,21 @@ def make_dummy_diploid_region(ctg_id, seq1, seq2, pos_start, pos_end, phasing_bl
     complete_phase = (ctg_id, str(phasing_block), '0')
     path_1 = [[ctg_id, '000000003:B', '000000004:B', '000000004', '30', '6', '1986', '99.99']]
     new_haplotig_1 = Haplotig(name = htig_name_1, phase = complete_phase, seq = seq1, path = path_1, edges = [])
+    # "Collapsed-start/end" are required to correctly determine placement coordinates.
+    # All haplotigs from the same bubble have the same cstart and cend coordinates
+    # (this is the coordinate on the collapsed primary contig (2-asm-falcon/p_ctg).
+    new_haplotig_1.cstart = pos_start
+    new_haplotig_1.cend = pos_end
 
     htig_name_2 = '%s_diploid_%d:%d_phase1' % (ctg_id, pos_start, pos_end)
     path_2 = [[ctg_id, '000000005:B', '000000006:B', '000000006', '8', '6', '2019', '100.00']]
     complete_phase = (ctg_id, str(phasing_block), '1')
     new_haplotig_2 = Haplotig(name = htig_name_2, phase = complete_phase, seq = seq2, path = path_2, edges = [])
+    # "Collapsed-start/end" are required to correctly determine placement coordinates.
+    # All haplotigs from the same bubble have the same cstart and cend coordinates
+    # (this is the coordinate on the collapsed primary contig (2-asm-falcon/p_ctg).
+    new_haplotig_2.cstart = pos_start
+    new_haplotig_2.cend = pos_end
 
     new_region_htigs = {htig_name_1: new_haplotig_1.__dict__, htig_name_2: new_haplotig_2.__dict__}
 
@@ -56,16 +69,22 @@ def make_dummy_diploid_region(ctg_id, seq1, seq2, pos_start, pos_end, phasing_bl
 
     return new_region, htig_name_1, htig_name_2
 
-def evaluate_update_haplotig_graph(updated_haplotig_graph, expected_node_set, expected_edge_set):
-    # Evaluate nodes.
-    assert len(updated_haplotig_graph.nodes()) == len(expected_node_set)
+def make_source_and_sink_nodes(ctg_id):
+    nodes = ['{ctg_id}-source-node'.format(ctg_id=ctg_id), '{ctg_id}-sink-node'.format(ctg_id=ctg_id)]
+    return nodes
 
-    for v in updated_haplotig_graph.nodes():
+def evaluate_update_haplotig_graph(test_haplotig_graph, expected_nodes, expected_edges):
+    expected_node_set = set(expected_nodes)
+    expected_edge_set = set(expected_edges)
+
+    # Evaluate nodes.
+    assert len(test_haplotig_graph.nodes()) == len(expected_node_set)
+    for v in test_haplotig_graph.nodes():
         assert v in expected_node_set
 
     # Evaluate edges.
-    assert len(updated_haplotig_graph.edges()) == len(expected_edge_set)
-    for e in updated_haplotig_graph.edges():
+    assert len(test_haplotig_graph.edges()) == len(expected_edge_set)
+    for e in test_haplotig_graph.edges():
         assert e in expected_edge_set
 
 def evaluate_extract_and_write_all_ctg(tmpdir, expected):
@@ -87,49 +106,95 @@ def test_regions_to_haplotig_graph_1():
     """
     Test on empty input.
     """
-    ctg_id = '000000F'
 
-    regions = []
+    def create_test():
+        ctg_id = '000000F'
 
+        ### Inputs.
+        regions = []
+
+        ### Expected results.
+        source_node, sink_node = make_source_and_sink_nodes(ctg_id)
+        expected_nodes = [source_node, sink_node]
+        expected_edges = []
+        # Return.
+        return ctg_id, regions, expected_nodes, expected_edges
+
+    # Get inputs and outputs.
+    ctg_id, regions, expected_nodes, expected_edges = create_test()
+
+    # Run the unit under test.
     haplotig_graph = mod.regions_to_haplotig_graph(ctg_id, regions, mock_fp_proto_log)
 
-    assert len(haplotig_graph.nodes()) == 0
-    assert len(haplotig_graph.edges()) == 0
+    # Evaluate.
+    evaluate_update_haplotig_graph(haplotig_graph, expected_nodes, expected_edges)
 
 def test_regions_to_haplotig_graph_2():
     """
     Test on a single linear (collapsed) region.
     """
 
-    regions = []
-    ctg_id = '000000F'
-    # Create the region.
-    new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
-    regions.append(new_region)
+    def create_test():
+        ctg_id = '000000F'
 
+        ### Inputs.
+        regions = []
+        # Create a linear region.
+        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
+        regions.append(new_region)
+
+        ### Expected results.
+        source_node, sink_node = make_source_and_sink_nodes(ctg_id)
+        expected_nodes = [new_region_header] + [source_node, sink_node]
+        expected_edges = [  (source_node, new_region_header),
+                            (new_region_header, sink_node)]
+        # Return.
+        return ctg_id, regions, expected_nodes, expected_edges
+
+    # Get inputs and outputs.
+    ctg_id, regions, expected_nodes, expected_edges = create_test()
+
+    # Run the unit under test.
     haplotig_graph = mod.regions_to_haplotig_graph(ctg_id, regions, mock_fp_proto_log)
 
-    assert len(haplotig_graph.nodes()) == 1
-    assert len(haplotig_graph.edges()) == 0
+    # Evaluate.
+    evaluate_update_haplotig_graph(haplotig_graph, expected_nodes, expected_edges)
 
 def test_regions_to_haplotig_graph_3():
     """
     Test on two consecutive linear (collapsed) regions.
     """
 
-    regions = []
-    ctg_id = '000000F'
-    # Create the first linear region.
-    new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
-    regions.append(new_region)
-    # Create the second linear region.
-    new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 1000, 2000)
-    regions.append(new_region)
+    def create_test():
+        ctg_id = '000000F'
 
+        ### Inputs.
+        regions = []
+        # Create the first linear region.
+        new_region, region_1_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
+        regions.append(new_region)
+        # Create the second linear region.
+        new_region, region_2_header = make_dummy_linear_region(ctg_id, 'ACTG', 1000, 2000)
+        regions.append(new_region)
+
+        ### Expected results.
+        source_node, sink_node = make_source_and_sink_nodes(ctg_id)
+        expected_nodes = [region_1_header, region_2_header] + [source_node, sink_node]
+        expected_edges = [  (source_node, region_1_header),
+                            (region_1_header, region_2_header),
+                            (region_2_header, sink_node)
+                        ]
+        # Return.
+        return ctg_id, regions, expected_nodes, expected_edges
+
+    # Get inputs and outputs.
+    ctg_id, regions, expected_nodes, expected_edges = create_test()
+
+    # Run the unit under test.
     haplotig_graph = mod.regions_to_haplotig_graph(ctg_id, regions, mock_fp_proto_log)
 
-    assert len(haplotig_graph.nodes()) == 2
-    assert len(haplotig_graph.edges()) == 1
+    # Evaluate.
+    evaluate_update_haplotig_graph(haplotig_graph, expected_nodes, expected_edges)
 
 def test_regions_to_haplotig_graph_4():
     """
@@ -139,22 +204,42 @@ def test_regions_to_haplotig_graph_4():
         - linear region
     """
 
-    regions = []
-    ctg_id = '000000F'
-    # Create the first linear region.
-    new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
-    regions.append(new_region)
-    # Create the diploid region.
-    new_region, new_header_1, new_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0)
-    regions.append(new_region)
-    # Create the second linear region.
-    new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 2000, 3000)
-    regions.append(new_region)
+    def create_test():
+        ctg_id = '000000F'
 
+        ### Inputs.
+        regions = []
+        # Create the first linear region.
+        new_region, region_1_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
+        regions.append(new_region)
+        # Create the diploid region.
+        new_region, region_2_header_1, region_2_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0)
+        regions.append(new_region)
+        # Create the second linear region.
+        new_region, region_3_header = make_dummy_linear_region(ctg_id, 'ACTG', 1000, 2000)
+        regions.append(new_region)
+
+        ### Expected results.
+        source_node, sink_node = make_source_and_sink_nodes(ctg_id)
+        expected_nodes = [region_1_header, region_2_header_1, region_2_header_2, region_3_header] + [source_node, sink_node]
+        expected_edges = [  (source_node, region_1_header),
+                            (region_1_header, region_2_header_1),
+                            (region_1_header, region_2_header_2),
+                            (region_2_header_1, region_3_header),
+                            (region_2_header_2, region_3_header),
+                            (region_3_header, sink_node)
+                        ]
+        # Return.
+        return ctg_id, regions, expected_nodes, expected_edges
+
+    # Get inputs and outputs.
+    ctg_id, regions, expected_nodes, expected_edges = create_test()
+
+    # Run the unit under test.
     haplotig_graph = mod.regions_to_haplotig_graph(ctg_id, regions, mock_fp_proto_log)
 
-    assert len(haplotig_graph.nodes()) == 4
-    assert len(haplotig_graph.edges()) == 4
+    # Evaluate.
+    evaluate_update_haplotig_graph(haplotig_graph, expected_nodes, expected_edges)
 
 def test_regions_to_haplotig_graph_5():
     """
@@ -166,44 +251,115 @@ def test_regions_to_haplotig_graph_5():
         - linear region
     """
 
-    regions = []
-    ctg_id = '000000F'
-    # Create the first linear region.
-    new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
-    regions.append(new_region)
-    # Create the diploid region.
-    new_region, new_header_1, new_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0)
-    regions.append(new_region)
-    # Create the diploid region.
-    new_region, new_header_1, new_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 2000, 3000, 0)
-    regions.append(new_region)
-    # Create the diploid region.
-    new_region, new_header_1, new_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 3000, 4000, 0)
-    regions.append(new_region)
-    # Create the second linear region.
-    new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 4000, 5000)
-    regions.append(new_region)
+    def create_test():
+        ctg_id = '000000F'
 
+        ### Inputs.
+        regions = []
+        # Create the first linear region.
+        new_region, region_1_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
+        regions.append(new_region)
+        # Create a diploid region.
+        new_region, region_2_header_1, region_2_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0)
+        regions.append(new_region)
+        # Create a diploid region.
+        new_region, region_3_header_1, region_3_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 2000, 3000, 1)
+        regions.append(new_region)
+        # Create a diploid region.
+        new_region, region_4_header_1, region_4_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 3000, 4000, 2)
+        regions.append(new_region)
+        # Create the second linear region.
+        new_region, region_5_header = make_dummy_linear_region(ctg_id, 'ACTG', 4000, 5000)
+        regions.append(new_region)
+
+        ### Expected results.
+        source_node, sink_node = make_source_and_sink_nodes(ctg_id)
+        expected_nodes = [  region_1_header,
+                            region_2_header_1, region_2_header_2,
+                            region_3_header_1, region_3_header_2,
+                            region_4_header_1, region_4_header_2,
+                            region_5_header] + [source_node, sink_node]
+        expected_edges = [  # Source to linear 1.
+                            (source_node, region_1_header),
+                            # Linear 1 to diploid 1.
+                            (region_1_header, region_2_header_1),
+                            (region_1_header, region_2_header_2),
+                            # Diploid 1 to diploid 2.
+                            (region_2_header_1, region_3_header_1),
+                            (region_2_header_1, region_3_header_2),
+                            (region_2_header_2, region_3_header_1),
+                            (region_2_header_2, region_3_header_2),
+                            # Diploid 2 to diploid 3.
+                            (region_3_header_1, region_4_header_1),
+                            (region_3_header_1, region_4_header_2),
+                            (region_3_header_2, region_4_header_1),
+                            (region_3_header_2, region_4_header_2),
+                            # Diploid 3 to linear 2.
+                            (region_4_header_1, region_5_header),
+                            (region_4_header_2, region_5_header),
+                            # Linear 2 to sink.
+                            (region_5_header, sink_node)
+                        ]
+        # Return.
+        return ctg_id, regions, expected_nodes, expected_edges
+
+    # Get inputs and outputs.
+    ctg_id, regions, expected_nodes, expected_edges = create_test()
+
+    # Run the unit under test.
     haplotig_graph = mod.regions_to_haplotig_graph(ctg_id, regions, mock_fp_proto_log)
 
-    assert len(haplotig_graph.nodes()) == 8
-    assert len(haplotig_graph.edges()) == 12
+    # Evaluate.
+    evaluate_update_haplotig_graph(haplotig_graph, expected_nodes, expected_edges)
 
 def test_regions_to_haplotig_graph_6():
     """
     Test on a single diploid region.
     """
 
-    regions = []
-    ctg_id = '000000F'
-    # Create the diploid region.
-    new_region, new_header_1, new_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0)
-    regions.append(new_region)
+    # regions = []
+    # ctg_id = '000000F'
+    # # Create the diploid region.
+    # new_region, new_header_1, new_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0)
+    # regions.append(new_region)
 
+    # haplotig_graph = mod.regions_to_haplotig_graph(ctg_id, regions, mock_fp_proto_log)
+
+    # assert len(haplotig_graph.nodes()) == 2
+    # assert len(haplotig_graph.edges()) == 0
+
+    def create_test():
+        ctg_id = '000000F'
+
+        ### Inputs.
+        regions = []
+        # Create a diploid region.
+        new_region, region_1_header_1, region_1_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0)
+        regions.append(new_region)
+
+        ### Expected results.
+        source_node, sink_node = make_source_and_sink_nodes(ctg_id)
+        expected_nodes = [
+                            region_1_header_1, region_1_header_2,
+                        ] + [source_node, sink_node]
+        expected_edges = [  # Source to diploid.
+                            (source_node, region_1_header_1),
+                            (source_node, region_1_header_2),
+                            # Diploid to sink.
+                            (region_1_header_1, sink_node),
+                            (region_1_header_2, sink_node),
+                        ]
+        # Return.
+        return ctg_id, regions, expected_nodes, expected_edges
+
+    # Get inputs and outputs.
+    ctg_id, regions, expected_nodes, expected_edges = create_test()
+
+    # Run the unit under test.
     haplotig_graph = mod.regions_to_haplotig_graph(ctg_id, regions, mock_fp_proto_log)
 
-    assert len(haplotig_graph.nodes()) == 2
-    assert len(haplotig_graph.edges()) == 0
+    # Evaluate.
+    evaluate_update_haplotig_graph(haplotig_graph, expected_nodes, expected_edges)
 
 def test_update_haplotig_graph_1():
     """
@@ -370,7 +526,8 @@ def test_update_haplotig_graph_5():
         1. Linear region (unphased, phasing block is -1).
         2. Diploid region (phasing block 0)
         3. Diploid region (phasing block 1)
-        4. Linear region  (unphased, phasing block is -1).
+        4. Diploid region (phasing block 2)
+        5. Linear region  (unphased, phasing block is -1).
     Non-empty phase_alias_map. Edges between nodes that belong to different phase aliases
     should be removed.
     """
@@ -434,7 +591,8 @@ def test_update_haplotig_graph_6():
         1. Linear region (unphased, phasing block is -1).
         2. Diploid region (phasing block 0)
         3. Diploid region (phasing block 1)
-        4. Linear region  (unphased, phasing block is -1).
+        4. Diploid region (phasing block 2)
+        5. Linear region  (unphased, phasing block is -1).
     Non-empty phase_alias_map, but the aliases are for distant bubbles, so no neighboring edges.
     No edges should be removed here.
     """
@@ -553,6 +711,27 @@ def test_extract_and_write_all_ctg_2(tmpdir):
 
         # Expected results.
         expected = {}
+        # Expected results.
+        ctg_seq = region_1_seq_1
+        p_ctg_fasta = '>{ctg_id}\n{seq}\n'.format(ctg_id=ctg_id, seq=ctg_seq)
+        p_ctg_edges = '\n'.join([' '.join(edge[0:3]) + ' N H 0 0 0 0' for edge in region_1[5][region_1_name_1]['path']]) + '\n'
+
+        h_ctg_id = '{ctg_id}_001'.format(ctg_id=ctg_id)
+        h_ctg_seq = region_1_seq_2
+        h_ctg_fasta = ''
+        h_ctg_paf = ''
+        h_ctg_fasta += '>{ctg_id}\n{seq}\n'.format(ctg_id=h_ctg_id, seq=h_ctg_seq)
+        h_ctg_paf += '{h_ctg_id}\t{qlen}\t{qstart}\t{qend}\t+\t{ctg_id}\t{tlen}\t{tstart}\t{tend}\t{tspan}\t{tspan}\t{mapq}\n'.format(
+                        h_ctg_id=h_ctg_id, qlen=len(h_ctg_seq), qstart=0, qend=len(h_ctg_seq),
+                        ctg_id=ctg_id, tlen=len(ctg_seq), tstart=0, tend=len(ctg_seq), tspan=len(ctg_seq), mapq=60)
+        h_ctg_edges = '\n'.join([h_ctg_id + ' ' + ' '.join(edge[1:3]) + ' N H 0 1 0 1' for edge in region_1[5][region_1_name_2]['path']]) + '\n'
+
+        expected = {}
+        expected['p_ctg.{ctg_id}.fa'.format(ctg_id=ctg_id)] = p_ctg_fasta
+        expected['p_ctg_edges.{ctg_id}'.format(ctg_id=ctg_id)] = p_ctg_edges
+        expected['h_ctg.{ctg_id}.fa'.format(ctg_id=ctg_id)] = h_ctg_fasta
+        expected['h_ctg_edges.{ctg_id}'.format(ctg_id=ctg_id)] = h_ctg_edges
+        expected['h_ctg.{ctg_id}.paf'.format(ctg_id=ctg_id)] = h_ctg_paf
 
         return haplotig_graph, expected
 

@@ -236,9 +236,6 @@ def generate_haplotigs_for_ctg(ctg_id, allow_multiple_primaries, out_dir, unzip_
     haplotig_graph = regions_to_haplotig_graph(ctg_id, final_all_regions, fp_proto_log)
     haplotig_graph = update_haplotig_graph(haplotig_graph, phase_alias_map)
 
-    # Hash all haplotigs for lookup.
-    fp_proto_log('  - Hashing haplotigs.')
-
     # Write the nx graph to disk for debugging.
     fp_proto_log('  - Writing the haplotig graph in the gexf format.')
     nx.write_gexf(haplotig_graph, os.path.join(out_dir, "haplotig_graph.gexf"))
@@ -765,6 +762,17 @@ def regions_to_haplotig_graph(ctg_id, all_regions, fp_proto_log):
     all_regions = sorted(all_regions, key = lambda x: x[3])
 
     haplotig_graph = nx.DiGraph()
+
+    # Add a dummy source node to keep fully-phased front of the contig in place.
+    source_node_name = '{ctg_id}-source-node'.format(ctg_id=ctg_id)
+    haplotig_graph.add_node(source_node_name, label='source',
+                phase='{ctg_id}_-1_0'.format(ctg_id=ctg_id), phase_alias=-1, htig={})
+
+    # Add a dummy sink node to keep fully-phased back of the contig in place.
+    sink_node_name = '{ctg_id}-sink-node'.format(ctg_id=ctg_id)
+    haplotig_graph.add_node(sink_node_name, label='sink',
+                phase='{ctg_id}_-1_0'.format(ctg_id=ctg_id), phase_alias=-1, htig={})
+
     # Add nodes.
     fp_proto_log('  - Adding nodes.')
     for region_id in xrange(len(all_regions)):
@@ -784,8 +792,32 @@ def regions_to_haplotig_graph(ctg_id, all_regions, fp_proto_log):
                         phase='_'.join([str(val) for val in vphase]),
                         phase_alias=vphase_alias, htig=htig)
 
-    # Add edges between all bubble components. Filtering the edges
-    # will be performed afterwards.
+    # Add edges between all regions. Filtering the edges will be performed afterwards.
+    # First, add dummy edges.
+    if len(all_regions) > 0:
+        node_set = set(haplotig_graph.nodes())
+
+        # Connect the first region to the source node.
+        region = all_regions[0]
+        region_type, edge_start, edge_end, region_pos_start, region_pos_end, region_haplotigs = region
+        for htig_name, htig in region_haplotigs.iteritems():
+            if htig_name not in node_set:
+                continue
+            v = source_node_name
+            w = htig_name
+            haplotig_graph.add_edge(v, w, weight=1)
+
+        # Connect the last region to the sink node.
+        region = all_regions[-1]
+        region_type, edge_start, edge_end, region_pos_start, region_pos_end, region_haplotigs = region
+        for htig_name, htig in region_haplotigs.iteritems():
+            if htig_name not in node_set:
+                continue
+            v = htig_name
+            w = sink_node_name
+            haplotig_graph.add_edge(v, w, weight=1)
+
+    # Second, add all proper edges.
     fp_proto_log('  - Adding edges.')
     for region_id in xrange(1, len(all_regions)):
         region = all_regions[region_id - 1]
@@ -887,7 +919,10 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, out_dir, allow_multiple_pr
     fp_proto_log('  - Writing all the regions to disk in regions.fasta.')
     with open(os.path.join(out_dir, "regions.fasta"), 'w') as fp_out:
         for key in haplotig_graph.nodes():
-            htig = haplotig_graph.node[key]['htig']
+            node = haplotig_graph.node[key]
+            if node['label'] == 'source' or node['label'] == 'sink':
+                continue
+            htig = node['htig']
             fp_out.write('>%s\n%s\n' % (key, htig['seq']))
 
     ##################################
@@ -903,13 +938,24 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, out_dir, allow_multiple_pr
         """
         # Create the contig sequence.
         # The sequence is composed of clipped haplotigs, so plain concatenation is valid.
-        new_ctg_seq = ''.join([haplotig_graph.node[v]['htig']['seq'] for v in node_path])
+        new_ctg_seq = ''
+        for v in node_path:
+            node = haplotig_graph.node[v]
+            if node['label'] == 'source' or node['label'] == 'sink':
+                continue
+            new_ctg_seq += node['htig']['seq']
+
+        # new_ctg_seq = ''.join([haplotig_graph.node[v]['htig']['seq'] for v in node_path])
 
         # Construct the edges for the contig.
         new_ctg_path = []
         new_ctg_edges = []
         for v in node_path:
-            haplotig = haplotig_graph.node[v]['htig']
+            node = haplotig_graph.node[v]
+            if node['label'] == 'source' or node['label'] == 'sink':
+                continue
+
+            haplotig = node['htig']
             phase = haplotig['phase']
             tp = haplotig['path']
             cross_phase = 'N'
@@ -993,7 +1039,10 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, out_dir, allow_multiple_pr
                 haplotig_segment_coords = {}
                 current_coord = 0
                 for v in node_path:
-                    haplotig = haplotig_graph.node[v]['htig']
+                    node = haplotig_graph.node[v]
+                    if node['label'] == 'source' or node['label'] == 'sink':
+                        continue
+                    haplotig = node['htig']
                     hg_node_seq_len = len(haplotig['seq'])
                     haplotig_segment_coords[haplotig['cstart']] = current_coord
                     haplotig_segment_coords[haplotig['cend']] = current_coord + hg_node_seq_len
@@ -1005,7 +1054,10 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, out_dir, allow_multiple_pr
                 # Also, create PAF placements for each of the regions.
                 region_paf_placement = {}
                 for v in haplotig_graph.nodes():
-                    haplotig = haplotig_graph.node[v]['htig']
+                    node = haplotig_graph.node[v]
+                    if node['label'] == 'source' or node['label'] == 'sink':
+                        continue
+                    haplotig = node['htig']
                     hg_node_seq_len = len(haplotig['seq'])
                     # Get the coordinates on the collapsed primary contig (2-asm-falcon/p_ctg.fa)
                     cstart, cend = haplotig['cstart'], haplotig['cend']
