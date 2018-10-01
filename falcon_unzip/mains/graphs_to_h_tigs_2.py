@@ -1056,7 +1056,7 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, out_dir, allow_multiple_pr
                 # Assign the new Unzipped-collapsed coordinate equivalents to the old ones.
                 # Also, create PAF placements for each of the regions.
                 region_paf_placement = {}
-                for v in haplotig_graph.nodes():
+                for v in sub_hg.nodes():
                     node = haplotig_graph.node[v]
                     if node['label'] == 'source' or node['label'] == 'sink':
                         continue
