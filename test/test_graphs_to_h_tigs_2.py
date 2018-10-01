@@ -789,5 +789,135 @@ def test_extract_and_write_all_ctg_3(tmpdir):
     haplotig_graph = create_test(ctg_id)
 
     # Run unit under test.
-    with pytest.raises(mod.ExceptionMultiplePrimaryGraphComponents):
+    with pytest.raises(Exception, match=r'Skipping additional subgraphs of the primary contig.*'):
         mod.extract_and_write_all_ctg(ctg_id, haplotig_graph, str(tmpdir), allow_multiple_primaries, mock_fp_proto_log)
+
+def test_extract_and_write_all_ctg_4(tmpdir):
+    """
+    A degenerate case which should throw.
+    This test should allow multiple primary componets to be extracted from the same graph.
+    """
+
+    def create_test(ctg_id):
+        # Linear region.
+        regions = []
+        region_1_seq = 'AAAA'
+        region_1, region_1_name = make_dummy_linear_region(ctg_id + 'a', region_1_seq, 1000, 2000)
+        regions.append(region_1)
+        haplotig_graph_1 = mod.regions_to_haplotig_graph(ctg_id + 'a', regions, mock_fp_proto_log)
+
+        # Another separate linear region.
+        regions = []
+        region_2_seq = 'TTTT'
+        region_2, region_2_name = make_dummy_linear_region(ctg_id + 'b', region_2_seq, 4000, 5000)
+        regions.append(region_2)
+        haplotig_graph_2 = mod.regions_to_haplotig_graph(ctg_id + 'b', regions, mock_fp_proto_log)
+
+        # Make a multi-component graph.
+        haplotig_graph = nx.compose(haplotig_graph_1, haplotig_graph_2)
+
+        # Expected results.
+        expected = {}
+        # Expected results.
+        p_ctg_fasta =   '>{ctg_id}p01\n{seq}\n'.format(ctg_id=ctg_id, seq=region_2_seq) + \
+                        '>{ctg_id}p02\n{seq}\n'.format(ctg_id=ctg_id, seq=region_1_seq)
+        p_ctg_edges =   '\n'.join(['{ctg_id}p01 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H -1 0 -1 0' for edge in haplotig_graph.node[region_2_name]['htig']['path']]) + '\n' + \
+                        '\n'.join(['{ctg_id}p02 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H -1 0 -1 0' for edge in haplotig_graph.node[region_1_name]['htig']['path']]) + '\n'
+
+        h_ctg_fasta =   ''
+        h_ctg_edges =   ''
+        h_ctg_paf = ''
+
+        expected = {}
+        expected['p_ctg.{ctg_id}.fa'.format(ctg_id=ctg_id)] = p_ctg_fasta
+        expected['p_ctg_edges.{ctg_id}'.format(ctg_id=ctg_id)] = p_ctg_edges
+        expected['h_ctg.{ctg_id}.fa'.format(ctg_id=ctg_id)] = h_ctg_fasta
+        expected['h_ctg_edges.{ctg_id}'.format(ctg_id=ctg_id)] = h_ctg_edges
+        expected['h_ctg.{ctg_id}.paf'.format(ctg_id=ctg_id)] = h_ctg_paf
+
+        return haplotig_graph, expected
+
+    ctg_id = '000000F'
+
+    # Make the test inputs and expected outputs.
+    haplotig_graph, expected = create_test(ctg_id)
+
+    # Run unit under test. Test for failure, because there are multiple components.
+    allow_multiple_primaries = False
+    with pytest.raises(Exception, match=r'Skipping additional subgraphs of the primary contig.*'):
+        mod.extract_and_write_all_ctg(ctg_id, haplotig_graph, str(tmpdir), allow_multiple_primaries, mock_fp_proto_log)
+
+    # Run unit under test. Allow multiple components, and test if it will actually generate valid output.
+    allow_multiple_primaries = True
+    mod.extract_and_write_all_ctg(ctg_id, haplotig_graph, str(tmpdir), allow_multiple_primaries, mock_fp_proto_log)
+
+    # Evaluate.
+    evaluate_extract_and_write_all_ctg(tmpdir, expected)
+
+def test_extract_and_write_all_ctg_5(tmpdir):
+    """
+    A degenerate case which should throw.
+    This test should allow multiple primary componets to be extracted from the same graph.
+    """
+
+    def create_test(ctg_id):
+        # Linear region.
+        regions = []
+        region_1_seq = 'AAAA'
+        region_1, region_1_name = make_dummy_linear_region(ctg_id + 'a', region_1_seq, 1000, 2000)
+        regions.append(region_1)
+        haplotig_graph_1 = mod.regions_to_haplotig_graph(ctg_id + 'a', regions, mock_fp_proto_log)
+
+        # Another separate diploid region.
+        regions = []
+        region_2_seq_1 = 'TTTT'
+        region_2_seq_2 = 'GG'
+        region_2, region_2_name_1, region_2_name_2 = make_dummy_diploid_region(ctg_id + 'b', region_2_seq_1, region_2_seq_2, 4000, 5000, 1)
+        regions.append(region_2)
+        haplotig_graph_2 = mod.regions_to_haplotig_graph(ctg_id + 'b', regions, mock_fp_proto_log)
+
+        # Make a multi-component graph.
+        haplotig_graph = nx.compose(haplotig_graph_1, haplotig_graph_2)
+
+        # Expected results.
+        expected = {}
+        # Expected results.
+        # The order in which primaries are listed is abritrary and depends on NetworkX.
+        # The selection of path through diploid bubbles is arbitrary and depends on NetworkX.
+        p_ctg_fasta =   '>{ctg_id}p01\n{seq}\n'.format(ctg_id=ctg_id, seq=region_2_seq_2) + \
+                        '>{ctg_id}p02\n{seq}\n'.format(ctg_id=ctg_id, seq=region_1_seq)
+        p_ctg_edges =   '\n'.join(['{ctg_id}p01 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H 1 1 1 1' for edge in haplotig_graph.node[region_2_name_2]['htig']['path']]) + '\n' + \
+                        '\n'.join(['{ctg_id}p02 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H -1 0 -1 0' for edge in haplotig_graph.node[region_1_name]['htig']['path']]) + '\n'
+
+        h_ctg_fasta =   '>{ctg_id}p01_001\n{seq}\n'.format(ctg_id=ctg_id, seq=region_2_seq_1)
+        h_ctg_edges =   '\n'.join(['{ctg_id}p01_001 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H 1 0 1 0' for edge in haplotig_graph.node[region_2_name_1]['htig']['path']]) + '\n'
+        h_ctg_paf =     '{ctg_id}p01_001\t{qlen}\t{qstart}\t{qend}\t+\t{ctg_id}p01\t{tlen}\t{tstart}\t{tend}\t{tspan}\t{tspan}\t{mapq}\n'.format(
+                        ctg_id=ctg_id,
+                        qlen=len(region_2_seq_1), qstart=0, qend=len(region_2_seq_1),
+                        tlen=len(region_2_seq_2), tstart=0, tend=len(region_2_seq_2), tspan=len(region_2_seq_2), mapq=60)
+
+        expected = {}
+        expected['p_ctg.{ctg_id}.fa'.format(ctg_id=ctg_id)] = p_ctg_fasta
+        expected['p_ctg_edges.{ctg_id}'.format(ctg_id=ctg_id)] = p_ctg_edges
+        expected['h_ctg.{ctg_id}.fa'.format(ctg_id=ctg_id)] = h_ctg_fasta
+        expected['h_ctg_edges.{ctg_id}'.format(ctg_id=ctg_id)] = h_ctg_edges
+        expected['h_ctg.{ctg_id}.paf'.format(ctg_id=ctg_id)] = h_ctg_paf
+
+        return haplotig_graph, expected
+
+    ctg_id = '000000F'
+
+    # Make the test inputs and expected outputs.
+    haplotig_graph, expected = create_test(ctg_id)
+
+    # Run unit under test. Test for failure, because there are multiple components.
+    allow_multiple_primaries = False
+    with pytest.raises(Exception, match=r'Skipping additional subgraphs of the primary contig.*'):
+        mod.extract_and_write_all_ctg(ctg_id, haplotig_graph, str(tmpdir), allow_multiple_primaries, mock_fp_proto_log)
+
+    # Run unit under test. Allow multiple components, and test if it will actually generate valid output.
+    allow_multiple_primaries = True
+    mod.extract_and_write_all_ctg(ctg_id, haplotig_graph, str(tmpdir), allow_multiple_primaries, mock_fp_proto_log)
+
+    # Evaluate.
+    evaluate_extract_and_write_all_ctg(tmpdir, expected)

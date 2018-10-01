@@ -51,9 +51,6 @@ qstrand, qstart, qend, qlen = aln[4:8]
 tstrand, tstart, tend, tlen = aln[8:12]
 """
 
-class ExceptionMultiplePrimaryGraphComponents(Exception):
-    pass
-
 #######################################################
 ### The main method for processing a single ctg_id. ###
 #######################################################
@@ -1002,7 +999,7 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, out_dir, allow_multiple_pr
             for sub_hg_id, sub_hg in enumerate(nx.weakly_connected_component_subgraphs(haplotig_graph)):
                 if (not allow_multiple_primaries) and sub_hg_id > 0:
                     msg = 'Skipping additional subgraphs of the primary contig: {ctg_id}. The graph has multiple primary components.'.format(ctg_id=ctg_id)
-                    raise ExceptionMultiplePrimaryGraphComponents(msg)
+                    raise Exception(msg)
 
                 best_path = extract_unphased_haplotig_paths(sub_hg)
                 if best_path == None: continue
