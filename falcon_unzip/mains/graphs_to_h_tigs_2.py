@@ -246,7 +246,10 @@ def generate_haplotigs_for_ctg(ctg_id, allow_multiple_primaries, out_dir, unzip_
         nx_to_gfa(ctg_id, haplotig_graph, fp_out)
 
     # Extract the p_ctg and h_ctg sequences.
-    extract_and_write_all_ctg(ctg_id, haplotig_graph, out_dir, allow_multiple_primaries, fp_proto_log)
+    p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf = extract_unzipped_ctgs(ctg_id, haplotig_graph, allow_multiple_primaries, fp_proto_log)
+
+    # Write the results out.
+    write_unzipped(out_dir, ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf)
 
     #########################################################
     # Debug verbose.
@@ -950,20 +953,33 @@ def construct_ctg_path_and_edges(haplotig_graph, new_ctg_id, node_path):
 
     return new_ctg_seq, new_ctg_path, new_ctg_edges
 
-def calc_node_pos_in_path(sub_hg, p_node_path):
+def calc_node_pos_in_path(haplotig_graph, p_node_path):
+    """
+    For a given path of nodes, calculate the start pos and end pos
+    of each node in the path.
+    Inputs:
+        haplotig_graph  - A NetworkX object.
+        p_node_path     - List of node IDs that make up a path in the haplotig_graph.
+    Returns:
+        Tuple of (p_node_start_coords, p_node_end_coords).
+        p_node_start_coords - Dict where key is the node ID, and value start coordinate of the node in the path.
+        p_node_end_coords   - Dict where key is the node ID, and value end coordinate of the node in the path.
+    """
+
     total_len = 0
     for v in p_node_path:
-        node = sub_hg.node[v]
+        node = haplotig_graph.node[v]
         if node['label'] == 'source' or node['label'] == 'sink':
             continue
-        node = sub_hg.node[v]
+        node = haplotig_graph.node[v]
         total_len += len(node['htig']['seq'])
 
     p_node_start_coords = {}
     p_node_end_coords = {}
+
     path_seq_len = 0
     for v in p_node_path:
-        node = sub_hg.node[v]
+        node = haplotig_graph.node[v]
         if node['label'] == 'source':
             p_node_start_coords[v] = 0
             p_node_end_coords[v] = 0
@@ -980,9 +996,31 @@ def calc_node_pos_in_path(sub_hg, p_node_path):
     return p_node_start_coords, p_node_end_coords
 
 def find_placement(haplotig_graph,
-                    p_ctg_id, p_ctg_seq, p_node_set,
+                    p_ctg_id, p_ctg_seq_len, p_node_set,
                     p_node_start_coords, p_node_end_coords,
-                    h_ctg_id, h_ctg_seq, htig_node_path):
+                    h_ctg_id, h_ctg_seq_len, htig_node_path):
+
+    """
+    Inputs:
+        haplotig_graph      - ANetworkX graph object. It doesn't have to be the subgraph
+                            for p_ctg_id, it can also be the general graph before subgraph extraction.
+        p_ctg_id            - Name (e.g. header) of the currently analyzed contig.
+        p_ctg_seq_len       - Length of the primary contig.
+        p_node_set          - A set() of node names that comprise the primary contig called p_ctg_id.
+        p_node_start_coords - A dict where key is a node from p_node_set, and value the start
+                            coordinate on p_ctg. Every node in p_node_set shold have a key here.
+        p_node_end_coords   - A dict where key is a node from p_node_set, and value the end coordinate
+                            on p_ctg. Every node in p_node_set shold have a key here.
+        h_ctg_id            - The name of the haplotig for which the placement is generated.
+        h_ctg_seq_len       - Length of the sequence of the haplotig.
+        htig_node_path      - Path of nodes (list of node IDs) comprising the haplotig.
+    Returns:
+        A PAF-formatted tuple for the mapping of the haplotig to the primary contig.
+    """
+
+    # Validate the inputs.
+    assert set(p_node_set) == set(p_node_start_coords.keys())
+    assert set(p_node_set) == set(p_node_end_coords.keys())
 
     if not htig_node_path:
         return None
@@ -997,21 +1035,20 @@ def find_placement(haplotig_graph,
     htig_t_node = htig_node_path[-1]
     tt_set = set([w for v, w in haplotig_graph.out_edges(htig_t_node)]) & p_node_set
     tt = sorted(list(tt_set), key = lambda x: p_node_start_coords[x])
-    unzipped_end = len(p_ctg_seq) if len(tt) == 0 else p_node_end_coords[tt[-1]]
+    unzipped_end = p_ctg_seq_len if len(tt) == 0 else p_node_end_coords[tt[-1]]
 
     # Calculations for the shorthand.
     unzipped_span = unzipped_end - unzipped_start
-    h_ctg_seq_len = len(h_ctg_seq)
 
     # Final PAF formulation of the placement.
     h_ctg_placement = (h_ctg_id, h_ctg_seq_len, 0, h_ctg_seq_len,
-                        '+', p_ctg_id, len(p_ctg_seq),
+                        '+', p_ctg_id, p_ctg_seq_len,
                         unzipped_start, unzipped_end,
                         unzipped_span, unzipped_span, 60)
 
     return h_ctg_placement
 
-def extract_and_write_all_ctg(ctg_id, haplotig_graph, out_dir, allow_multiple_primaries, fp_proto_log):
+def extract_unzipped_ctgs(ctg_id, haplotig_graph, allow_multiple_primaries, fp_proto_log):
     """
     Finds an arbitrary (shortest) walk down the haplotig DAG, and denotes it
     as "p_ctg.fa".
@@ -1114,36 +1151,38 @@ def extract_and_write_all_ctg(ctg_id, haplotig_graph, out_dir, allow_multiple_pr
 
             # Determine placement.
             h_ctg_placement = find_placement(haplotig_graph,
-                                                p_ctg_id, p_ctg_seq, p_node_set,
+                                                p_ctg_id, len(p_ctg_seq), p_node_set,
                                                 p_node_start_coords, p_node_end_coords,
-                                                h_ctg_id, h_ctg_seq, htig_node_path)
+                                                h_ctg_id, len(h_ctg_seq), htig_node_path)
 
             # Store the results.
             all_h_seqs[h_ctg_id] = h_ctg_seq
             all_h_edges[h_ctg_id] = h_ctg_edges
             all_h_paf[h_ctg_id] = h_ctg_placement
 
-    # Write the results out.
+    return all_p_seqs, all_p_edges, all_h_seqs, all_h_edges, all_h_paf
+
+def write_unzipped(out_dir, ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf):
     with open(os.path.join(out_dir, "p_ctg.%s.fa" % ctg_id), "w") as fp_out:
-        for seq_name, seq in all_p_seqs.iteritems():
+        for seq_name, seq in p_ctg_seqs.iteritems():
             fp_out.write('>%s\n' % (seq_name))
             fp_out.write(seq)
             fp_out.write('\n')
     with open(os.path.join(out_dir, "p_ctg_edges.%s" % ctg_id), "w") as fp_out:
-        for seq_name, edges in all_p_edges.iteritems():
+        for seq_name, edges in p_ctg_edges.iteritems():
             fp_out.write('\n'.join(edges))
             fp_out.write('\n')
     with open(os.path.join(out_dir, "h_ctg.%s.fa" % ctg_id), "w") as fp_out:
-        for seq_name, seq in all_h_seqs.iteritems():
+        for seq_name, seq in h_ctg_seqs.iteritems():
             fp_out.write('>%s\n' % (seq_name))
             fp_out.write(seq)
             fp_out.write('\n')
     with open(os.path.join(out_dir, "h_ctg_edges.%s" % ctg_id), "w") as fp_out:
-        for seq_name, edges in all_h_edges.iteritems():
+        for seq_name, edges in h_ctg_edges.iteritems():
             fp_out.write('\n'.join(edges))
             fp_out.write('\n')
     with open(os.path.join(out_dir, "h_ctg.%s.paf" % ctg_id), "w") as fp_out:
-        for seq_name, paf in all_h_paf.iteritems():
+        for seq_name, paf in h_ctg_paf.iteritems():
             fp_out.write('\t'.join([str(val) for val in paf]))
             fp_out.write('\n')
 
