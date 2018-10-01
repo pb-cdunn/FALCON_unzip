@@ -18,6 +18,7 @@ The haplotig_graph nodes are defined as:
 ### Utility methods ###
 #######################
 def mock_fp_proto_log(line):
+    sys.stderr.write(line + '\n')
     pass
 
 def make_dummy_linear_region(ctg_id, seq, pos_start, pos_end):
@@ -693,7 +694,7 @@ def test_extract_and_write_all_ctg_1(tmpdir):
 def test_extract_and_write_all_ctg_2(tmpdir):
     """
     A test case of only one *diploid* region.
-    This test will fail on current code.
+    This test should successfully generate one primary and one fully phased haplotig.
     """
 
     def create_test(ctg_id):
@@ -746,3 +747,47 @@ def test_extract_and_write_all_ctg_2(tmpdir):
 
     # Evaluate.
     evaluate_extract_and_write_all_ctg(tmpdir, expected)
+
+def test_extract_and_write_all_ctg_3(tmpdir):
+    """
+    A degenerate case which should throw.
+    This test case should not occur in practice,
+    but we need to check for it still.
+    This tests for two graph components in the same haplotig graph, which are not connected with
+    a source and a sink node.
+    """
+
+    def create_test(ctg_id):
+        # Make a list of regions (DAG).
+        # Diploid region. The entire contig is unzipped.
+        regions_1 = []
+        region_1_seq_1 = 'ACTG'
+        region_1_seq_2 = 'AT'
+        region_1, region_1_name_1, region_1_name_2 = make_dummy_diploid_region(ctg_id + 'p0', region_1_seq_1, region_1_seq_2, 1000, 2000, 0)
+        regions_1.append(region_1)
+
+        # Another diploid region. Could be linear, or any kind.
+        regions_2 = []
+        region_2_seq_1 = 'ACTG'
+        region_2_seq_2 = 'AT'
+        region_2, region_2_name_1, region_2_name_2 = make_dummy_diploid_region(ctg_id + 'p1', region_2_seq_1, region_2_seq_2, 4000, 5000, 0)
+        regions_2.append(region_2)
+
+        # Create haplotig graphs (NetworkX object) from the regions.
+        haplotig_graph_1 = mod.regions_to_haplotig_graph(ctg_id + 'p0', regions_1, mock_fp_proto_log)
+        haplotig_graph_2 = mod.regions_to_haplotig_graph(ctg_id + 'p1', regions_2, mock_fp_proto_log)
+
+        # Make a degenerate graph.
+        haplotig_graph = nx.compose(haplotig_graph_1, haplotig_graph_2)
+
+        return haplotig_graph
+
+    ctg_id = '000000F'
+    allow_multiple_primaries = False
+
+    # Make the test inputs and expected outputs.
+    haplotig_graph = create_test(ctg_id)
+
+    # Run unit under test.
+    with pytest.raises(mod.ExceptionMultiplePrimaryGraphComponents):
+        mod.extract_and_write_all_ctg(ctg_id, haplotig_graph, str(tmpdir), allow_multiple_primaries, mock_fp_proto_log)
