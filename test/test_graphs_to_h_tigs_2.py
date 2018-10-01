@@ -90,7 +90,7 @@ def evaluate_update_haplotig_graph(test_haplotig_graph, expected_nodes, expected
 
 def evaluate_extract_and_write_all_ctg(tmpdir, expected):
     # Check the number of generated files.
-    assert len(tmpdir.listdir()) == 7
+    assert len(tmpdir.listdir()) == 5
 
     # Compare generated files with expectations.
     fns = {os.path.basename(str(val)):str(val) for val in tmpdir.listdir()}

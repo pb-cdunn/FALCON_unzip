@@ -904,250 +904,248 @@ def update_haplotig_graph(haplotig_graph, phase_alias_map):
 
     return haplotig_graph2
 
+def construct_ctg_path_and_edges(haplotig_graph, new_ctg_id, node_path):
+    """
+    Given a list of nodes which specify the path (e.g. as the output from
+    the NetworkX shortest path), this function generates the contig sequence
+    and the corresponding list of edges (and the path).
+    Nodes here are the diploid or collapsed regions, so concatenating them
+    is good by design.
+    """
+    # Create the contig sequence.
+    # The sequence is composed of clipped haplotigs, so plain concatenation is valid.
+    new_ctg_seq = ''
+    for v in node_path:
+        node = haplotig_graph.node[v]
+        if node['label'] == 'source' or node['label'] == 'sink':
+            continue
+        new_ctg_seq += node['htig']['seq']
+
+    # Construct the edges for the contig.
+    new_ctg_path = []
+    new_ctg_edges = []
+    for v in node_path:
+        node = haplotig_graph.node[v]
+        if node['label'] == 'source' or node['label'] == 'sink':
+            continue
+
+        haplotig = node['htig']
+        phase = haplotig['phase']
+        tp = haplotig['path']
+        cross_phase = 'N'
+        source_graph = 'H'
+
+        for edge in tp:
+            # Example tiling path line from 2-asm-falcon:
+            #   ["000000F", "000000040:E", "000000217:E", "000000217", "14608", "33796", "14608", "99.86"]
+            edge_ctg_id, edge_v, edge_w, edge_wid, edge_b, edge_e, edge_score, edge_idt = edge
+
+            # Compose the path line.
+            new_path_line = [new_ctg_id, edge_v, edge_w, edge_wid, edge_b, edge_e, edge_score, edge_idt, phase[1], phase[2]]
+            new_ctg_path.append(' '.join([str(val) for val in new_path_line]))
+
+            # Compose an edge line. All pread nodes within the same haplotig are phased in the same way.
+            new_edge_line = [new_ctg_id, edge_v, edge_w, cross_phase, source_graph, phase[1], phase[2], phase[1], phase[2]]
+            new_ctg_edges.append(' '.join([str(val) for val in new_edge_line]))
+
+    return new_ctg_seq, new_ctg_path, new_ctg_edges
+
+def calc_node_pos_in_path(sub_hg, p_node_path):
+    total_len = 0
+    for v in p_node_path:
+        node = sub_hg.node[v]
+        if node['label'] == 'source' or node['label'] == 'sink':
+            continue
+        node = sub_hg.node[v]
+        total_len += len(node['htig']['seq'])
+
+    p_node_start_coords = {}
+    p_node_end_coords = {}
+    path_seq_len = 0
+    for v in p_node_path:
+        node = sub_hg.node[v]
+        if node['label'] == 'source':
+            p_node_start_coords[v] = 0
+            p_node_end_coords[v] = 0
+            continue
+        elif node['label'] == 'sink':
+            p_node_start_coords[v] = total_len
+            p_node_end_coords[v] = total_len
+            continue
+        seq_len = len(node['htig']['seq'])
+        p_node_start_coords[v] = path_seq_len
+        p_node_end_coords[v] = path_seq_len + seq_len
+        path_seq_len += seq_len
+
+    return p_node_start_coords, p_node_end_coords
+
+def find_placement(haplotig_graph,
+                    p_ctg_id, p_ctg_seq, p_node_set,
+                    p_node_start_coords, p_node_end_coords,
+                    h_ctg_id, h_ctg_seq, htig_node_path):
+
+    if not htig_node_path:
+        return None
+
+    # Find the predecessor in the primary contig, if it exists.
+    htig_s_node = htig_node_path[0]
+    ss_set = set([v for v, w in haplotig_graph.in_edges(htig_s_node)]) & p_node_set
+    ss = sorted(list(ss_set), key = lambda x: p_node_end_coords[x])
+    unzipped_start = 0 if len(ss) == 0 else p_node_end_coords[ss[0]]
+
+    # Find the successor in the primary contig, if it exists.
+    htig_t_node = htig_node_path[-1]
+    tt_set = set([w for v, w in haplotig_graph.out_edges(htig_t_node)]) & p_node_set
+    tt = sorted(list(tt_set), key = lambda x: p_node_start_coords[x])
+    unzipped_end = len(p_ctg_seq) if len(tt) == 0 else p_node_end_coords[tt[-1]]
+
+    # Calculations for the shorthand.
+    unzipped_span = unzipped_end - unzipped_start
+    h_ctg_seq_len = len(h_ctg_seq)
+
+    # Final PAF formulation of the placement.
+    h_ctg_placement = (h_ctg_id, h_ctg_seq_len, 0, h_ctg_seq_len,
+                        '+', p_ctg_id, len(p_ctg_seq),
+                        unzipped_start, unzipped_end,
+                        unzipped_span, unzipped_span, 60)
+
+    return h_ctg_placement
+
 def extract_and_write_all_ctg(ctg_id, haplotig_graph, out_dir, allow_multiple_primaries, fp_proto_log):
     """
     Finds an arbitrary (shortest) walk down the haplotig DAG, and denotes it
     as "p_ctg.fa".
+    "Shortest" is defined in terms of weighted shortest path, where weight is given
+    by the notion of "cross-phase" edges.
     It then removes all p_ctg edges from the graph, and all cross-edges,
     and outputs all other weakly connected components as haplotigs in "h_ctg.fa"
     """
 
-    ##################################
-    # Write all haplotigs for possible
-    # future use.
-    ##################################
-    fp_proto_log('  - Writing all the regions to disk in regions.fasta.')
-    with open(os.path.join(out_dir, "regions.fasta"), 'w') as fp_out:
-        for key in haplotig_graph.nodes():
-            node = haplotig_graph.node[key]
-            if node['label'] == 'source' or node['label'] == 'sink':
-                continue
-            htig = node['htig']
-            fp_out.write('>%s\n%s\n' % (key, htig['seq']))
-
-    ##################################
-    # Extract the p_ctg and h_ctg.
-    ##################################
-    def construct_ctg_path_and_edges(new_ctg_id, node_path):
-        """
-        Given a list of nodes which specify the path (e.g. as the output from
-        the NetworkX shortest path), this function generates the contig sequence
-        and the corresponding list of edges (and the path).
-        Nodes here are the diploid or collapsed regions, so concatenating them
-        is good by design.
-        """
-        # Create the contig sequence.
-        # The sequence is composed of clipped haplotigs, so plain concatenation is valid.
-        new_ctg_seq = ''
-        for v in node_path:
-            node = haplotig_graph.node[v]
-            if node['label'] == 'source' or node['label'] == 'sink':
-                continue
-            new_ctg_seq += node['htig']['seq']
-
-        # new_ctg_seq = ''.join([haplotig_graph.node[v]['htig']['seq'] for v in node_path])
-
-        # Construct the edges for the contig.
-        new_ctg_path = []
-        new_ctg_edges = []
-        for v in node_path:
-            node = haplotig_graph.node[v]
-            if node['label'] == 'source' or node['label'] == 'sink':
-                continue
-
-            haplotig = node['htig']
-            phase = haplotig['phase']
-            tp = haplotig['path']
-            cross_phase = 'N'
-            source_graph = 'H'
-
-            for edge in tp:
-                # Example tiling path line from 2-asm-falcon:
-                #   ["000000F", "000000040:E", "000000217:E", "000000217", "14608", "33796", "14608", "99.86"]
-                edge_ctg_id, edge_v, edge_w, edge_wid, edge_b, edge_e, edge_score, edge_idt = edge
-
-                # Compose the path line.
-                new_path_line = [new_ctg_id, edge_v, edge_w, edge_wid, edge_b, edge_e, edge_score, edge_idt, phase[1], phase[2]]
-                new_ctg_path.append(' '.join([str(val) for val in new_path_line]))
-
-                # Compose an edge line. All pread nodes within the same haplotig are phased in the same way.
-                new_edge_line = [new_ctg_id, edge_v, edge_w, cross_phase, source_graph, phase[1], phase[2], phase[1], phase[2]]
-                new_ctg_edges.append(' '.join([str(val) for val in new_edge_line]))
-
-        return new_ctg_seq, new_ctg_path, new_ctg_edges
-
     fp_proto_log('Beginning to extract all p_ctg and h_ctg.')
+
+    all_p_seqs = {}
+    all_p_edges = {}
+    all_h_seqs = {}
+    all_h_edges = {}
+    all_h_paf = {}
 
     num_prim_ctg = 0
 
-    # Primary contigs and associate haplotigs need to be extracted for each
-    # connected component at the same time.
-    with open(os.path.join(out_dir, "p_ctg.%s.fa" % ctg_id), "w") as fp_p_tig_fa, \
-         open(os.path.join(out_dir, "p_ctg_edges.%s" % ctg_id), "w") as fp_p_tig_edges, \
-         open(os.path.join(out_dir, "h_ctg.%s.fa" % ctg_id), "w") as fp_h_tig_fa, \
-         open(os.path.join(out_dir, "h_ctg_edges.%s" % ctg_id), "w") as fp_h_tig_edges, \
-         open(os.path.join(out_dir, "regions.paf"), "w") as fp_region_placement, \
-         open(os.path.join(out_dir, "h_ctg.%s.paf" % ctg_id), "w") as fp_h_ctg_placement:
-        #  open(os.path.join(out_dir, "p_ctg_path.%s" % ctg_id), "w") as fp_p_tig_path, \
-        #  open(os.path.join(out_dir, "h_ctg_path.%s" % ctg_id), "w") as fp_h_tig_path, \
+    for sub_hg_id, sub_hg in enumerate(nx.weakly_connected_component_subgraphs(haplotig_graph)):
+        if (not allow_multiple_primaries) and sub_hg_id > 0:
+            msg = 'Skipping additional subgraphs of the primary contig: {ctg_id}. The graph has multiple primary components.'.format(ctg_id=ctg_id)
+            raise Exception(msg)
 
-            # The Unzipped contig can be a broken representation of the original input contig
-            # (for example, if there were complex bubbles and repeats).
-            # Each weakly connected component will be output as a new primary contig, and
-            # haplotigs will be extracted for that component right after.
-            # Placement can be now be determined directly from the walk down the haplotig graph.
-            for sub_hg_id, sub_hg in enumerate(nx.weakly_connected_component_subgraphs(haplotig_graph)):
-                if (not allow_multiple_primaries) and sub_hg_id > 0:
-                    msg = 'Skipping additional subgraphs of the primary contig: {ctg_id}. The graph has multiple primary components.'.format(ctg_id=ctg_id)
-                    raise Exception(msg)
+        best_path = extract_unphased_haplotig_paths(sub_hg)
+        if best_path == None:
+            continue
 
-                best_path = extract_unphased_haplotig_paths(sub_hg)
-                if best_path == None: continue
+        total_weight, p_node_path, s_node, t_node = best_path
+        if len(p_node_path) == 0:
+            continue
+        p_node_set = set(p_node_path)
 
-                total_weight, node_path, s_node, t_node = best_path
-                if len(node_path) == 0: continue
+        ##################################
+        ### Extract the primary contig ###
+        ##################################
+        # Form the primary contig.
+        num_prim_ctg += 1
+        p_ctg_id = ctg_id if not allow_multiple_primaries else '%sp%02d' % (ctg_id, num_prim_ctg)
+        fp_proto_log('Extracting primary contig: p_ctg_id = {}'.format(p_ctg_id))
 
-                ##################################
-                ### Extract the primary contig ###
-                ##################################
-                # Form the primary contig.
-                num_prim_ctg += 1
-                p_ctg_id = ctg_id if not allow_multiple_primaries else '%sp%02d' % (ctg_id, num_prim_ctg)
-                fp_proto_log('Extracting primary contig: p_ctg_id = {}'.format(p_ctg_id))
-                p_ctg_seq, p_ctg_path, p_ctg_edges = construct_ctg_path_and_edges(p_ctg_id, node_path)
+        p_ctg_seq, _, p_ctg_edges = construct_ctg_path_and_edges(sub_hg, p_ctg_id, p_node_path)
+        all_p_seqs[p_ctg_id] = p_ctg_seq
+        all_p_edges[p_ctg_id] = p_ctg_edges
 
-                # Write the Primary contig.
-                fp_p_tig_fa.write('>%s\n%s\n' % (p_ctg_id, p_ctg_seq))
+        ###################################
+        ### Determine p_ctg placement   ###
+        ###################################
 
-                # # Write the Primary contig path.
-                # fp_p_tig_path.write('\n'.join(p_ctg_path))
-                # fp_p_tig_path.write('\n')
+        fp_proto_log('Hashing the p_ctg node coordinates.\n')
+        p_node_start_coords, p_node_end_coords = calc_node_pos_in_path(sub_hg, p_node_path)
 
-                # Write the Primary contig edges.
-                fp_p_tig_edges.write('\n'.join(p_ctg_edges))
-                fp_p_tig_edges.write('\n')
+        ##################################
+        ### Extract the haplotigs      ###
+        ##################################
+        fp_proto_log('Extracting the associate haplotigs for p_ctg_id = {}'.format(p_ctg_id))
 
-                ###################################
-                ### Determine placement         ###
-                ###################################
-                fp_proto_log('Making the haplotig segment coordinate relation lookup.')
+        # Make a copy where we'll delete stuff.
+        sub_hg2 = sub_hg.copy()
+        edges_to_remove = set()
 
-                # For each region used in the primary contig path, determine the
-                # new start and end coordinates. Add them to a dict.
-                # All haplotigs from the same bubble have the same cstart and cend coordinates
-                # (this is the coordinate on the collapsed primary contig (2-asm-falcon/p_ctg).
-                haplotig_segment_coords = {}
-                current_coord = 0
-                for v in node_path:
-                    node = haplotig_graph.node[v]
-                    if node['label'] == 'source' or node['label'] == 'sink':
-                        continue
-                    haplotig = node['htig']
-                    hg_node_seq_len = len(haplotig['seq'])
-                    haplotig_segment_coords[haplotig['cstart']] = current_coord
-                    haplotig_segment_coords[haplotig['cend']] = current_coord + hg_node_seq_len
-                    current_coord += hg_node_seq_len
+        # Mark the primary path for deletion.
+        for v, w in zip(p_node_path[:-1], p_node_path[1:]):
+            edges_to_remove.add((v, w))
 
-                fp_proto_log('haplotig_segment_coords = {}\n'.format(haplotig_segment_coords))
+        # Mark any ambiguous edges for deletion.
+        for v in sub_hg2.nodes():
+            in_edges = set(sub_hg2.in_edges(v))
+            if len(in_edges) > 1:
+                edges_to_remove.update(in_edges)
+            out_edges = set(sub_hg2.out_edges(v))
+            if len(out_edges) > 1:
+                edges_to_remove.update(out_edges)
 
-                # Assign the new Unzipped-collapsed coordinate equivalents to the old ones.
-                # Also, create PAF placements for each of the regions.
-                region_paf_placement = {}
-                for v in sub_hg.nodes():
-                    node = haplotig_graph.node[v]
-                    if node['label'] == 'source' or node['label'] == 'sink':
-                        continue
-                    haplotig = node['htig']
-                    hg_node_seq_len = len(haplotig['seq'])
-                    # Get the coordinates on the collapsed primary contig (2-asm-falcon/p_ctg.fa)
-                    cstart, cend = haplotig['cstart'], haplotig['cend']
-                    if (cstart in haplotig_segment_coords == False) or (cend in haplotig_segment_coords == False):
-                        continue
-                    # Set the coordinates on the new collapsed unzipped primary contig (3-unzip/all_p_ctg.fa)
-                    unzipped_cstart = haplotig_segment_coords[cstart]
-                    unzipped_cend = haplotig_segment_coords[cend]
-                    haplotig['labels']['ucstart'] = unzipped_cstart
-                    haplotig['labels']['ucend'] = unzipped_cend
-                    region_paf_placement[v] = (v, hg_node_seq_len, 0, hg_node_seq_len,
-                                            '+', p_ctg_id, len(p_ctg_seq),
-                                            unzipped_cstart, unzipped_cend,
-                                            (unzipped_cend - unzipped_cstart),
-                                            (unzipped_cend - unzipped_cstart), 60)
+        # Actually delete the edges and nodes.
+        for v, w in edges_to_remove:
+            try:
+                sub_hg2.remove_edge(v, w)
+            except Exception:
+                pass
+        for v in p_node_path:
+            try:
+                sub_hg2.remove_node(v)
+            except Exception:
+                pass
 
-                # Write the placement of each of the regions. These are not the final
-                # haplotigs yet, but portions of them. Writing here for debug purposes.
-                for v, vals in region_paf_placement.iteritems():
-                    fp_region_placement.write('\t'.join([str(val) for val in vals]))
-                    fp_region_placement.write('\n')
+        # Loop through all associate haplotigs.
+        num_hctg = 0
+        for vals in extract_weakly_unphased_haplotig_paths(sub_hg2):
+            htig_total_weight, htig_node_path, htig_s_node, htig_t_node = vals
 
-                ##################################
-                ### Extract the haplotigs      ###
-                ##################################
-                fp_proto_log('Extracting the associate haplotigs for p_ctg_id = {}'.format(p_ctg_id))
+            # This should never happen, but let's be sure.
+            if not htig_node_path:
+                continue
 
-                # Make a copy where we'll delete stuff.
-                sub_hg2 = sub_hg.copy()
-                edges_to_remove = set()
+            # Form the haplotig.
+            num_hctg += 1
+            h_ctg_id = '%s_%03d' % (p_ctg_id, num_hctg)
+            h_ctg_seq, _, h_ctg_edges = construct_ctg_path_and_edges(sub_hg, h_ctg_id, htig_node_path)
 
-                # Mark the primary path for deletion.
-                for v, w in zip(node_path[:-1], node_path[1:]):
-                    edges_to_remove.add((v, w))
+            # Determine placement.
+            h_ctg_placement = find_placement(haplotig_graph,
+                                                p_ctg_id, p_ctg_seq, p_node_set,
+                                                p_node_start_coords, p_node_end_coords,
+                                                h_ctg_id, h_ctg_seq, htig_node_path)
 
-                # Mark any ambiguous edges for deletion.
-                for v in sub_hg2.nodes():
-                    in_edges = set(sub_hg2.in_edges(v))
-                    if len(in_edges) > 1:
-                        edges_to_remove.update(in_edges)
-                    out_edges = set(sub_hg2.out_edges(v))
-                    if len(out_edges) > 1:
-                        edges_to_remove.update(out_edges)
+            # Store the results.
+            all_h_seqs[h_ctg_id] = h_ctg_seq
+            all_h_edges[h_ctg_id] = h_ctg_edges
+            all_h_paf[h_ctg_id] = h_ctg_placement
 
-                # Actually delete the edges and nodes.
-                for v, w in edges_to_remove:
-                    try:
-                        sub_hg2.remove_edge(v, w)
-                    except Exception:
-                        pass
-                for v in node_path:
-                    try:
-                        sub_hg2.remove_node(v)
-                    except Exception:
-                        pass
-
-                # Loop through all associate haplotigs.
-                num_hctg = 0
-                for vals in extract_weakly_unphased_haplotig_paths(sub_hg2):
-                    htig_total_weight, htig_node_path, htig_s_node, htig_t_node = vals
-
-                    # Form the haplotig.
-                    num_hctg += 1
-                    h_ctg_id = '%s_%03d' % (p_ctg_id, num_hctg)
-                    h_ctg_seq, h_ctg_path, h_ctg_edges = construct_ctg_path_and_edges(h_ctg_id, htig_node_path)
-
-                    # Determine placement.
-                    h_ctg_seq_len = len(h_ctg_seq)
-                    unzipped_cstart = region_paf_placement[htig_s_node][7]  # Get the start coord from paf.
-                    unzipped_cend = region_paf_placement[htig_t_node][8]    # Get the end coord from paf.
-                    h_ctg_placement = (h_ctg_id, h_ctg_seq_len, 0, h_ctg_seq_len,
-                                      '+', p_ctg_id, len(p_ctg_seq),
-                                      unzipped_cstart, unzipped_cend,
-                                      (unzipped_cend - unzipped_cstart),
-                                      (unzipped_cend - unzipped_cstart), 60)
-
-                    # Write the h_ctg sequence.
-                    fp_h_tig_fa.write('>%s\n%s\n' % (h_ctg_id, h_ctg_seq))
-
-                    # # Write the h_ctg path.
-                    # fp_h_tig_path.write('\n'.join(h_ctg_path))
-                    # fp_h_tig_path.write('\n')
-
-                    # Write the h_ctg edges.
-                    fp_h_tig_edges.write('\n'.join(h_ctg_edges))
-                    fp_h_tig_edges.write('\n')
-
-                    # Write the h_ctg placement.
-                    fp_h_ctg_placement.write('\t'.join([str(val) for val in h_ctg_placement]))
-                    fp_h_ctg_placement.write('\n')
+    # Write the results out.
+    with open(os.path.join(out_dir, "p_ctg.%s.fa" % ctg_id), "w") as fp_out:
+        for seq_name, seq in all_p_seqs.iteritems():
+            fp_out.write('>%s\n' % (seq_name))
+            fp_out.write(seq)
+            fp_out.write('\n')
+    with open(os.path.join(out_dir, "p_ctg_edges.%s" % ctg_id), "w") as fp_out:
+        for seq_name, edges in all_p_edges.iteritems():
+            fp_out.write('\n'.join(edges))
+            fp_out.write('\n')
+    with open(os.path.join(out_dir, "h_ctg.%s.fa" % ctg_id), "w") as fp_out:
+        for seq_name, seq in all_h_seqs.iteritems():
+            fp_out.write('>%s\n' % (seq_name))
+            fp_out.write(seq)
+            fp_out.write('\n')
+    with open(os.path.join(out_dir, "h_ctg_edges.%s" % ctg_id), "w") as fp_out:
+        for seq_name, edges in all_h_edges.iteritems():
+            fp_out.write('\n'.join(edges))
+            fp_out.write('\n')
+    with open(os.path.join(out_dir, "h_ctg.%s.paf" % ctg_id), "w") as fp_out:
+        for seq_name, paf in all_h_paf.iteritems():
+            fp_out.write('\t'.join([str(val) for val in paf]))
+            fp_out.write('\n')
 
 def get_rid2proto_dir(gath_fn):
     LOG.info('Reading {!r} to create rid2proto_dir map.'.format(gath_fn))
