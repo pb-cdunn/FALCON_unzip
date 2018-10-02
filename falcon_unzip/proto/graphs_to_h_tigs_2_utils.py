@@ -174,35 +174,22 @@ def generic_nx_to_gfa(graph, fp_out, node_len_dict=None):
         line = 'L\t%s\t+\t%s\t+\t0M' % (v, w)
         fp_out.write(line + '\n')
 
-def nx_to_gfa(ctg_id, haplotig_graph, all_haplotig_dict, fp_out):
+def nx_to_gfa(ctg_id, haplotig_graph, fp_out):
     line = 'H\tVN:Z:1.0'
     fp_out.write(line + '\n')
 
+    # Source and sink nodes are now part of the haplotig_graph.
     for v in haplotig_graph.nodes():
-        line = 'S\t%s\t%s\tLN:i:%d' % (v, '*', len(all_haplotig_dict[v]['seq']))
+        node = haplotig_graph.node[v]
+        if node['label'] == 'source' or node['label'] == 'sink':
+            line = 'S\t%s\t%s\tLN:i:%d' % (v, '*', 0)
+        else:
+            line = 'S\t%s\t%s\tLN:i:%d' % (v, '*', len(node['htig']['seq']))
         fp_out.write(line + '\n')
 
     for v, w in haplotig_graph.edges():
         line = 'L\t%s\t+\t%s\t+\t0M' % (v, w)
         fp_out.write(line + '\n')
-
-    # Add a virtual source and sink so that both haplotypes appear
-    # connected when visualized.
-    virtual_source = '%s-source' % (ctg_id)
-    line = 'S\t%s\t%s\tLN:i:%d' % (virtual_source, '*', 0)
-    fp_out.write(line + '\n')
-    virtual_sink = '%s-sink' % (ctg_id)
-    line = 'S\t%s\t%s\tLN:i:%d' % (virtual_sink, '*', 0)
-    fp_out.write(line + '\n')
-    sources = [n for n in haplotig_graph.nodes() if haplotig_graph.in_degree(n) == 0]
-    sinks = [n for n in haplotig_graph.nodes() if haplotig_graph.out_degree(n) == 0]
-    for v in sources:
-        line = 'L\t%s\t+\t%s\t+\t0M' % (virtual_source, v)
-        fp_out.write(line + '\n')
-    for v in sinks:
-        line = 'L\t%s\t+\t%s\t+\t0M' % (v, virtual_sink)
-        fp_out.write(line + '\n')
-
 
 if __name__ == '__main__':  # pragma: no cover
     pass
