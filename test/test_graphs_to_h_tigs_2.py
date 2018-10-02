@@ -20,12 +20,13 @@ The haplotig_graph nodes are defined as:
 def mock_fp_proto_log(line):
     pass
 
-def make_dummy_linear_region(ctg_id, seq, pos_start, pos_end):
+def make_dummy_linear_region(ctg_id, seq, pos_start, pos_end, name_=None):
     region_type = 'linear'
     first_edge = None
     last_edge = None
 
-    htig_name = '%s_linear2_%d:%d_base' % (ctg_id, pos_start, pos_end)
+    htig_name = '%s_linear2_%d:%d_base' % (ctg_id, pos_start, pos_end) if name_ == None else name_
+
     complete_phase = (ctg_id, '-1', '0')
     path = [[ctg_id, '000000001:B', '000000002:B', '000000002', '4', '10', '1986', '99.95']]
     new_haplotig = Haplotig(name = htig_name, phase = complete_phase, seq = seq, path = path, edges = [])
@@ -38,12 +39,12 @@ def make_dummy_linear_region(ctg_id, seq, pos_start, pos_end):
 
     return new_region, htig_name
 
-def make_dummy_diploid_region(ctg_id, seq1, seq2, pos_start, pos_end, phasing_block):
+def make_dummy_diploid_region(ctg_id, seq1, seq2, pos_start, pos_end, phasing_block, name_=None):
     region_type = 'diploid'
     first_edge = None
     last_edge = None
 
-    htig_name_1 = '%s_diploid_%d:%d_phase0' % (ctg_id, pos_start, pos_end)
+    htig_name_1 = '%s_diploid_%d:%d_phase0' % (ctg_id, pos_start, pos_end) if name_ == None else '%s-phase0' % (name_)
     complete_phase = (ctg_id, str(phasing_block), '0')
     path_1 = [[ctg_id, '000000003:B', '000000004:B', '000000004', '30', '6', '1986', '99.99']]
     new_haplotig_1 = Haplotig(name = htig_name_1, phase = complete_phase, seq = seq1, path = path_1, edges = [])
@@ -53,7 +54,7 @@ def make_dummy_diploid_region(ctg_id, seq1, seq2, pos_start, pos_end, phasing_bl
     new_haplotig_1.cstart = pos_start
     new_haplotig_1.cend = pos_end
 
-    htig_name_2 = '%s_diploid_%d:%d_phase1' % (ctg_id, pos_start, pos_end)
+    htig_name_2 = '%s_diploid_%d:%d_phase1' % (ctg_id, pos_start, pos_end) if name_ == None else '%s-phase1' % (name_)
     path_2 = [[ctg_id, '000000005:B', '000000006:B', '000000006', '8', '6', '2019', '100.00']]
     complete_phase = (ctg_id, str(phasing_block), '1')
     new_haplotig_2 = Haplotig(name = htig_name_2, phase = complete_phase, seq = seq2, path = path_2, edges = [])
@@ -86,6 +87,42 @@ def evaluate_update_haplotig_graph(test_haplotig_graph, expected_nodes, expected
     assert len(test_haplotig_graph.edges()) == len(expected_edge_set)
     for e in test_haplotig_graph.edges():
         assert e in expected_edge_set
+
+
+
+REGION_TYPE_LINEAR = 'linear'
+REGION_TYPE_DIPLOID = 'diploid'
+
+def make_dummy_haplotig_graph(ctg_id, region_desc):
+    ret_seqs = {}
+    ret_headers = {}
+    ret_edges = {}
+    regions = []
+    region_start = 0
+    region_span = 1000
+
+    # Do the dirty work of making the regions.
+    for type_, name_, phasing_block, seqs in region_desc:
+        if type_ == REGION_TYPE_LINEAR:
+            region, header = make_dummy_linear_region(ctg_id, seqs[0], region_start, region_start + region_span, name_=name_)
+            ret_seqs[name_] = seqs[0]
+            ret_edges[name_] = [ctg_id + ' ' + ' '.join(edge[1:3]) + ' N H -1 0 -1 0' for edge in region[5][name_]['path']]
+            ret_headers[name_] = (header)
+            regions.append(region)
+        elif type_ == REGION_TYPE_DIPLOID:
+            region, header_1, header_2 = make_dummy_diploid_region(ctg_id, seqs[0], seqs[1], region_start, region_start + region_span, phasing_block, name_=name_)
+            ret_seqs[header_1] = seqs[0]
+            ret_seqs[header_2] = seqs[1]
+            ret_edges[header_1] = [ctg_id + ' ' + ' '.join(edge[1:3]) + ' N H {pb} 0 {pb} 0'.format(pb=phasing_block) for edge in region[5][header_1]['path']]
+            ret_edges[header_2] = [ctg_id + ' ' + ' '.join(edge[1:3]) + ' N H {pb} 1 {pb} 1'.format(pb=phasing_block) for edge in region[5][header_2]['path']]
+            ret_headers[name_] = (header_1, header_2)
+            regions.append(region)
+        region_start += region_span
+
+    # Convert regions to graph.
+    haplotig_graph = mod.regions_to_haplotig_graph(ctg_id, regions, mock_fp_proto_log)
+
+    return haplotig_graph, ret_seqs, ret_headers, ret_edges
 
 #######################
 
@@ -632,6 +669,278 @@ def test_update_haplotig_graph_6():
 
     # Evaluate.
     evaluate_update_haplotig_graph(updated_haplotig_graph, expected_node_set, expected_edge_set)
+
+def test_construct_ctg_seq_1():
+    """
+    Test on empty input.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        ### Inputs.
+        haplotig_graph, region_seqs, region_headers, region_edges = make_dummy_haplotig_graph(ctg_id, [])
+
+        node_path = []
+
+        ### Expected results.
+        # source_node, sink_node = make_source_and_sink_nodes(ctg_id)
+        ctg_seq = ''
+        ctg_edges = []
+        node_start_coords = {
+                          }
+        node_end_coords = {
+                          }
+        expected = (ctg_seq, ctg_edges, node_start_coords, node_end_coords)
+
+        return ctg_id, haplotig_graph, node_path, expected
+
+    # Get inputs and outputs.
+    ctg_id, haplotig_graph, node_path, expected = create_test()
+
+    # Run the unit under test.
+    result = mod.construct_ctg_seq(haplotig_graph, ctg_id, node_path)
+
+    # Evaluate.
+    assert result == expected
+
+def test_construct_ctg_seq_2():
+    """
+    Test on non-empty graph, but empty node path.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        ### Inputs.
+        region_description = [
+                            (REGION_TYPE_LINEAR, 'L1', -1, ('ACTG')),
+                             ]
+        haplotig_graph, region_seqs, region_headers, region_edges = make_dummy_haplotig_graph(ctg_id, region_description)
+
+        node_path = []
+
+        ### Expected results.
+        ctg_seq = ''
+        ctg_edges = []
+        node_start_coords = {
+                          }
+        node_end_coords = {
+                          }
+        expected = (ctg_seq, ctg_edges, node_start_coords, node_end_coords)
+
+        return ctg_id, haplotig_graph, node_path, expected
+
+    # Get inputs and outputs.
+    ctg_id, haplotig_graph, node_path, expected = create_test()
+
+    # Run the unit under test.
+    result = mod.construct_ctg_seq(haplotig_graph, ctg_id, node_path)
+
+    # Evaluate.
+    assert result == expected
+
+def test_construct_ctg_seq_3():
+    """
+    Test on a simple linear graph with 1 node. The path contains the same 1 node.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        ### Inputs.
+        region_description = [
+                            (REGION_TYPE_LINEAR, 'L1', -1, ('ACTG')),
+                             ]
+        haplotig_graph, region_seqs, region_headers, region_edges = make_dummy_haplotig_graph(ctg_id, region_description)
+
+        node_path = ['L1']
+
+        ### Expected results.
+        ctg_seq = region_seqs['L1']
+        ctg_edges = region_edges['L1']
+        node_start_coords = {
+                            'L1': 0,
+                          }
+        node_end_coords = {
+                            'L1': len(region_seqs['L1']),
+                          }
+        expected = (ctg_seq, ctg_edges, node_start_coords, node_end_coords)
+
+        return ctg_id, haplotig_graph, node_path, expected
+
+    # Get inputs and outputs.
+    ctg_id, haplotig_graph, node_path, expected = create_test()
+
+    # Run the unit under test.
+    result = mod.construct_ctg_seq(haplotig_graph, ctg_id, node_path)
+
+    # Evaluate.
+    assert result == expected
+
+def test_construct_ctg_seq_4():
+    """
+    This tests for a degenerate case where a node in the node path does not exist.
+    Test on a simple linear graph with 1 node.
+    This test should raise.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        ### Inputs.
+        region_description = [
+                            (REGION_TYPE_LINEAR, 'L1', -1, ('ACTG')),
+                             ]
+        haplotig_graph, region_seqs, region_headers, region_edges = make_dummy_haplotig_graph(ctg_id, region_description)
+
+        node_path = ['L1', 'L2']
+
+        ### Expected values don't matter because this should raise.
+        expected = ()
+
+        return ctg_id, haplotig_graph, node_path, expected
+
+    # Get inputs and outputs.
+    ctg_id, haplotig_graph, node_path, expected = create_test()
+
+    # Run the unit under test.
+    with pytest.raises(Exception, match=r'Error while attempting to extract contig sequence. Node .* does not exist in haplotig graph.'):
+        result = mod.construct_ctg_seq(haplotig_graph, ctg_id, node_path)
+
+def test_construct_ctg_seq_5():
+    """
+    This tests for a degenerate case where the edge in node path does not exist.
+    Three linear regions are created.
+    This test should raise.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        ### Inputs.
+        region_description = [
+                            (REGION_TYPE_LINEAR, 'L1', -1, ('ACTG')),
+                            (REGION_TYPE_LINEAR, 'L2', -1, ('ACTG')),
+                            (REGION_TYPE_LINEAR, 'L3', -1, ('ACTG')),
+                             ]
+        haplotig_graph, region_seqs, region_headers, region_edges = make_dummy_haplotig_graph(ctg_id, region_description)
+
+        node_path = ['L1', 'L3']
+
+        ### Expected values don't matter because this should raise.
+        expected = ()
+
+        return ctg_id, haplotig_graph, node_path, expected
+
+    # Get inputs and outputs.
+    ctg_id, haplotig_graph, node_path, expected = create_test()
+
+    # Run the unit under test.
+    with pytest.raises(Exception, match=r'Error while attempting to extract contig sequence. Edge .* does not exist in haplotig graph.'):
+        result = mod.construct_ctg_seq(haplotig_graph, ctg_id, node_path)
+
+def test_construct_ctg_seq_6():
+    """
+    Valid test case. Extract a sequence from a path down a linear graph.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        ### Inputs.
+        region_description = [
+                            (REGION_TYPE_LINEAR, 'L1', -1, ('ACTG')),
+                            (REGION_TYPE_LINEAR, 'L2', -1, ('TTT')),
+                            (REGION_TYPE_LINEAR, 'L3', -1, ('GGG')),
+                             ]
+        haplotig_graph, region_seqs, region_headers, region_edges = make_dummy_haplotig_graph(ctg_id, region_description)
+
+        node_path = ['L1', 'L2', 'L3']
+
+        ### Expected results.
+        ctg_seq = region_seqs['L1'] + region_seqs['L2'] + region_seqs['L3']
+        ctg_edges = region_edges['L1'] + region_edges['L2'] + region_edges['L3']
+        node_start_coords = {
+                            'L1': 0,
+                            'L2': len(region_seqs['L1']),
+                            'L3': len(region_seqs['L1']) + len(region_seqs['L2']),
+                          }
+        node_end_coords = {
+                            'L1': len(region_seqs['L1']),
+                            'L2': len(region_seqs['L1']) + len(region_seqs['L2']),
+                            'L3': len(region_seqs['L1']) + len(region_seqs['L2']) + len(region_seqs['L3']),
+                          }
+        expected = (ctg_seq, ctg_edges, node_start_coords, node_end_coords)
+
+        return ctg_id, haplotig_graph, node_path, expected
+
+    # Get inputs and outputs.
+    ctg_id, haplotig_graph, node_path, expected = create_test()
+
+    # Run the unit under test.
+    result = mod.construct_ctg_seq(haplotig_graph, ctg_id, node_path)
+
+    # Evaluate.
+    assert result == expected
+
+def test_construct_ctg_seq_7():
+    """
+    Test extracting a path through a complicated graph with bubbles.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        ### Inputs.
+        region_description = [
+                            (REGION_TYPE_LINEAR, 'L1', -1, ('ACTG')),
+                            (REGION_TYPE_DIPLOID, 'D1', 0, ('AAAAA', 'AA')),
+                            (REGION_TYPE_LINEAR, 'L2', -1, ('TTT')),
+                            (REGION_TYPE_DIPLOID, 'D2', 1, ('CC', 'CCCCC')),
+                            (REGION_TYPE_DIPLOID, 'D3', 2, ('TGTG', 'TG')),
+                            (REGION_TYPE_LINEAR, 'L3', -1, ('GGG')),
+                             ]
+        haplotig_graph, region_seqs, region_headers, region_edges = make_dummy_haplotig_graph(ctg_id, region_description)
+
+        node_path = ['L1', 'D1-phase0', 'L2', 'D2-phase1', 'D3-phase1', 'L3']
+
+        ### Expected results.
+        ctg_seq = region_seqs['L1'] + region_seqs['D1-phase0'] + region_seqs['L2'] + region_seqs['D2-phase1'] + region_seqs['D3-phase1'] + region_seqs['L3']
+        ctg_edges = region_edges['L1'] + region_edges['D1-phase0'] + region_edges['L2'] + region_edges['D2-phase1'] + region_edges['D3-phase1'] + region_edges['L3']
+        node_start_coords = {
+                            'L1': 0,
+                            'D1-phase0': len(region_seqs['L1']),
+                            'L2': len(region_seqs['L1']) + len(region_seqs['D1-phase0']),
+                            'D2-phase1': len(region_seqs['L1']) + len(region_seqs['D1-phase0']) + len(region_seqs['L2']),
+                            'D3-phase1': len(region_seqs['L1']) + len(region_seqs['D1-phase0']) + len(region_seqs['L2']) + len(region_seqs['D2-phase1']),
+                            'L3': len(region_seqs['L1']) + len(region_seqs['D1-phase0']) + len(region_seqs['L2']) + len(region_seqs['D2-phase1']) + len(region_seqs['D3-phase1']),
+                          }
+        node_end_coords = {
+                            'L1': len(region_seqs['L1']),
+                            'D1-phase0': len(region_seqs['L1']) + len(region_seqs['D1-phase0']),
+                            'L2': len(region_seqs['L1']) + len(region_seqs['D1-phase0']) + len(region_seqs['L2']),
+                            'D2-phase1': len(region_seqs['L1']) + len(region_seqs['D1-phase0']) + len(region_seqs['L2']) + len(region_seqs['D2-phase1']),
+                            'D3-phase1': len(region_seqs['L1']) + len(region_seqs['D1-phase0']) + len(region_seqs['L2']) + len(region_seqs['D2-phase1']) + len(region_seqs['D3-phase1']),
+                            'L3': len(region_seqs['L1']) + len(region_seqs['D1-phase0']) + len(region_seqs['L2']) + len(region_seqs['D2-phase1']) + len(region_seqs['D3-phase1']) + len(region_seqs['L3']),
+                          }
+        expected = (ctg_seq, ctg_edges, node_start_coords, node_end_coords)
+
+        return ctg_id, haplotig_graph, node_path, expected
+
+    # Get inputs and outputs.
+    ctg_id, haplotig_graph, node_path, expected = create_test()
+
+    # Run the unit under test.
+    result = mod.construct_ctg_seq(haplotig_graph, ctg_id, node_path)
+
+
+    sys.stderr.write(str(result[1]))
+    sys.stderr.write('\n')
+    sys.stderr.write(str(expected[1]))
+
+    # Evaluate.
+    assert result == expected
 
 def test_extract_unzipped_ctgs_1():
     """

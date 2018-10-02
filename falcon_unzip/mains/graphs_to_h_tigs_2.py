@@ -907,14 +907,36 @@ def update_haplotig_graph(haplotig_graph, phase_alias_map):
 
     return haplotig_graph2
 
-def construct_ctg_path_and_edges(haplotig_graph, new_ctg_id, node_path):
+def construct_ctg_seq(haplotig_graph, new_ctg_id, node_path):
     """
     Given a list of nodes which specify the path (e.g. as the output from
     the NetworkX shortest path), this function generates the contig sequence
     and the corresponding list of edges (and the path).
     Nodes here are the diploid or collapsed regions, so concatenating them
     is good by design.
+    Inputs:
+        haplotig_graph  - A NetworkX object.
+        new_ctg_id      - Name of the new contig.
+        node_path       - List of node IDs that make up a path in the haplotig_graph.
+    Returns:
+        new_ctg_seq         - String containing the sequence of the new contig.
+        new_ctg_edges       - List of strings, where each string is one of the edges in the contig's tiling path.
+        node_start_coords   - Dict where key is the node ID, and value start coordinate of the node in the path.
+        node_end_coords     - Dict where key is the node ID, and value end coordinate of the node in the path.
     """
+
+    # Sanity check.
+    node_set = set(haplotig_graph.nodes())
+    for v in node_path:
+        if v not in node_set:
+            msg = 'Error while attempting to extract contig sequence. Node {v} does not exist in haplotig graph.'.format(v=v)
+            raise Exception(msg)
+    edge_set = set(haplotig_graph.edges())
+    for v, w in zip(node_path[:-1], node_path[1:]):
+        if (v, w) not in edge_set:
+            msg = 'Error while attempting to extract contig sequence. Edge ({v}, {w}) does not exist in haplotig graph.'.format(v=v, w=w)
+            raise Exception(msg)
+
     # Create the contig sequence.
     # The sequence is composed of clipped haplotigs, so plain concatenation is valid.
     new_ctg_seq = ''
@@ -927,11 +949,29 @@ def construct_ctg_path_and_edges(haplotig_graph, new_ctg_id, node_path):
     # Construct the edges for the contig.
     new_ctg_path = []
     new_ctg_edges = []
+    node_start_coords = {}
+    node_end_coords = {}
+    path_seq_len = 0
+
     for v in node_path:
         node = haplotig_graph.node[v]
-        if node['label'] == 'source' or node['label'] == 'sink':
+
+        if node['label'] == 'source':
+            node_start_coords[v] = 0
+            node_end_coords[v] = 0
+            continue
+        elif node['label'] == 'sink':
+            node_start_coords[v] = len(new_ctg_seq)
+            node_end_coords[v] = len(new_ctg_seq)
             continue
 
+        # Calculate the position of the node in the new contig.
+        node_seq_len = len(node['htig']['seq'])
+        node_start_coords[v] = path_seq_len
+        node_end_coords[v] = path_seq_len + node_seq_len
+        path_seq_len += node_seq_len
+
+        # Get the phase info and the tiling path.
         haplotig = node['htig']
         phase = haplotig['phase']
         tp = haplotig['path']
@@ -951,49 +991,7 @@ def construct_ctg_path_and_edges(haplotig_graph, new_ctg_id, node_path):
             new_edge_line = [new_ctg_id, edge_v, edge_w, cross_phase, source_graph, phase[1], phase[2], phase[1], phase[2]]
             new_ctg_edges.append(' '.join([str(val) for val in new_edge_line]))
 
-    return new_ctg_seq, new_ctg_path, new_ctg_edges
-
-def calc_node_pos_in_path(haplotig_graph, p_node_path):
-    """
-    For a given path of nodes, calculate the start pos and end pos
-    of each node in the path.
-    Inputs:
-        haplotig_graph  - A NetworkX object.
-        p_node_path     - List of node IDs that make up a path in the haplotig_graph.
-    Returns:
-        Tuple of (p_node_start_coords, p_node_end_coords).
-        p_node_start_coords - Dict where key is the node ID, and value start coordinate of the node in the path.
-        p_node_end_coords   - Dict where key is the node ID, and value end coordinate of the node in the path.
-    """
-
-    total_len = 0
-    for v in p_node_path:
-        node = haplotig_graph.node[v]
-        if node['label'] == 'source' or node['label'] == 'sink':
-            continue
-        node = haplotig_graph.node[v]
-        total_len += len(node['htig']['seq'])
-
-    p_node_start_coords = {}
-    p_node_end_coords = {}
-
-    path_seq_len = 0
-    for v in p_node_path:
-        node = haplotig_graph.node[v]
-        if node['label'] == 'source':
-            p_node_start_coords[v] = 0
-            p_node_end_coords[v] = 0
-            continue
-        elif node['label'] == 'sink':
-            p_node_start_coords[v] = total_len
-            p_node_end_coords[v] = total_len
-            continue
-        seq_len = len(node['htig']['seq'])
-        p_node_start_coords[v] = path_seq_len
-        p_node_end_coords[v] = path_seq_len + seq_len
-        path_seq_len += seq_len
-
-    return p_node_start_coords, p_node_end_coords
+    return new_ctg_seq, new_ctg_edges, node_start_coords, node_end_coords
 
 def find_placement(haplotig_graph,
                     p_ctg_id, p_ctg_seq_len, p_node_set,
@@ -1090,16 +1088,9 @@ def extract_unzipped_ctgs(ctg_id, haplotig_graph, allow_multiple_primaries, fp_p
         p_ctg_id = ctg_id if not allow_multiple_primaries else '%sp%02d' % (ctg_id, num_prim_ctg)
         fp_proto_log('Extracting primary contig: p_ctg_id = {}'.format(p_ctg_id))
 
-        p_ctg_seq, _, p_ctg_edges = construct_ctg_path_and_edges(sub_hg, p_ctg_id, p_node_path)
+        p_ctg_seq, p_ctg_edges, p_node_start_coords, p_node_end_coords = construct_ctg_seq(sub_hg, p_ctg_id, p_node_path)
         all_p_seqs[p_ctg_id] = p_ctg_seq
         all_p_edges[p_ctg_id] = p_ctg_edges
-
-        ###################################
-        ### Determine p_ctg placement   ###
-        ###################################
-
-        fp_proto_log('Hashing the p_ctg node coordinates.\n')
-        p_node_start_coords, p_node_end_coords = calc_node_pos_in_path(sub_hg, p_node_path)
 
         ##################################
         ### Extract the haplotigs      ###
@@ -1147,7 +1138,7 @@ def extract_unzipped_ctgs(ctg_id, haplotig_graph, allow_multiple_primaries, fp_p
             # Form the haplotig.
             num_hctg += 1
             h_ctg_id = '%s_%03d' % (p_ctg_id, num_hctg)
-            h_ctg_seq, _, h_ctg_edges = construct_ctg_path_and_edges(sub_hg, h_ctg_id, htig_node_path)
+            h_ctg_seq, h_ctg_edges, _, _ = construct_ctg_seq(sub_hg, h_ctg_id, htig_node_path)
 
             # Determine placement.
             h_ctg_placement = find_placement(haplotig_graph,
