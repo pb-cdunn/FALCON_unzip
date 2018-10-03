@@ -995,10 +995,10 @@ def construct_ctg_seq(haplotig_graph, new_ctg_id, node_path):
 
     return new_ctg_seq, new_ctg_edges, node_start_coords, node_end_coords
 
-def find_placement(haplotig_graph,
-                    p_ctg_id, p_ctg_seq_len, p_node_set,
-                    p_node_start_coords, p_node_end_coords,
-                    h_ctg_id, h_ctg_seq_len, htig_node_path):
+def find_haplotig_placement(haplotig_graph,
+                            p_ctg_id, p_ctg_seq_len, p_nodes,
+                            p_node_start_coords, p_node_end_coords,
+                            h_ctg_id, h_ctg_seq_len, htig_node_path):
 
     """
     Inputs:
@@ -1006,7 +1006,7 @@ def find_placement(haplotig_graph,
                             for p_ctg_id, it can also be the general graph before subgraph extraction.
         p_ctg_id            - Name (e.g. header) of the currently analyzed contig.
         p_ctg_seq_len       - Length of the primary contig.
-        p_node_set          - A set() of node names that comprise the primary contig called p_ctg_id.
+        p_nodes             - A list() or a set() of node names that comprise the primary contig called p_ctg_id.
         p_node_start_coords - A dict where key is a node from p_node_set, and value the start
                             coordinate on p_ctg. Every node in p_node_set shold have a key here.
         p_node_end_coords   - A dict where key is a node from p_node_set, and value the end coordinate
@@ -1018,9 +1018,23 @@ def find_placement(haplotig_graph,
         A PAF-formatted tuple for the mapping of the haplotig to the primary contig.
     """
 
+    p_node_set = set(p_nodes)
+
+    hg_node_set = set(haplotig_graph.nodes())
+
+    for v in p_nodes:
+        if v not in hg_node_set:
+            msg = 'Not all primary contig nodes can be found in the haplotig graph. p_node_set = "{}", hg_node_set = "{}", missing node = "{}"'.format(str(p_node_set), str(hg_node_set), v)
+            raise Exception(msg)
+
     # Validate the inputs.
-    assert set(p_node_set) == set(p_node_start_coords.keys())
-    assert set(p_node_set) == set(p_node_end_coords.keys())
+    if p_node_set != set(p_node_start_coords.keys()):
+        msg = 'The p_node_set and p_node_start_coords contain different keys. p_node_set = "{}", p_node_start_coords = "{}"'.format(str(p_node_set), str(p_node_start_coords))
+        raise Exception(msg)
+
+    if p_node_set != set(p_node_end_coords.keys()):
+        msg = 'The p_node_set and p_node_end_coords contain different keys. p_node_set = "{}", p_node_end_coords = "{}"'.format(str(p_node_set), str(p_node_end_coords))
+        raise Exception(msg)
 
     if not htig_node_path:
         return None
@@ -1029,13 +1043,15 @@ def find_placement(haplotig_graph,
     htig_s_node = htig_node_path[0]
     ss_set = set([v for v, w in haplotig_graph.in_edges(htig_s_node)]) & p_node_set
     ss = sorted(list(ss_set), key = lambda x: p_node_end_coords[x])
+    # If no predecessors, it's dangling and starts at 0.
     unzipped_start = 0 if len(ss) == 0 else p_node_end_coords[ss[0]]
 
     # Find the successor in the primary contig, if it exists.
     htig_t_node = htig_node_path[-1]
     tt_set = set([w for v, w in haplotig_graph.out_edges(htig_t_node)]) & p_node_set
     tt = sorted(list(tt_set), key = lambda x: p_node_start_coords[x])
-    unzipped_end = p_ctg_seq_len if len(tt) == 0 else p_node_end_coords[tt[-1]]
+    # If no successors, it's dangling and ends at contig end.
+    unzipped_end = p_ctg_seq_len if len(tt) == 0 else p_node_start_coords[tt[-1]]
 
     # Calculations for the shorthand.
     unzipped_span = unzipped_end - unzipped_start
@@ -1143,10 +1159,10 @@ def extract_unzipped_ctgs(ctg_id, haplotig_graph, allow_multiple_primaries, fp_p
             h_ctg_seq, h_ctg_edges, _, _ = construct_ctg_seq(sub_hg, h_ctg_id, htig_node_path)
 
             # Determine placement.
-            h_ctg_placement = find_placement(haplotig_graph,
-                                                p_ctg_id, len(p_ctg_seq), p_node_set,
-                                                p_node_start_coords, p_node_end_coords,
-                                                h_ctg_id, len(h_ctg_seq), htig_node_path)
+            h_ctg_placement = find_haplotig_placement(haplotig_graph,
+                                                      p_ctg_id, len(p_ctg_seq), p_node_set,
+                                                      p_node_start_coords, p_node_end_coords,
+                                                      h_ctg_id, len(h_ctg_seq), htig_node_path)
 
             # Store the results.
             all_h_seqs[h_ctg_id] = h_ctg_seq
