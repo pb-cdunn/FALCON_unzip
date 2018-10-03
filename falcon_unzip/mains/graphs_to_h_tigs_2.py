@@ -246,10 +246,12 @@ def generate_haplotigs_for_ctg(ctg_id, allow_multiple_primaries, out_dir, unzip_
         nx_to_gfa(ctg_id, haplotig_graph, fp_out)
 
     # Extract the p_ctg and h_ctg sequences.
-    p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf = extract_unzipped_ctgs(ctg_id, haplotig_graph, allow_multiple_primaries, fp_proto_log)
+    unzipped_p_ctg_seqs, unzipped_p_ctg_edges, unzipped_h_ctg_seqs, unzipped_h_ctg_edges, unzipped_h_ctg_paf = \
+                    extract_unzipped_ctgs(ctg_id, haplotig_graph, allow_multiple_primaries, fp_proto_log)
 
     # Write the results out.
-    write_unzipped(out_dir, ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf)
+    write_unzipped(out_dir, ctg_id, unzipped_p_ctg_seqs, unzipped_p_ctg_edges,
+                    unzipped_h_ctg_seqs, unzipped_h_ctg_edges, unzipped_h_ctg_paf, fp_proto_log)
 
     #########################################################
     # Debug verbose.
@@ -1153,27 +1155,75 @@ def extract_unzipped_ctgs(ctg_id, haplotig_graph, allow_multiple_primaries, fp_p
 
     return all_p_seqs, all_p_edges, all_h_seqs, all_h_edges, all_h_paf
 
-def write_unzipped(out_dir, ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf):
+def write_unzipped(out_dir, ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, fp_proto_log):
+    blacklist = set()
+
+    # Any sequence of length 0 should not be output.
+    for seq_name, seq in p_ctg_seqs.iteritems():
+        if len(seq) == 0:
+            fp_proto_log('[write_unzipped] Sequence "{seq_name}" has length zero. Adding to blacklist.'.format(seq_name=seq_name))
+            blacklist.add(seq_name)
+    # If the length of the edges is 0, something is awry.
+    # Rather skip and report, than break execution on the entire assembly.
+    for seq_name, edges in p_ctg_edges.iteritems():
+        if len(edges) == 0:
+            fp_proto_log('[write_unzipped] Sequence "{seq_name}" no edges. Adding to blacklist.'.format(seq_name=seq_name))
+            blacklist.add(seq_name)
+    # Any haplotig of length 0 should not be written.
+    for seq_name, seq in h_ctg_seqs.iteritems():
+        if len(seq) == 0:
+            fp_proto_log('[write_unzipped] Sequence "{seq_name}" has length zero. Adding to blacklist.'.format(seq_name=seq_name))
+            blacklist.add(seq_name)
+        # Check if the corresponding primary contig is blacklisted.
+        if seq_name.split('_')[0] in blacklist:
+            fp_proto_log('[write_unzipped] The primary contig of "{seq_name}" is blacklisted. Adding to blacklist.'.format(seq_name=seq_name))
+            blacklist.add(seq_name)
+    for seq_name, edges in h_ctg_edges.iteritems():
+        if len(edges) == 0:
+            fp_proto_log('[write_unzipped] Sequence "{seq_name}" no edges. Adding to blacklist.'.format(seq_name=seq_name))
+            blacklist.add(seq_name)
+    for seq_name, paf in h_ctg_paf.iteritems():
+        if len(paf) == 0:
+            fp_proto_log('[write_unzipped] Sequence "{seq_name}" has no placement. This is not critical and will not be added to blacklist, but worth noting.'.format(seq_name=seq_name))
+            # blacklist.add(seq_name)
+
     with open(os.path.join(out_dir, "p_ctg.%s.fa" % ctg_id), "w") as fp_out:
-        for seq_name, seq in p_ctg_seqs.iteritems():
+        for seq_name in sorted(p_ctg_seqs.keys()):
+            if seq_name in blacklist:
+                continue
+            seq = p_ctg_seqs[seq_name]
             fp_out.write('>%s\n' % (seq_name))
             fp_out.write(seq)
             fp_out.write('\n')
     with open(os.path.join(out_dir, "p_ctg_edges.%s" % ctg_id), "w") as fp_out:
-        for seq_name, edges in p_ctg_edges.iteritems():
+        for seq_name in sorted(p_ctg_edges.keys()):
+            if seq_name in blacklist:
+                continue
+            edges = p_ctg_edges[seq_name]
             fp_out.write('\n'.join(edges))
             fp_out.write('\n')
     with open(os.path.join(out_dir, "h_ctg.%s.fa" % ctg_id), "w") as fp_out:
-        for seq_name, seq in h_ctg_seqs.iteritems():
+        for seq_name in sorted(h_ctg_seqs.keys()):
+            if seq_name in blacklist:
+                continue
+            seq = h_ctg_seqs[seq_name]
             fp_out.write('>%s\n' % (seq_name))
             fp_out.write(seq)
             fp_out.write('\n')
     with open(os.path.join(out_dir, "h_ctg_edges.%s" % ctg_id), "w") as fp_out:
-        for seq_name, edges in h_ctg_edges.iteritems():
+        for seq_name in sorted(h_ctg_edges.keys()):
+            if seq_name in blacklist:
+                continue
+            edges = h_ctg_edges[seq_name]
             fp_out.write('\n'.join(edges))
             fp_out.write('\n')
     with open(os.path.join(out_dir, "h_ctg.%s.paf" % ctg_id), "w") as fp_out:
-        for seq_name, paf in h_ctg_paf.iteritems():
+        for seq_name in sorted(h_ctg_paf.keys()):
+            if seq_name in blacklist:
+                continue
+            paf = h_ctg_paf[seq_name]
+            if len(paf) == 0:
+                continue
             fp_out.write('\t'.join([str(val) for val in paf]))
             fp_out.write('\n')
 

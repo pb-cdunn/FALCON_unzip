@@ -88,6 +88,18 @@ def evaluate_update_haplotig_graph(test_haplotig_graph, expected_nodes, expected
     for e in test_haplotig_graph.edges():
         assert e in expected_edge_set
 
+def evaluate_write_unzipped(tmpdir, expected):
+    # Check the number of generated files.
+    assert len(tmpdir.listdir()) == len(expected.keys())
+
+    # Compare generated files with expectations.
+    fns = {os.path.basename(str(val)):str(val) for val in tmpdir.listdir()}
+    for fn, expected_val in expected.iteritems():
+        # Check if the file actually exists.
+        assert fn in fns
+        # Load the data and compare.
+        assert open(fns[fn], 'r').read() == expected_val, fn
+
 
 
 REGION_TYPE_LINEAR = 'linear'
@@ -1203,3 +1215,483 @@ def test_extract_unzipped_ctgs_5(tmpdir):
 
     # Evaluate.
     assert results == expected
+
+def test_write_unzipped_1(tmpdir):
+    """
+    An empty test case.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        # Inputs.
+        p_ctg_seqs =    { }
+        p_ctg_edges =   { }
+        h_ctg_seqs =    { }
+        h_ctg_edges =   { }
+        h_ctg_paf =     { }
+
+        # Expected results.
+        expected = {}
+        expected['p_ctg.000000F.fa'] = ''
+        expected['p_ctg_edges.000000F'] = ''
+        expected['h_ctg.000000F.fa'] = ''
+        expected['h_ctg_edges.000000F'] = ''
+        expected['h_ctg.000000F.paf'] = ''
+
+        return ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected
+
+    # Make the test inputs and expected outputs.
+    ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected = create_test()
+
+    # Run unit under test.
+    mod.write_unzipped(str(tmpdir), ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, mock_fp_proto_log)
+
+    # Evaluate.
+    evaluate_write_unzipped(tmpdir, expected)
+
+def test_write_unzipped_2(tmpdir):
+    """
+    A simple test case, where only p_ctg are supposed to be written.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        # Inputs.
+        p_ctg_seqs =    {
+                            '000000F': 'ACTG',
+                        }
+        p_ctg_edges =   {
+                            '000000F': ['000000F 000000001:E 000000002:E N H -1 0 -1 0'],
+                        }
+        h_ctg_seqs =    { }
+        h_ctg_edges =   { }
+        h_ctg_paf =     { }
+
+        # Expected results.
+        expected = {}
+        expected['p_ctg.000000F.fa'] = """\
+>000000F
+ACTG
+"""
+        expected['p_ctg_edges.000000F'] = """\
+000000F 000000001:E 000000002:E N H -1 0 -1 0
+"""
+        expected['h_ctg.000000F.fa'] = """\
+"""
+        expected['h_ctg_edges.000000F'] = """\
+"""
+        expected['h_ctg.000000F.paf'] = """\
+"""
+
+        return ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected
+
+    # Make the test inputs and expected outputs.
+    ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected = create_test()
+
+    # Run unit under test.
+    mod.write_unzipped(str(tmpdir), ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, mock_fp_proto_log)
+
+    # Evaluate.
+    evaluate_write_unzipped(tmpdir, expected)
+
+def test_write_unzipped_3(tmpdir):
+    """
+    A normal test case, everything should be written.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        # Inputs.
+        p_ctg_seqs =    {
+                            '000000F': 'ACTG',
+                        }
+        p_ctg_edges =   {
+                            '000000F': ['000000F 000000001:E 000000002:E N H -1 0 -1 0'.format(ctg_id=ctg_id)],
+                        }
+        h_ctg_seqs =    {
+                            '000000F_001': 'A',
+                            '000000F_002': 'AG',
+                        }
+        h_ctg_edges =   {
+                            '000000F_001':
+                                    [   '000000F_001 000000002:E 000000003:E N H 0 0 0 0',
+                                        '000000F_001 000000003:E 000000004:E N H 0 0 0 0'
+                                    ],
+                            '000000F_002':
+                                    [   '000000F_002 000000005:E 000000006:E N H 1 0 1 0',
+                                        '000000F_002 000000006:E 000000007:E N H 1 0 1 0'
+                                    ],
+                        }
+        h_ctg_paf =     {
+                            '000000F_001': ['000000F_001\t1\t0\t1\t+\t000000F\t4\t0\t1\t1\t1\t60'],
+                            '000000F_002': ['000000F_002\t2\t0\t1\t+\t000000F\t4\t2\t3\t1\t1\t60'],
+                        }
+
+        # Expected results.
+        expected = {}
+        expected['p_ctg.000000F.fa'] = """\
+>000000F
+ACTG
+"""
+        expected['p_ctg_edges.000000F'] = """\
+000000F 000000001:E 000000002:E N H -1 0 -1 0
+"""
+        expected['h_ctg.000000F.fa'] = """\
+>000000F_001
+A
+>000000F_002
+AG
+"""
+        expected['h_ctg_edges.000000F'] = """\
+000000F_001 000000002:E 000000003:E N H 0 0 0 0
+000000F_001 000000003:E 000000004:E N H 0 0 0 0
+000000F_002 000000005:E 000000006:E N H 1 0 1 0
+000000F_002 000000006:E 000000007:E N H 1 0 1 0
+"""
+        expected['h_ctg.000000F.paf'] = """\
+000000F_001\t1\t0\t1\t+\t000000F\t4\t0\t1\t1\t1\t60
+000000F_002\t2\t0\t1\t+\t000000F\t4\t2\t3\t1\t1\t60
+"""
+
+        return ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected
+
+    # Make the test inputs and expected outputs.
+    ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected = create_test()
+
+    # Run unit under test.
+    mod.write_unzipped(str(tmpdir), ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, mock_fp_proto_log)
+
+    # Evaluate.
+    evaluate_write_unzipped(tmpdir, expected)
+
+def test_write_unzipped_4(tmpdir):
+    """
+    A degenerate case.
+    If a haplotig doesn't have sequence but the header is there, we should
+    prevent it from being output.
+    It's edges and placement should also be omitted.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        # Inputs.
+        p_ctg_seqs =    {
+                            '000000F': 'ACTG',
+                        }
+        p_ctg_edges =   {
+                            '000000F': ['000000F 000000001:E 000000002:E N H -1 0 -1 0'.format(ctg_id=ctg_id)],
+                        }
+        h_ctg_seqs =    {
+                            '000000F_001': '',
+                            '000000F_002': 'AG',
+                        }
+        h_ctg_edges =   {
+                            '000000F_001':
+                                    [   '000000F_001 000000002:E 000000003:E N H 0 0 0 0',
+                                        '000000F_001 000000003:E 000000004:E N H 0 0 0 0'
+                                    ],
+                            '000000F_002':
+                                    [   '000000F_002 000000005:E 000000006:E N H 1 0 1 0',
+                                        '000000F_002 000000006:E 000000007:E N H 1 0 1 0'
+                                    ],
+                        }
+        h_ctg_paf =     {
+                            '000000F_001': ['000000F_001\t1\t0\t1\t+\t000000F\t4\t0\t1\t1\t1\t60'],
+                            '000000F_002': ['000000F_002\t2\t0\t1\t+\t000000F\t4\t2\t3\t1\t1\t60'],
+                        }
+
+        # Expected results.
+        expected = {}
+        expected['p_ctg.000000F.fa'] = """\
+>000000F
+ACTG
+"""
+        expected['p_ctg_edges.000000F'] = """\
+000000F 000000001:E 000000002:E N H -1 0 -1 0
+"""
+        expected['h_ctg.000000F.fa'] = """\
+>000000F_002
+AG
+"""
+        expected['h_ctg_edges.000000F'] = """\
+000000F_002 000000005:E 000000006:E N H 1 0 1 0
+000000F_002 000000006:E 000000007:E N H 1 0 1 0
+"""
+        expected['h_ctg.000000F.paf'] = """\
+000000F_002\t2\t0\t1\t+\t000000F\t4\t2\t3\t1\t1\t60
+"""
+
+        return ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected
+
+    # Make the test inputs and expected outputs.
+    ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected = create_test()
+
+    # Run unit under test.
+    mod.write_unzipped(str(tmpdir), ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, mock_fp_proto_log)
+
+    # Evaluate.
+    evaluate_write_unzipped(tmpdir, expected)
+
+def test_write_unzipped_5(tmpdir):
+    """
+    A degenerate case.
+    If a primary contig doesn't have sequence but the header is there, we should
+    prevent it from being output.
+    It's edges and all haplotigs and their placements should also be omitted.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        # Inputs.
+        p_ctg_seqs =    {
+                            '000000F': '',
+                        }
+        p_ctg_edges =   {
+                            '000000F': ['000000F 000000001:E 000000002:E N H -1 0 -1 0'.format(ctg_id=ctg_id)],
+                        }
+        h_ctg_seqs =    {
+                            '000000F_001': 'A',
+                            '000000F_002': 'AG',
+                        }
+        h_ctg_edges =   {
+                            '000000F_001':
+                                    [   '000000F_001 000000002:E 000000003:E N H 0 0 0 0',
+                                        '000000F_001 000000003:E 000000004:E N H 0 0 0 0'
+                                    ],
+                            '000000F_002':
+                                    [   '000000F_002 000000005:E 000000006:E N H 1 0 1 0',
+                                        '000000F_002 000000006:E 000000007:E N H 1 0 1 0'
+                                    ],
+                        }
+        h_ctg_paf =     {
+                            '000000F_001': ['000000F_001\t1\t0\t1\t+\t000000F\t4\t0\t1\t1\t1\t60'],
+                            '000000F_002': ['000000F_002\t2\t0\t1\t+\t000000F\t4\t2\t3\t1\t1\t60'],
+                        }
+
+        # Expected results.
+        expected = {}
+        expected['p_ctg.000000F.fa'] = """\
+"""
+        expected['p_ctg_edges.000000F'] = """\
+"""
+        expected['h_ctg.000000F.fa'] = """\
+"""
+        expected['h_ctg_edges.000000F'] = """\
+"""
+        expected['h_ctg.000000F.paf'] = """\
+"""
+
+        return ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected
+
+    # Make the test inputs and expected outputs.
+    ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected = create_test()
+
+    # Run unit under test.
+    mod.write_unzipped(str(tmpdir), ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, mock_fp_proto_log)
+
+    # Evaluate.
+    evaluate_write_unzipped(tmpdir, expected)
+
+def test_write_unzipped_6(tmpdir):
+    """
+    A degenerate case.
+    If a contig doesn't have edges but the header and the sequence is there, we should
+    prevent it from being output.
+    It's edges and all haplotigs and their placements should also be omitted.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        # Inputs.
+        p_ctg_seqs =    {
+                            '000000F': 'ACTG',
+                        }
+        p_ctg_edges =   {
+                            '000000F': [],
+                        }
+        h_ctg_seqs =    {
+                            '000000F_001': 'A',
+                            '000000F_002': 'AG',
+                        }
+        h_ctg_edges =   {
+                            '000000F_001':
+                                    [   '000000F_001 000000002:E 000000003:E N H 0 0 0 0',
+                                        '000000F_001 000000003:E 000000004:E N H 0 0 0 0'
+                                    ],
+                            '000000F_002':
+                                    [   '000000F_002 000000005:E 000000006:E N H 1 0 1 0',
+                                        '000000F_002 000000006:E 000000007:E N H 1 0 1 0'
+                                    ],
+                        }
+        h_ctg_paf =     {
+                            '000000F_001': ['000000F_001\t1\t0\t1\t+\t000000F\t4\t0\t1\t1\t1\t60'],
+                            '000000F_002': ['000000F_002\t2\t0\t1\t+\t000000F\t4\t2\t3\t1\t1\t60'],
+                        }
+
+        # Expected results.
+        expected = {}
+        expected['p_ctg.000000F.fa'] = """\
+"""
+        expected['p_ctg_edges.000000F'] = """\
+"""
+        expected['h_ctg.000000F.fa'] = """\
+"""
+        expected['h_ctg_edges.000000F'] = """\
+"""
+        expected['h_ctg.000000F.paf'] = """\
+"""
+
+        return ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected
+
+    # Make the test inputs and expected outputs.
+    ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected = create_test()
+
+    # Run unit under test.
+    mod.write_unzipped(str(tmpdir), ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, mock_fp_proto_log)
+
+    # Evaluate.
+    evaluate_write_unzipped(tmpdir, expected)
+
+def test_write_unzipped_7(tmpdir):
+    """
+    A degenerate case.
+    Both haplotigs have sequence, but one doesn't have edges. Remove that haplotig
+    from output.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        # Inputs.
+        p_ctg_seqs =    {
+                            '000000F': 'ACTG',
+                        }
+        p_ctg_edges =   {
+                            '000000F': ['000000F 000000001:E 000000002:E N H -1 0 -1 0'.format(ctg_id=ctg_id)],
+                        }
+        h_ctg_seqs =    {
+                            '000000F_001': 'A',
+                            '000000F_002': 'AG',
+                        }
+        h_ctg_edges =   {
+                            '000000F_001':
+                                    [   '000000F_001 000000002:E 000000003:E N H 0 0 0 0',
+                                        '000000F_001 000000003:E 000000004:E N H 0 0 0 0'
+                                    ],
+                            '000000F_002':
+                                    [ ],
+                        }
+        h_ctg_paf =     {
+                            '000000F_001': ['000000F_001\t1\t0\t1\t+\t000000F\t4\t0\t1\t1\t1\t60'],
+                            '000000F_002': ['000000F_002\t2\t0\t1\t+\t000000F\t4\t2\t3\t1\t1\t60'],
+                        }
+
+        # Expected results.
+        expected = {}
+        expected['p_ctg.000000F.fa'] = """\
+>000000F
+ACTG
+"""
+        expected['p_ctg_edges.000000F'] = """\
+000000F 000000001:E 000000002:E N H -1 0 -1 0
+"""
+        expected['h_ctg.000000F.fa'] = """\
+>000000F_001
+A
+"""
+        expected['h_ctg_edges.000000F'] = """\
+000000F_001 000000002:E 000000003:E N H 0 0 0 0
+000000F_001 000000003:E 000000004:E N H 0 0 0 0
+"""
+        expected['h_ctg.000000F.paf'] = """\
+000000F_001\t1\t0\t1\t+\t000000F\t4\t0\t1\t1\t1\t60
+"""
+
+        return ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected
+
+    # Make the test inputs and expected outputs.
+    ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected = create_test()
+
+    # Run unit under test.
+    mod.write_unzipped(str(tmpdir), ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, mock_fp_proto_log)
+
+    # Evaluate.
+    evaluate_write_unzipped(tmpdir, expected)
+
+def test_write_unzipped_8(tmpdir):
+    """
+    A degenerate test case.
+    One haplotig is missing placement data. This should not result in the entire haplotg
+    to not be output.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        # Inputs.
+        p_ctg_seqs =    {
+                            '000000F': 'ACTG',
+                        }
+        p_ctg_edges =   {
+                            '000000F': ['000000F 000000001:E 000000002:E N H -1 0 -1 0'.format(ctg_id=ctg_id)],
+                        }
+        h_ctg_seqs =    {
+                            '000000F_001': 'A',
+                            '000000F_002': 'AG',
+                        }
+        h_ctg_edges =   {
+                            '000000F_001':
+                                    [   '000000F_001 000000002:E 000000003:E N H 0 0 0 0',
+                                        '000000F_001 000000003:E 000000004:E N H 0 0 0 0'
+                                    ],
+                            '000000F_002':
+                                    [   '000000F_002 000000005:E 000000006:E N H 1 0 1 0',
+                                        '000000F_002 000000006:E 000000007:E N H 1 0 1 0'
+                                    ],
+                        }
+        h_ctg_paf =     {
+                            '000000F_001': ['000000F_001\t1\t0\t1\t+\t000000F\t4\t0\t1\t1\t1\t60'],
+                            '000000F_002': [],
+                        }
+
+        # Expected results.
+        expected = {}
+        expected['p_ctg.000000F.fa'] = """\
+>000000F
+ACTG
+"""
+        expected['p_ctg_edges.000000F'] = """\
+000000F 000000001:E 000000002:E N H -1 0 -1 0
+"""
+        expected['h_ctg.000000F.fa'] = """\
+>000000F_001
+A
+>000000F_002
+AG
+"""
+        expected['h_ctg_edges.000000F'] = """\
+000000F_001 000000002:E 000000003:E N H 0 0 0 0
+000000F_001 000000003:E 000000004:E N H 0 0 0 0
+000000F_002 000000005:E 000000006:E N H 1 0 1 0
+000000F_002 000000006:E 000000007:E N H 1 0 1 0
+"""
+        expected['h_ctg.000000F.paf'] = """\
+000000F_001\t1\t0\t1\t+\t000000F\t4\t0\t1\t1\t1\t60
+"""
+
+        return ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected
+
+    # Make the test inputs and expected outputs.
+    ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected = create_test()
+
+    # Run unit under test.
+    mod.write_unzipped(str(tmpdir), ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, mock_fp_proto_log)
+
+    # Evaluate.
+    evaluate_write_unzipped(tmpdir, expected)
