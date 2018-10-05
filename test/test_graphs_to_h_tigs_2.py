@@ -6,6 +6,8 @@ import sys
 import networkx as nx
 from falcon_unzip.proto.haplotig import Haplotig
 from falcon_kit.tiling_path import TilingPathEdge
+import intervaltree
+import falcon_unzip.proto.cigartools as cigartools
 
 """
 The haplotig_graph nodes are defined as:
@@ -1829,3 +1831,355 @@ AG
 
     # Evaluate.
     evaluate_write_unzipped(tmpdir, expected)
+
+def test_fragment_haplotigs_1():
+    """
+    Test empty input.
+    """
+
+    def create_test():
+        # Inputs.
+        in_haplotig_dict = {}
+        aln_dict = {}
+        clippoints = {}
+        # Intervals in the bubble tree represent locations of a_ctg on the primary contig.
+        # Any fragment haplotig falling within those regions will be removed.
+        bubble_tree = intervaltree.IntervalTree([])
+
+        # Expected results.
+        expected = {}
+
+        return in_haplotig_dict, aln_dict, clippoints, bubble_tree, expected
+
+    # Make the test inputs and expected outputs.
+    in_haplotig_dict, aln_dict, clippoints, bubble_tree, expected = create_test()
+
+    # Run unit under test.
+    result = mod.fragment_haplotigs(in_haplotig_dict, aln_dict, clippoints, bubble_tree, mock_fp_proto_log)
+
+    # Evaluate.
+    assert result == expected
+
+def test_fragment_single_haplotig_1():
+    """
+    Test empty input.
+    """
+
+    def create_test():
+        """
+        Description of input data:
+            in_haplotig_dict[htig_name] = Haplotig()
+
+            aln_dict[htig_name] = (qname, tname, score, perc_similarity, qstrand, qstart, qend, qlen, tstrand, tstart, tend, tlen, mapq, aln, cigar)
+
+            bubble_intervals = [intervaltree.Interval(pos_start, pos_end, region)]
+            bubble_tree = intervaltree.IntervalTree(bubble_intervals)
+
+            clippoints[tstart] = [qname + '_start']
+
+            region_of_interest = start, end, q_name, q_len, t_name, t_len, q_phase  # start = (tstart, qstart), end = (tend, qend)
+        """
+
+        ctg_id = '000000F'
+
+        def test1(ctg_id):
+            """
+            Simple test case. Make a haplotig, several clippoints and an end-to-end alignment.
+            There are no bubble filtering regions specified.
+            """
+            ### Inputs.
+            # Shorthands.
+            seq = 'This is a dummy sequence'
+            path = [[ctg_id, '000000001:B', '000000002:B', '000000002', '0', str(len(seq)), '1986', '99.95']]
+
+            # Make a haplotig.
+            haplotig = Haplotig(name = 'H1', phase = (ctg_id, '0', '0'), seq = seq, path = path, edges = [])
+
+            # Alignment of the haplotigs to the target sequence.
+            qstrand, qstart, qend, qlen = 0, 0, len(haplotig.seq), len(haplotig.seq)
+            tstrand, tstart, tend, tlen = 0, 0, len(haplotig.seq), 1000
+            cigar = [
+                        (cigartools.CIGAR_OP_M, qlen),
+                    ]
+            aln = ['H1', ctg_id, 0, 0, qstrand, qstart, qend, qlen, tstrand, tstart, tend, tlen, 254, None]
+
+            # Target coordinates where to clip.
+            clippoints = {  0:  'H1-start',
+                            4:  '1',
+                            5:  '2',
+                            15: '3',
+                            24:   'H1-end',
+                            }
+
+            # Empty tree.
+            bubble_tree = intervaltree.IntervalTree([])
+
+            inputs = haplotig, aln, cigar, clippoints, bubble_tree
+
+            ### Expected results.
+            expected = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((0, 0), (4, 4), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = " ", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((4, 4), (5, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "is a dummy", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((5, 5), (15, 15), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))} ),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " sequence", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((15, 15), (24, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+            }
+            return inputs, expected
+
+        def test2(ctg_id):
+            """
+            Simple test case with a bubble filtering region specified.
+            """
+            ### Inputs.
+            # Shorthands.
+            seq = 'This is a dummy sequence'
+            path = [[ctg_id, '000000001:B', '000000002:B', '000000002', '0', str(len(seq)), '1986', '99.95']]
+
+            # Make a haplotig.
+            haplotig = Haplotig(name = 'H1', phase = (ctg_id, '0', '0'), seq = seq, path = path, edges = [])
+
+            # Alignment of the haplotigs to the target sequence.
+            qstrand, qstart, qend, qlen = 0, 0, len(haplotig.seq), len(haplotig.seq)
+            tstrand, tstart, tend, tlen = 0, 0, len(haplotig.seq), 1000
+            cigar = [
+                        (cigartools.CIGAR_OP_M, qlen),
+                    ]
+            aln = ['H1', ctg_id, 0, 0, qstrand, qstart, qend, qlen, tstrand, tstart, tend, tlen, 254, None]
+
+            # Target coordinates where to clip.
+            clippoints = {  0:  'H1-start',
+                            4:  '1',
+                            5:  '2',
+                            15: '3',
+                            24:   'H1-end',
+                            }
+
+            # Make a tree with 1 filtering region.
+            bubble_tree = intervaltree.IntervalTree([intervaltree.Interval(4, 9, None)])
+
+            inputs = haplotig, aln, cigar, clippoints, bubble_tree
+
+            ### Expected results.
+            expected = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((0, 0), (4, 4), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = " sequence", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((15, 15), (24, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+            }
+            return inputs, expected
+
+        def test3(ctg_id):
+            """
+            Test case where the haplotig is not aligned at base 0 of the reference.
+            """
+            ### Inputs.
+            # Shorthands.
+            seq = 'This is a dummy sequence'
+            path = [[ctg_id, '000000001:B', '000000002:B', '000000002', '0', str(len(seq)), '1986', '99.95']]
+
+            # Make a haplotig.
+            haplotig = Haplotig(name = 'H1', phase = (ctg_id, '0', '0'), seq = seq, path = path, edges = [])
+
+            # Alignment of the haplotigs to the target sequence.
+            qstrand, qstart, qend, qlen = 0, 0, len(haplotig.seq), len(haplotig.seq)
+            tstrand, tstart, tend, tlen = 0, 99, 123, 1000
+            cigar = [
+                        (cigartools.CIGAR_OP_M, qlen),
+                    ]
+            aln = ['H1', ctg_id, 0, 0, qstrand, qstart, qend, qlen, tstrand, tstart, tend, tlen, 254, None]
+
+            # Target coordinates where to clip.
+            clippoints = {  99:  'H1-start',
+                            103:  '1',
+                            104:  '2',
+                            114: '3',
+                            23:   'H1-end',
+                            }
+
+            # Empty tree.
+            bubble_tree = intervaltree.IntervalTree([])
+
+            inputs = haplotig, aln, cigar, clippoints, bubble_tree
+
+            ### Expected results.
+            expected = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((99, 0), (103, 4), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = " ", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((103, 4), (104, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "is a dummy", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((104, 5), (114, 15), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))} ),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " sequence", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((114, 15), (123, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+            }
+            return inputs, expected
+
+        def test4(ctg_id):
+            """
+            Test the coordinates when an alignment is not all matches but has indels too.
+            """
+            ### Inputs.
+            # Shorthands.
+            seq = 'This is a dummy sequence'
+            path = [[ctg_id, '000000001:B', '000000002:B', '000000002', '0', str(len(seq)), '1986', '99.95']]
+
+            # Make a haplotig.
+            haplotig = Haplotig(name = 'H1', phase = (ctg_id, '0', '0'), seq = seq, path = path, edges = [])
+
+            # Alignment of the haplotigs to the target sequence.
+            qstrand, qstart, qend, qlen = 0, 0, len(haplotig.seq), len(haplotig.seq)
+            tstrand, tstart, tend, tlen = 0, 50, 79, 1000
+            cigar = [
+                        (cigartools.CIGAR_OP_M, 7),         # target: 0-7:  "This is"       query: 0-7:     "This is"
+                        (cigartools.CIGAR_OP_D, 4),         # target: 7-12: " also"         query: 7-7:     ""
+                        (cigartools.CIGAR_OP_M, 8),         # target: 12-20: " a dummy"     query: 7-15:    " a dummy"
+                        (cigartools.CIGAR_OP_I, 1),         # target: 20-20: ""             query: 15-16:   " "
+                        (cigartools.CIGAR_OP_M, 9),         # target: 20-29: "sequence"     query: 16-24:   "sequence"
+                    ]
+            aln = ['H1', ctg_id, 0, 0, qstrand, qstart, qend, qlen, tstrand, tstart, tend, tlen, 254, None]
+
+            # Target coordinates where to clip.
+            clippoints = {  50:  'H1-start',
+                            55:  '1',
+                            59:  '2',
+                            65: '3',
+                            79:   'H1-end',
+                            }
+
+            # Empty tree.
+            bubble_tree = intervaltree.IntervalTree([])
+
+            inputs = haplotig, aln, cigar, clippoints, bubble_tree
+
+            ### Expected results.
+            expected = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = " a d", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((59, 7), (65, 11), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))} ),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = "ummy sequence", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((65, 11), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+            }
+            return inputs, expected
+        def test5(ctg_id):
+            """
+            A sort-of-degenerate test case.
+            One of the clipped regions should be completely covered by a deletion event,
+            which means that the query sequence is 0.
+
+            However the unit under test should output all regions between all clippoints,
+            as that is the expected behavior. The 0-length fragments should be filtered
+            out by an additional filtering method.
+
+            While this is not technically a degenerate case, it is an edge case:
+                - The fragment with query length 0 could indicate a structural variant at the location,
+                  which is not present in the other haplotype / p_ctg.
+                - The edge case is related to how this exact region got demarcated. If the structural variant
+                  was captured by one haplotig covering the SV in one phase fully, and second haplotig covering it
+                  in the oposite phase fully, then these coordinates should never be determined. The edge case
+                  can happen in more fragmented assemblies of haplotigs, which could indicate a more complex
+                  SV/repeat region. In this case, the single 0-length fragment might actually be used to produce a
+                  0-length haplotig sequence in the output. At the moment, it sounds the most reasonable to filter out
+                  these short haplotig fragments and leave the regions collapsed.
+            An example for such a case occured here: https://github.com/PacificBiosciences/pbbioconda/issues/21
+            Alignments of 1-hasm contigs in this case:
+                ['000153F-HAP000862F-000153F.1000001.0', '000153F', -52476, 91.14728396200313, 0, 1017, 109447, 109447, 0, 30345, 174428, 190213, 254, <pysam.libcalignedsegment.AlignedSegment object at 0x2b3ef96207a0>]
+                ['000153F-HAP001039F-000153F.1000001.0', '000153F', -1996, 98.78281020558003, 0, 6577, 93745, 93745, 1, 0, 87285, 190213, 254, <pysam.libcalignedsegment.AlignedSegment object at 0x2b3ef9620738>]
+                ['000153F-HAP001459F-000153F.1000001.1', '000153F', -14299, 92.02443709792709, 0, 0, 89536, 89592, 1, 35986, 126482, 190213, 254, <pysam.libcalignedsegment.AlignedSegment object at 0x2b3ef9620808>]
+                ['000153F-HAP005802F-000153F.1000001.1', '000153F', -1064, 98.2740021574973, 0, 12, 32457, 32457, 1, 96469, 128981, 190213, 254, <pysam.libcalignedsegment.AlignedSegment object at 0x2b3ef960ddb8>]
+                ['000153F-HAP001155F-000153F.1000001.1', '000153F', -715, 99.33368372865839, 0, 0, 58981, 88092, 0, 131265, 190213, 190213, 254, <pysam.libcalignedsegment.AlignedSegment object at 0x2b3ef960db48>]
+                ['000153F-HAP004116F-000153F.1000001.1', '000153F', -2704, 96.60714683786976, 0, 0, 44859, 48766, 0, 120079, 164744, 190213, 254, <pysam.libcalignedsegment.AlignedSegment object at 0x2b3ef960dd50>]
+            So, multiple 1-hasm contigs were generated for the same set phase of reads, and they overlap the same regions after alignment. This is strange,
+            and indicates repetitive regions, or artifacts.
+            The primary contig had no a_ctg. The list of clippoints is then compiled from the alignment start/end coordinates. This is from the chunk_000153F/uow-000153F/prototype.log:
+                DEBUG:  clip_point: (0, ['000153F-HAP001039F-000153F.1000001.0_start'])
+                DEBUG:  clip_point: (30345, ['000153F-HAP000862F-000153F.1000001.0_start'])
+                DEBUG:  clip_point: (35986, ['000153F-HAP001459F-000153F.1000001.1_start'])
+                DEBUG:  clip_point: (87285, ['000153F-HAP001039F-000153F.1000001.0_end'])
+                DEBUG:  clip_point: (96469, ['000153F-HAP005802F-000153F.1000001.1_start'])
+                DEBUG:  clip_point: (120079, ['000153F-HAP004116F-000153F.1000001.1_start'])
+                DEBUG:  clip_point: (126482, ['000153F-HAP001459F-000153F.1000001.1_end'])
+                DEBUG:  clip_point: (128981, ['000153F-HAP005802F-000153F.1000001.1_end'])
+                DEBUG:  clip_point: (131265, ['000153F-HAP001155F-000153F.1000001.1_start'])
+                DEBUG:  clip_point: (164744, ['000153F-HAP004116F-000153F.1000001.1_end'])
+                DEBUG:  clip_point: (174428, ['000153F-HAP000862F-000153F.1000001.0_end'])
+                DEBUG:  clip_point: (190213, ['000153F-HAP001155F-000153F.1000001.1_end'])
+            Finally, this resulted in 000153F-HAP000862F-000153F.1000001.0 having a region of query span 0:
+                INFO: pos_of_interest for q_name: 000153F-HAP000862F-000153F.1000001.0
+                ...
+                INFO: ((87285, 32944), (96469, 32944), '000153F-HAP000862F-000153F.1000001.0', 109447, '000153F', 190213, ('000153F', 1000001, 0))
+                ...
+            """
+            ### Inputs.
+            # Shorthands.
+            seq = 'This is a dummy sequence'
+            path = [[ctg_id, '000000001:B', '000000002:B', '000000002', '0', str(len(seq)), '1986', '99.95']]
+
+            # Make a haplotig.
+            haplotig = Haplotig(name = 'H1', phase = (ctg_id, '0', '0'), seq = seq, path = path, edges = [])
+
+            # Alignment of the haplotigs to the target sequence.
+            qstrand, qstart, qend, qlen = 0, 0, len(haplotig.seq), len(haplotig.seq)
+            tstrand, tstart, tend, tlen = 0, 50, 79, 1000
+            cigar = [
+                        (cigartools.CIGAR_OP_M, 7),         # target: 0-7:  "This is"       query: 0-7:     "This is"
+                        (cigartools.CIGAR_OP_D, 4),         # target: 7-12: " also"         query: 7-7:     ""
+                        (cigartools.CIGAR_OP_M, 8),         # target: 12-20: " a dummy"     query: 7-15:    " a dummy"
+                        (cigartools.CIGAR_OP_I, 1),         # target: 20-20: ""             query: 15-16:   " "
+                        (cigartools.CIGAR_OP_M, 9),         # target: 20-29: "sequence"     query: 16-24:   "sequence"
+                    ]
+            aln = ['H1', ctg_id, 0, 0, qstrand, qstart, qend, qlen, tstrand, tstart, tend, tlen, 254, None]
+
+            # Target coordinates where to clip.
+            clippoints = {  50:  'H1-start',
+                            55:  '1',
+                            59:  '2',
+                            61:  '3',
+                            79:   'H1-end',
+                            }
+
+            # Empty tree.
+            bubble_tree = intervaltree.IntervalTree([])
+
+            inputs = haplotig, aln, cigar, clippoints, bubble_tree
+
+            ### Expected results.
+            expected = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+            }
+            return inputs, expected
+
+        # Pack test points.
+        tests = [ test1(ctg_id), test2(ctg_id), test3(ctg_id), test4(ctg_id), test5(ctg_id)]
+
+        return tests
+
+    # Make the test inputs and expected outputs.
+    tests = create_test()
+
+    # result = mod.fragment_haplotigs(in_haplotig_dict, aln_dict, clippoints, bubble_tree, mock_fp_proto_log)
+    for test_args in tests:
+        # Unpack a set of test arguments.
+        inputs, expected = test_args
+        haplotig, aln, cigar, clippoints, bubble_tree = inputs
+
+        # Run unit under test.
+        result = mod.fragment_single_haplotig(haplotig, aln, cigar, clippoints, bubble_tree, mock_fp_proto_log)
+
+        # Evaluate.
+        assert set(result.keys()) == set(expected.keys())
+
+        for key, result_htig in result.iteritems():
+            assert result_htig.__dict__ == expected[key].__dict__, key
