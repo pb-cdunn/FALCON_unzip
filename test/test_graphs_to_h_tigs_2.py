@@ -105,7 +105,7 @@ def evaluate_write_unzipped(tmpdir, expected):
 REGION_TYPE_LINEAR = 'linear'
 REGION_TYPE_DIPLOID = 'diploid'
 
-def make_dummy_haplotig_graph(ctg_id, region_desc):
+def make_dummy_region_list(ctg_id, region_desc):
     ret_seqs = {}
     ret_headers = {}
     ret_edges = {}
@@ -130,6 +130,11 @@ def make_dummy_haplotig_graph(ctg_id, region_desc):
             ret_headers[name_] = (header_1, header_2)
             regions.append(region)
         region_start += region_span
+
+    return regions, ret_seqs, ret_headers, ret_edges
+def make_dummy_haplotig_graph(ctg_id, region_desc):
+    # Create a list of regions to convert to haplotig graph.
+    regions, ret_seqs, ret_headers, ret_edges = make_dummy_region_list(ctg_id, region_desc)
 
     # Convert regions to graph.
     haplotig_graph = mod.regions_to_haplotig_graph(ctg_id, regions, mock_fp_proto_log)

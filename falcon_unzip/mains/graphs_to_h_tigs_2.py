@@ -199,7 +199,15 @@ def generate_haplotigs_for_ctg(ctg_id, allow_multiple_primaries, out_dir, unzip_
                 pre=mapping_out_prefix))
         excomm('rm -f {pre}.tmp.sam'.format(
                 pre=mapping_out_prefix))
-    aln_dict = load_and_hash_sam(sam_path, fp_proto_log)
+
+    fp_proto_log('Loading the alignments.')
+
+    aln_dict = load_and_hash_sam(sam_path)
+
+    # Debug verbose.
+    fp_proto_log('Loaded alignments:')
+    for qname, aln in aln_dict.iteritems():
+        fp_proto_log(str(aln))
 
     #########################################################
     # Filter out overlapping haplotigs for each phasing block.
@@ -212,8 +220,11 @@ def generate_haplotigs_for_ctg(ctg_id, allow_multiple_primaries, out_dir, unzip_
     # Edges need to be looked up from the sg_edges_list for the rev_cmp.
     reorient_haplotigs(filtered_snp_haplotigs, aln_dict, sg_edges, fp_proto_log)
 
+    # Construct interval trees for non-linear regions.
+    bubble_tree = make_bubble_interval_tree(all_regions, fp_proto_log)
+
     # Find all of the locations where the haplotigs need to be broken.
-    clippoints, bubble_tree = collect_clippoints(all_regions, filtered_snp_haplotigs, aln_dict, fp_proto_log)
+    clippoints = collect_clippoints(all_regions, filtered_snp_haplotigs, aln_dict, fp_proto_log)
 
     # Fragment the haplotigs on all clippoints.
     fragmented_snp_haplotigs = fragment_haplotigs(filtered_snp_haplotigs, aln_dict, clippoints, bubble_tree, fp_proto_log)
@@ -261,7 +272,7 @@ def generate_haplotigs_for_ctg(ctg_id, allow_multiple_primaries, out_dir, unzip_
 
     logger.debug('Fragmented haplotigs:')
     for hname, htig in fragmented_snp_haplotigs.iteritems():
-        logger.debug('  - name = {}, phase = {}, path = {}'.format(htig.name, htig.phase, htig.path))
+        logger.debug('  - name = {}, phase = {}, path = {}, len(seq) = {}'.format(htig.name, htig.phase, htig.path, len(htig.seq)))
 
     logger.debug('Verbose the generated diploid regions:')
     for region_id in xrange(len(final_all_regions)):
@@ -380,7 +391,7 @@ def load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase):
 
     return haplotigs_for_ctg, htig_name_to_original_pctg
 
-def load_and_hash_sam(sam_path, fp_proto_log):
+def load_and_hash_sam(sam_path):
     """
     Loads the SAM file, converts it to the M4 format, and
     builds a dict of aln_dict[qname] = aln_m4.
@@ -389,7 +400,6 @@ def load_and_hash_sam(sam_path, fp_proto_log):
     aln_dict = {}
     if not os.path.exists(sam_path):
         return aln_dict
-    fp_proto_log('Loading the alignments.')
     m4 = load_aln(sam_path)
     m4 = sorted(m4, key = lambda x: x[0].split('-')[-1])    # Not required, but simplifies manual debugging.
     for aln in m4:
@@ -462,26 +472,40 @@ def reorient_haplotigs(snp_haplotigs, aln_dict, sg_edges, fp_proto_log):
             # for line in haplotig.path:
             #     fp_proto_log('  {}'.format(line))
 
-def collect_clippoints(all_regions, snp_haplotigs, aln_dict, fp_proto_log):
+def make_bubble_interval_tree(all_regions, fp_proto_log):
     """
-    Creates a dict of all positions where haplotig alignments should be broken.
-    This includes:
-        - Beginning and ending of bubble regions.
-        - Beginning and ending of other haplotigs (e.g. if haplotig for (000000F, 3000001, 0) is longer than (000000F, 3000001, 1).
+    Creates an interval tree lookup of all non-linear regions, provided
+    via the `all_regions` list.
     """
-    clippoints = {}
-
     # Add the coordinates of the bubble regions.
     bubble_intervals = []
     for region in all_regions:
         region_type, first_edge, last_edge, pos_start, pos_end, region_htigs = region
         if region_type != 'linear':
-            clippoints[pos_start] = [region_type + '_start']
-            clippoints[pos_end] = [region_type + '_end']
             bubble_intervals.append(intervaltree.Interval(pos_start, pos_end, region))
     bubble_tree = intervaltree.IntervalTree(bubble_intervals)
+    return bubble_tree
 
-    for qname, haplotig in snp_haplotigs.iteritems():
+def collect_clippoints(all_regions, snp_haplotig_headers, aln_dict, fp_proto_log):
+    """
+    Creates a dict of all positions where haplotig alignments should be broken.
+    This includes:
+        - Beginning and ending of all non-linear regions.
+        - Beginning and ending of other aligned haplotigs from the aln_dict
+          (e.g. if haplotig for (000000F, 3000001, 0) is longer than (000000F, 3000001, 1).
+          Only alignments for haplotigs listed in snp_haplotig_headers are taken
+          into account.
+    """
+    clippoints = {}
+
+    # Add the coordinates of the bubble regions.
+    for region in all_regions:
+        region_type, first_edge, last_edge, pos_start, pos_end, region_htigs = region
+        if region_type != 'linear':
+            clippoints[pos_start] = [region_type + '_start']
+            clippoints[pos_end] = [region_type + '_end']
+
+    for qname in snp_haplotig_headers:
         if qname not in aln_dict:
             continue
         aln = aln_dict[qname]
@@ -490,7 +514,7 @@ def collect_clippoints(all_regions, snp_haplotigs, aln_dict, fp_proto_log):
         clippoints[tstart] = [qname + '_start']
         clippoints[tend] = [qname + '_end']
 
-    return clippoints, bubble_tree
+    return clippoints
 
 def fragment_haplotigs(in_haplotigs, aln_dict, clippoints, bubble_tree, fp_proto_log):
     filtered_haplotigs = {}
@@ -499,12 +523,13 @@ def fragment_haplotigs(in_haplotigs, aln_dict, clippoints, bubble_tree, fp_proto
         if qname not in aln_dict:
             continue
         aln = aln_dict[qname]
-        new_haplotigs = fragment_single_haplotig(haplotig, aln, clippoints, bubble_tree, fp_proto_log)
+        sam = aln[13]
+        new_haplotigs = fragment_single_haplotig(haplotig, aln, sam.cigar, clippoints, bubble_tree, fp_proto_log)
         filtered_haplotigs.update(new_haplotigs)
 
     return filtered_haplotigs
 
-def fragment_single_haplotig(haplotig, aln, clippoints, bubble_tree, fp_proto_log):
+def fragment_single_haplotig(haplotig, aln, cigar, clippoints, bubble_tree, fp_proto_log):
     """
     This method takes a haplotig and a list of coordinates, and breaks
     the haplotig based on the CIGAR string alignment.
@@ -514,9 +539,8 @@ def fragment_single_haplotig(haplotig, aln, clippoints, bubble_tree, fp_proto_lo
     q_name, t_name = aln[0], aln[1]
     q_orient, q_start, q_end, q_len = aln[4], aln[5], aln[6], aln[7]
     t_orient, t_start, t_end, t_len = aln[8], aln[9], aln[10], aln[11]
-    sam = aln[13]
 
-    aln_array = cigartools.cigar_to_aln_array(sam.cigar)
+    aln_array = cigartools.cigar_to_aln_array(cigar)
     positions = cigartools.find_positions(aln_array, t_start)
 
     # For each aligned position, check if it's in the clippoints.
@@ -566,8 +590,8 @@ def fragment_single_haplotig(haplotig, aln, clippoints, bubble_tree, fp_proto_lo
         new_haplotig = Haplotig(name = new_name, phase = haplotig.phase, seq = new_seq, path = new_path, edges = [])
         # Encode additional attributes.
         new_haplotig.labels['region_of_interest'] = region_of_interest
-        new_haplotig.labels['start_in_path'] = new_start_coord
-        new_haplotig.labels['end_in_path'] = new_end_coord
+        # new_haplotig.labels['start_in_path'] = new_start_coord
+        # new_haplotig.labels['end_in_path'] = new_end_coord
 
         ret_haplotigs[new_name] = new_haplotig
 
@@ -690,8 +714,8 @@ def make_linear_region(ctg_id, pos_start, pos_end, p_ctg_seq, p_ctg_tiling_path,
 
     fp_proto_log('Forming the haplotig.')
     new_haplotig = Haplotig(name = htig_name, phase = complete_phase, seq = new_seq, path = new_path, edges = [])
-    new_haplotig.labels['start_in_path'] = new_start_coord
-    new_haplotig.labels['end_in_path'] = new_end_coord
+    # new_haplotig.labels['start_in_path'] = new_start_coord
+    # new_haplotig.labels['end_in_path'] = new_end_coord
     new_haplotig.cstart = pos_start
     new_haplotig.cend = pos_end
 
