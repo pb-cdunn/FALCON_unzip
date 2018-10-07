@@ -109,6 +109,11 @@ def generate_haplotigs_for_ctg(ctg_id, p_ctg_seq, p_ctg_tiling_path, sg_edges,
                           i.e. 3-unzip/0-phasing/{ctg_id}/proto.
                           Files needed from this folder are: `minced.fasta`,
                           `phase_relation_graph.gexf`, `ref.fa` and `regions.json`.
+
+    To reproduce a run, the input data which is not available in proto dir can now be loaded from:
+        os.path.join(out_dir, 'repro.input.snp_haplotigs.json')
+        os.path.join(out_dir, 'repro.input.p_ctg_tiling_path.json')
+        os.path.join(out_dir, 'repro.input.sg_edges')
     """
 
     fp_proto_log = logger.info
@@ -116,6 +121,36 @@ def generate_haplotigs_for_ctg(ctg_id, p_ctg_seq, p_ctg_tiling_path, sg_edges,
     # min_linear_len = 8
 
     fp_proto_log('Started processing contig: "{}".'.format(ctg_id))
+
+    #########################################################
+    # First, write out some data needed for reproducibility.
+    # These are extracted in define_globals from larger files.
+    # In case an outside user runs into a crash, we can't
+    # really ask them to share gigabytes of
+    # 3-unzip/1-hasm/* of data.
+    # The snp_haplotigs already contain: sequence, path and
+    # phase of each haplotig constructed in 3-unzip/1-hasm.
+    # Unfortunately, not writing the sg_edges, because
+    # for larger datasets it could have ~100MB of data, and
+    # if there are thousands of chunks to process, it would
+    # bloat the output directories by a significant amount.
+    # However, symlinking it will help for packaging.
+    #########################################################
+    fp_proto_log('Writing snp_haplotigs for reproducibility.\n')
+    fn_repro_input_snp_haplotigs = os.path.join(out_dir, 'repro.input.snp_haplotigs.json')
+    snp_haplotigs_dict = {key: val.__dict__ for key, val in snp_haplotigs.iteritems()}
+    with open(fn_repro_input_snp_haplotigs, 'w') as fp_out_repro:
+        fp_out_repro.write(json.dumps(snp_haplotigs_dict))
+
+    fp_proto_log('Writing p_ctg_tiling_path for reproducibility.\n')
+    fn_repro_input_p_ctg_tiling_path = os.path.join(out_dir, 'repro.input.p_ctg_tiling_path.json')
+    with open(fn_repro_input_p_ctg_tiling_path, 'w') as fp_out_repro:
+        fp_out_repro.write(json.dumps(p_ctg_tiling_path.dump_as_split_lines()))
+        # fp_out_repro.write(json.dumps(p_ctg_tiling_path))
+
+    fn_repro_input_sg_edges = os.path.join(out_dir, 'repro.input.sg_edges')
+    if not os.path.exists(fn_repro_input_sg_edges):
+        os.symlink('../../../1-hasm/sg_edges_list', fn_repro_input_sg_edges)
 
     #########################################################
     # Load and prepare data.
