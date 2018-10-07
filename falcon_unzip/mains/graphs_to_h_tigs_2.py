@@ -70,8 +70,17 @@ def run_generate_haplotigs_for_ctg(input_):
     hdlr.setLevel(logging.DEBUG) # Set to INFO someday?
 
     try:
-        unzip_dir = os.path.join(base_dir, '3-unzip')
-        return generate_haplotigs_for_ctg(ctg_id, allow_multiple_primaries, out_dir, unzip_dir, proto_dir, logger)
+        global all_haplotigs_for_ctg
+        global p_ctg_seqs
+        global sg_edges
+        global p_ctg_tiling_paths
+
+        p_ctg_seq = p_ctg_seqs[ctg_id]
+        p_ctg_tiling_path = p_ctg_tiling_paths[ctg_id]
+        snp_haplotigs = all_haplotigs_for_ctg.get(ctg_id, {})
+        return generate_haplotigs_for_ctg(ctg_id, p_ctg_seq, p_ctg_tiling_path, sg_edges,
+                                            snp_haplotigs, allow_multiple_primaries,
+                                            out_dir, proto_dir, logger)
     except Exception:
         LOG.exception('Failure in generate_haplotigs_for_ctg({!r})'.format(input_))
         raise
@@ -83,13 +92,24 @@ def run_generate_haplotigs_for_ctg(input_):
         # Each thread accumulates some portion of the old loggers in disuse.
         # This will not cause any problems, as there is never a O(n) logger search.
 
-def generate_haplotigs_for_ctg(ctg_id, allow_multiple_primaries, out_dir, unzip_dir, proto_dir, logger):
-    # proto_dir is specific to this ctg_id.
-
-    global all_haplotigs_for_ctg
-    global p_ctg_seqs
-    global sg_edges
-    global p_ctg_tiling_paths
+def generate_haplotigs_for_ctg(ctg_id, p_ctg_seq, p_ctg_tiling_path, sg_edges,
+                                snp_haplotigs, allow_multiple_primaries, out_dir, proto_dir, logger):
+    """
+    ctg_id              - string
+    p_ctg_seq           - string, primary contig from 2-asm-falcon/p_ctg.fa
+    p_ctg_tiling_path   - List of tiling path edges from 2-asm-falcon/p_ctg_tiling_path for this particular ctg_id.
+    sg_edges            - List of all SG edges for this particular contig, from 3-unzip/1-hasm/sg_edges_list. Needs
+                          to contain reverse edges too (the main reason this is needed).
+    snp_haplotigs       - Dict of: snp_haplotigs[htig.name] = Haplotig(...), loaded from 3-unzip/1-hasm/p_ctg.fa,
+                          and marked with the correct phase.
+    allow_multiple_primaries    - True or False. Will raise if False and there are multiple graph
+                                  components in the haplotig graph.
+    out_dir             - Path to dir where output files will be written.
+    proto_dir           - Folder from the phasing stage for the corresponding contig used for input,
+                          i.e. 3-unzip/0-phasing/{ctg_id}/proto.
+                          Files needed from this folder are: `minced.fasta`,
+                          `phase_relation_graph.gexf`, `ref.fa` and `regions.json`.
+    """
 
     fp_proto_log = logger.info
 
@@ -100,15 +120,6 @@ def generate_haplotigs_for_ctg(ctg_id, allow_multiple_primaries, out_dir, unzip_
     #########################################################
     # Load and prepare data.
     #########################################################
-    fp_proto_log('Fetching the p_ctg_seq.')
-    p_ctg_seq = p_ctg_seqs[ctg_id]
-
-    fp_proto_log('Fetching the p_ctg_tiling_path.')
-    p_ctg_tiling_path = p_ctg_tiling_paths[ctg_id]
-
-    # Path to the directory with the output of the main_augment_pb.py.
-    #proto_dir = os.path.join(unzip_dir, '0-phasing', ctg_id, 'proto')
-
     # Load the linear sequences for alignment.
     minced_ctg_path = os.path.join(proto_dir, 'minced.fasta')
 
@@ -153,10 +164,6 @@ def generate_haplotigs_for_ctg(ctg_id, allow_multiple_primaries, out_dir, unzip_
         for htig_name, htig in region_htigs.iteritems():
             htig['seq'] = minced_ctg_seqs[htig_name]
 
-    # Get all the haplotig objects corresponding to this contig only.
-    fp_proto_log('Getting snp_haplotigs.')
-    snp_haplotigs = all_haplotigs_for_ctg.get(ctg_id, {})
-
     #########################################################
 
     #########################################################
@@ -184,7 +191,6 @@ def generate_haplotigs_for_ctg(ctg_id, allow_multiple_primaries, out_dir, unzip_
     #########################################################
     num_threads = 16
     mapping_out_prefix = os.path.join(out_dir, 'aln_snp_hasm_ctg')
-    mapping_ref = os.path.join(unzip_dir, 'reads', ctg_id, 'ref.fa')
     sam_path = mapping_out_prefix + '.sam'
 
     def excomm(cmd):
@@ -192,9 +198,10 @@ def generate_haplotigs_for_ctg(ctg_id, allow_multiple_primaries, out_dir, unzip_
 
     if len(snp_haplotigs.keys()) > 0:
         # BLASR crashes on empty files, so address that.
+        p_ctg_fn = os.path.join(proto_dir, 'ref.fa')
         blasr_params = '--minMatch 15 --maxMatch 25 --advanceHalf --advanceExactMatches 10 --bestn 1 --nproc {} --noSplitSubreads'.format(num_threads)
         excomm('blasr {} {} {} --sam --out {}.tmp.sam'.format(
-                blasr_params, aln_snp_hasm_ctg_path, mapping_ref, mapping_out_prefix))
+                blasr_params, aln_snp_hasm_ctg_path, p_ctg_fn, mapping_out_prefix))
         excomm('samtools sort {pre}.tmp.sam -o {pre}.sam'.format(
                 pre=mapping_out_prefix))
         excomm('rm -f {pre}.tmp.sam'.format(
@@ -1296,6 +1303,14 @@ def get_rid2proto_dir(gath_fn):
             arbitrary_key, result[arbitrary_key]))
     return result
 
+def load_sg_edges(sg_edges_list_fn):
+    sg_edges = {}
+    with io.open_progress(sg_edges_list_fn, 'r') as fp:
+        for line in fp:
+            sl = line.strip().split()
+            sg_edges[(sl[0], sl[1])] = sl
+    return sg_edges
+
 def define_globals(args):
     # make life easier for now. will refactor it out if possible
     global all_rid_to_phase
@@ -1362,12 +1377,8 @@ def define_globals(args):
 
     # Load all sg_edges_list so that haplotig paths can be reversed if needed.
     LOG.info('Loading sg_edges_list.')
-    sg_edges = {}
     sg_edges_list_fn = os.path.join(fc_hasm_path, 'sg_edges_list')
-    with io.open_progress(sg_edges_list_fn, 'r') as fp:
-        for line in fp:
-            sl = line.strip().split()
-            sg_edges[(sl[0], sl[1])] = sl
+    sg_edges = load_sg_edges(sg_edges_list_fn)
     LOG.info('Done loading sg_edges_list.')
 
 def cmd_apply(args):
