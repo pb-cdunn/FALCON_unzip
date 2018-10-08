@@ -6,6 +6,8 @@ import sys
 import networkx as nx
 from falcon_unzip.proto.haplotig import Haplotig
 from falcon_kit.tiling_path import TilingPathEdge
+import intervaltree
+import falcon_unzip.proto.cigartools as cigartools
 
 """
 The haplotig_graph nodes are defined as:
@@ -20,7 +22,7 @@ The haplotig_graph nodes are defined as:
 def mock_fp_proto_log(line):
     pass
 
-def make_dummy_linear_region(ctg_id, seq, pos_start, pos_end, name_=None):
+def make_dummy_linear_region(ctg_id, seq, pos_start, pos_end, name_):
     region_type = 'linear'
     first_edge = None
     last_edge = None
@@ -29,9 +31,7 @@ def make_dummy_linear_region(ctg_id, seq, pos_start, pos_end, name_=None):
 
     complete_phase = (ctg_id, '-1', '0')
     path = [[ctg_id, '000000001:B', '000000002:B', '000000002', '4', '10', '1986', '99.95']]
-    new_haplotig = Haplotig(name = htig_name, phase = complete_phase, seq = seq, path = path, edges = [])
-    new_haplotig.cstart = pos_start
-    new_haplotig.cend = pos_end
+    new_haplotig = Haplotig(name = htig_name, phase = complete_phase, seq = seq, path = path, edges = [], labels = {}, cstart = pos_start, cend = pos_end)
 
     new_region_htigs = {htig_name: new_haplotig.__dict__}
 
@@ -39,7 +39,7 @@ def make_dummy_linear_region(ctg_id, seq, pos_start, pos_end, name_=None):
 
     return new_region, htig_name
 
-def make_dummy_diploid_region(ctg_id, seq1, seq2, pos_start, pos_end, phasing_block, name_=None):
+def make_dummy_diploid_region(ctg_id, seq1, seq2, pos_start, pos_end, phasing_block, name_):
     region_type = 'diploid'
     first_edge = None
     last_edge = None
@@ -47,22 +47,12 @@ def make_dummy_diploid_region(ctg_id, seq1, seq2, pos_start, pos_end, phasing_bl
     htig_name_1 = '%s_diploid_%d:%d_phase0' % (ctg_id, pos_start, pos_end) if name_ == None else '%s-phase0' % (name_)
     complete_phase = (ctg_id, str(phasing_block), '0')
     path_1 = [[ctg_id, '000000003:B', '000000004:B', '000000004', '30', '6', '1986', '99.99']]
-    new_haplotig_1 = Haplotig(name = htig_name_1, phase = complete_phase, seq = seq1, path = path_1, edges = [])
-    # "Collapsed-start/end" are required to correctly determine placement coordinates.
-    # All haplotigs from the same bubble have the same cstart and cend coordinates
-    # (this is the coordinate on the collapsed primary contig (2-asm-falcon/p_ctg).
-    new_haplotig_1.cstart = pos_start
-    new_haplotig_1.cend = pos_end
+    new_haplotig_1 = Haplotig(name = htig_name_1, phase = complete_phase, seq = seq1, path = path_1, edges = [], labels = {}, cstart = pos_start, cend = pos_end)
 
     htig_name_2 = '%s_diploid_%d:%d_phase1' % (ctg_id, pos_start, pos_end) if name_ == None else '%s-phase1' % (name_)
     path_2 = [[ctg_id, '000000005:B', '000000006:B', '000000006', '8', '6', '2019', '100.00']]
     complete_phase = (ctg_id, str(phasing_block), '1')
-    new_haplotig_2 = Haplotig(name = htig_name_2, phase = complete_phase, seq = seq2, path = path_2, edges = [])
-    # "Collapsed-start/end" are required to correctly determine placement coordinates.
-    # All haplotigs from the same bubble have the same cstart and cend coordinates
-    # (this is the coordinate on the collapsed primary contig (2-asm-falcon/p_ctg).
-    new_haplotig_2.cstart = pos_start
-    new_haplotig_2.cend = pos_end
+    new_haplotig_2 = Haplotig(name = htig_name_2, phase = complete_phase, seq = seq2, path = path_2, edges = [], labels = {}, cstart = pos_start, cend = pos_end)
 
     new_region_htigs = {htig_name_1: new_haplotig_1.__dict__, htig_name_2: new_haplotig_2.__dict__}
 
@@ -105,7 +95,7 @@ def evaluate_write_unzipped(tmpdir, expected):
 REGION_TYPE_LINEAR = 'linear'
 REGION_TYPE_DIPLOID = 'diploid'
 
-def make_dummy_haplotig_graph(ctg_id, region_desc):
+def make_dummy_region_list(ctg_id, region_desc):
     ret_seqs = {}
     ret_headers = {}
     ret_edges = {}
@@ -130,6 +120,11 @@ def make_dummy_haplotig_graph(ctg_id, region_desc):
             ret_headers[name_] = (header_1, header_2)
             regions.append(region)
         region_start += region_span
+
+    return regions, ret_seqs, ret_headers, ret_edges
+def make_dummy_haplotig_graph(ctg_id, region_desc):
+    # Create a list of regions to convert to haplotig graph.
+    regions, ret_seqs, ret_headers, ret_edges = make_dummy_region_list(ctg_id, region_desc)
 
     # Convert regions to graph.
     haplotig_graph = mod.regions_to_haplotig_graph(ctg_id, regions, mock_fp_proto_log)
@@ -176,7 +171,7 @@ def test_regions_to_haplotig_graph_2():
         ### Inputs.
         regions = []
         # Create a linear region.
-        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
+        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000, 'L1')
         regions.append(new_region)
 
         ### Expected results.
@@ -207,10 +202,10 @@ def test_regions_to_haplotig_graph_3():
         ### Inputs.
         regions = []
         # Create the first linear region.
-        new_region, region_1_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
+        new_region, region_1_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000, 'L1')
         regions.append(new_region)
         # Create the second linear region.
-        new_region, region_2_header = make_dummy_linear_region(ctg_id, 'ACTG', 1000, 2000)
+        new_region, region_2_header = make_dummy_linear_region(ctg_id, 'ACTG', 1000, 2000, 'L2')
         regions.append(new_region)
 
         ### Expected results.
@@ -246,13 +241,13 @@ def test_regions_to_haplotig_graph_4():
         ### Inputs.
         regions = []
         # Create the first linear region.
-        new_region, region_1_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
+        new_region, region_1_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000, 'L1')
         regions.append(new_region)
         # Create the diploid region.
-        new_region, region_2_header_1, region_2_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0)
+        new_region, region_2_header_1, region_2_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0, 'D1')
         regions.append(new_region)
         # Create the second linear region.
-        new_region, region_3_header = make_dummy_linear_region(ctg_id, 'ACTG', 1000, 2000)
+        new_region, region_3_header = make_dummy_linear_region(ctg_id, 'ACTG', 1000, 2000, 'L2')
         regions.append(new_region)
 
         ### Expected results.
@@ -293,19 +288,19 @@ def test_regions_to_haplotig_graph_5():
         ### Inputs.
         regions = []
         # Create the first linear region.
-        new_region, region_1_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
+        new_region, region_1_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000, 'L1')
         regions.append(new_region)
         # Create a diploid region.
-        new_region, region_2_header_1, region_2_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0)
+        new_region, region_2_header_1, region_2_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0, 'D1')
         regions.append(new_region)
         # Create a diploid region.
-        new_region, region_3_header_1, region_3_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 2000, 3000, 1)
+        new_region, region_3_header_1, region_3_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 2000, 3000, 1, 'D2')
         regions.append(new_region)
         # Create a diploid region.
-        new_region, region_4_header_1, region_4_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 3000, 4000, 2)
+        new_region, region_4_header_1, region_4_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 3000, 4000, 2, 'D3')
         regions.append(new_region)
         # Create the second linear region.
-        new_region, region_5_header = make_dummy_linear_region(ctg_id, 'ACTG', 4000, 5000)
+        new_region, region_5_header = make_dummy_linear_region(ctg_id, 'ACTG', 4000, 5000, 'L2')
         regions.append(new_region)
 
         ### Expected results.
@@ -370,7 +365,7 @@ def test_regions_to_haplotig_graph_6():
         ### Inputs.
         regions = []
         # Create a diploid region.
-        new_region, region_1_header_1, region_1_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0)
+        new_region, region_1_header_1, region_1_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0, 'D1')
         regions.append(new_region)
 
         ### Expected results.
@@ -441,7 +436,7 @@ def test_update_haplotig_graph_2():
 
         # Compile a list of regions.
         regions = []
-        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
+        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000, 'L1')
         regions.append(new_region)
 
         # Convert regions to graph.
@@ -480,13 +475,13 @@ def test_update_haplotig_graph_3():
         # Compile a list of regions.
         regions = []
         # Create the first linear region.
-        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
+        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000, 'L1')
         regions.append(new_region)
         # Create the diploid region.
-        new_region, new_header_1, new_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0)
+        new_region, new_header_1, new_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0, 'D1')
         regions.append(new_region)
         # Create the second linear region.
-        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 2000, 3000)
+        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 2000, 3000, 'L2')
         regions.append(new_region)
 
         # Convert regions to graph.
@@ -526,13 +521,13 @@ def test_update_haplotig_graph_4():
         # Compile a list of regions.
         regions = []
         # Create the first linear region.
-        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
+        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000, 'L1')
         regions.append(new_region)
         # Create the diploid region.
-        new_region, new_header_1, new_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0)
+        new_region, new_header_1, new_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0, 'D1')
         regions.append(new_region)
         # Create the second linear region.
-        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 2000, 3000)
+        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 2000, 3000, 'L2')
         regions.append(new_region)
 
         # Convert regions to graph.
@@ -574,19 +569,19 @@ def test_update_haplotig_graph_5():
         # Compile a list of regions.
         regions = []
         # Create the first linear region.
-        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
+        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000, 'L1')
         regions.append(new_region)
         # Create the diploid region.
-        dip_0_region, dip_0_header_1, dip_0_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0)
+        dip_0_region, dip_0_header_1, dip_0_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0, 'D1')
         regions.append(dip_0_region)
         # Create the diploid region.
-        dip_1_region, dip_1_header_1, dip_1_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 2000, 3000, 1)
+        dip_1_region, dip_1_header_1, dip_1_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 2000, 3000, 1, 'D2')
         regions.append(dip_1_region)
         # Create the diploid region.
-        dip_2_region, dip_2_header_1, dip_2_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 3000, 4000, 2)
+        dip_2_region, dip_2_header_1, dip_2_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 3000, 4000, 2, 'D3')
         regions.append(dip_2_region)
         # Create the second linear region.
-        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 4000, 5000)
+        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 4000, 5000, 'L2')
         regions.append(new_region)
 
         # Convert regions to graph.
@@ -639,19 +634,19 @@ def test_update_haplotig_graph_6():
         # Compile a list of regions.
         regions = []
         # Create the first linear region.
-        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
+        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000, 'L1')
         regions.append(new_region)
         # Create the diploid region.
-        dip_0_region, dip_0_header_1, dip_0_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0)
+        dip_0_region, dip_0_header_1, dip_0_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0, 'D1')
         regions.append(dip_0_region)
         # Create the diploid region.
-        dip_1_region, dip_1_header_1, dip_1_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 2000, 3000, 1)
+        dip_1_region, dip_1_header_1, dip_1_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 2000, 3000, 1, 'D2')
         regions.append(dip_1_region)
         # Create the diploid region.
-        dip_2_region, dip_2_header_1, dip_2_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 3000, 4000, 2)
+        dip_2_region, dip_2_header_1, dip_2_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 3000, 4000, 2, 'D3')
         regions.append(dip_2_region)
         # Create the second linear region.
-        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 4000, 5000)
+        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 4000, 5000, 'L2')
         regions.append(new_region)
 
         # Convert regions to graph.
@@ -1094,7 +1089,7 @@ def test_extract_unzipped_ctgs_1():
 
         # Linear region. Nothing is unzipped.
         region_1_seq = 'ACTG'
-        region_1, region_1_name = make_dummy_linear_region(ctg_id, region_1_seq, 1000, 2000)
+        region_1, region_1_name = make_dummy_linear_region(ctg_id, region_1_seq, 1000, 2000, 'L1')
         regions.append(region_1)
 
         # Create a haplotig graph (NetworkX object) from the regions.
@@ -1138,7 +1133,7 @@ def test_extract_unzipped_ctgs_2():
         # Diploid region. The entire contig is unzipped.
         region_1_seq_1 = 'ACTG'
         region_1_seq_2 = 'AT'
-        region_1, region_1_name_1, region_1_name_2 = make_dummy_diploid_region(ctg_id, region_1_seq_1, region_1_seq_2, 1000, 2000, 0)
+        region_1, region_1_name_1, region_1_name_2 = make_dummy_diploid_region(ctg_id, region_1_seq_1, region_1_seq_2, 1000, 2000, 0, 'D1')
         regions.append(region_1)
 
         # Create a haplotig graph (NetworkX object) from the regions.
@@ -1193,14 +1188,14 @@ def test_extract_unzipped_ctgs_3():
         regions_1 = []
         region_1_seq_1 = 'ACTG'
         region_1_seq_2 = 'AT'
-        region_1, region_1_name_1, region_1_name_2 = make_dummy_diploid_region(ctg_id + 'p0', region_1_seq_1, region_1_seq_2, 1000, 2000, 0)
+        region_1, region_1_name_1, region_1_name_2 = make_dummy_diploid_region(ctg_id + 'p0', region_1_seq_1, region_1_seq_2, 1000, 2000, 0, 'D1')
         regions_1.append(region_1)
 
         # Another diploid region. Could be linear, or any kind.
         regions_2 = []
         region_2_seq_1 = 'ACTG'
         region_2_seq_2 = 'AT'
-        region_2, region_2_name_1, region_2_name_2 = make_dummy_diploid_region(ctg_id + 'p1', region_2_seq_1, region_2_seq_2, 4000, 5000, 0)
+        region_2, region_2_name_1, region_2_name_2 = make_dummy_diploid_region(ctg_id + 'p1', region_2_seq_1, region_2_seq_2, 4000, 5000, 0, 'D2')
         regions_2.append(region_2)
 
         # Create haplotig graphs (NetworkX object) from the regions.
@@ -1232,14 +1227,14 @@ def test_extract_unzipped_ctgs_4():
         # Linear region.
         regions = []
         region_1_seq = 'AAAA'
-        region_1, region_1_name = make_dummy_linear_region(ctg_id + 'a', region_1_seq, 1000, 2000)
+        region_1, region_1_name = make_dummy_linear_region(ctg_id + 'a', region_1_seq, 1000, 2000, 'L1')
         regions.append(region_1)
         haplotig_graph_1 = mod.regions_to_haplotig_graph(ctg_id + 'a', regions, mock_fp_proto_log)
 
         # Another separate linear region.
         regions = []
         region_2_seq = 'TTTT'
-        region_2, region_2_name = make_dummy_linear_region(ctg_id + 'b', region_2_seq, 4000, 5000)
+        region_2, region_2_name = make_dummy_linear_region(ctg_id + 'b', region_2_seq, 4000, 5000, 'L2')
         regions.append(region_2)
         haplotig_graph_2 = mod.regions_to_haplotig_graph(ctg_id + 'b', regions, mock_fp_proto_log)
 
@@ -1288,7 +1283,7 @@ def test_extract_unzipped_ctgs_5(tmpdir):
         # Linear region.
         regions = []
         region_1_seq = 'AAAA'
-        region_1, region_1_name = make_dummy_linear_region(ctg_id + 'a', region_1_seq, 1000, 2000)
+        region_1, region_1_name = make_dummy_linear_region(ctg_id + 'a', region_1_seq, 1000, 2000, 'L1')
         regions.append(region_1)
         haplotig_graph_1 = mod.regions_to_haplotig_graph(ctg_id + 'a', regions, mock_fp_proto_log)
 
@@ -1296,7 +1291,7 @@ def test_extract_unzipped_ctgs_5(tmpdir):
         regions = []
         region_2_seq_1 = 'TTTT'
         region_2_seq_2 = 'GG'
-        region_2, region_2_name_1, region_2_name_2 = make_dummy_diploid_region(ctg_id + 'b', region_2_seq_1, region_2_seq_2, 4000, 5000, 1)
+        region_2, region_2_name_1, region_2_name_2 = make_dummy_diploid_region(ctg_id + 'b', region_2_seq_1, region_2_seq_2, 4000, 5000, 1, 'D1')
         regions.append(region_2)
         haplotig_graph_2 = mod.regions_to_haplotig_graph(ctg_id + 'b', regions, mock_fp_proto_log)
 
@@ -1304,15 +1299,15 @@ def test_extract_unzipped_ctgs_5(tmpdir):
         haplotig_graph = nx.compose(haplotig_graph_1, haplotig_graph_2)
 
         # Expected results.
-        exp_all_p_seqs = {  '{}p01'.format(ctg_id): region_2_seq_2,
+        exp_all_p_seqs = {  '{}p01'.format(ctg_id): region_2_seq_1,
                             '{}p02'.format(ctg_id): region_1_seq
                          }
-        exp_all_p_edges = { '{}p01'.format(ctg_id): ['{ctg_id}p01 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H 1 1 1 1' for edge in haplotig_graph.node[region_2_name_2]['htig']['path']],
+        exp_all_p_edges = { '{}p01'.format(ctg_id): ['{ctg_id}p01 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H 1 0 1 0' for edge in haplotig_graph.node[region_2_name_1]['htig']['path']],
                             '{}p02'.format(ctg_id): ['{ctg_id}p02 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H -1 0 -1 0' for edge in haplotig_graph.node[region_1_name]['htig']['path']],
                          }
-        exp_all_h_seqs = {  '{}p01_001'.format(ctg_id): region_2_seq_1
+        exp_all_h_seqs = {  '{}p01_001'.format(ctg_id): region_2_seq_2
                          }
-        exp_all_h_edges = { '{}p01_001'.format(ctg_id): ['{ctg_id}p01_001 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H 1 0 1 0' for edge in haplotig_graph.node[region_2_name_1]['htig']['path']]
+        exp_all_h_edges = { '{}p01_001'.format(ctg_id): ['{ctg_id}p01_001 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H 1 1 1 1' for edge in haplotig_graph.node[region_2_name_2]['htig']['path']]
                           }
         exp_all_h_paf = {}
 
@@ -1824,3 +1819,581 @@ AG
 
     # Evaluate.
     evaluate_write_unzipped(tmpdir, expected)
+
+def test_fragment_haplotigs_1():
+    """
+    Test empty input.
+    """
+
+    def create_test():
+        # Inputs.
+        in_haplotig_dict = {}
+        aln_dict = {}
+        clippoints = {}
+        # Intervals in the bubble tree represent locations of a_ctg on the primary contig.
+        # Any fragment haplotig falling within those regions will be removed.
+        bubble_tree = intervaltree.IntervalTree([])
+
+        # Expected results.
+        expected = {}
+
+        return in_haplotig_dict, aln_dict, clippoints, bubble_tree, expected
+
+    # Make the test inputs and expected outputs.
+    in_haplotig_dict, aln_dict, clippoints, bubble_tree, expected = create_test()
+
+    # Run unit under test.
+    result = mod.fragment_haplotigs(in_haplotig_dict, aln_dict, clippoints, bubble_tree, mock_fp_proto_log)
+
+    # Evaluate.
+    assert result == expected
+
+def test_fragment_single_haplotig_1():
+    """
+    Test empty input.
+    """
+
+    def create_test():
+        """
+        Description of input data:
+            in_haplotig_dict[htig_name] = Haplotig()
+
+            aln_dict[htig_name] = (qname, tname, score, perc_similarity, qstrand, qstart, qend, qlen, tstrand, tstart, tend, tlen, mapq, aln, cigar)
+
+            bubble_intervals = [intervaltree.Interval(pos_start, pos_end, region)]
+            bubble_tree = intervaltree.IntervalTree(bubble_intervals)
+
+            clippoints[tstart] = [qname + '_start']
+
+            region_of_interest = start, end, q_name, q_len, t_name, t_len, q_phase  # start = (tstart, qstart), end = (tend, qend)
+        """
+
+        ctg_id = '000000F'
+
+        def test1(ctg_id):
+            """
+            Simple test case. Make a haplotig, several clippoints and an end-to-end alignment.
+            There are no bubble filtering regions specified.
+            """
+            ### Inputs.
+            # Shorthands.
+            seq = 'This is a dummy sequence'
+            path = [[ctg_id, '000000001:B', '000000002:B', '000000002', '0', str(len(seq)), '1986', '99.95']]
+
+            # Make a haplotig.
+            haplotig = Haplotig(name = 'H1', phase = (ctg_id, '0', '0'), seq = seq, path = path, edges = [], labels = {}, cstart = -1, cend = -1)
+
+            # Alignment of the haplotigs to the target sequence.
+            qstrand, qstart, qend, qlen = 0, 0, len(haplotig.seq), len(haplotig.seq)
+            tstrand, tstart, tend, tlen = 0, 0, len(haplotig.seq), 1000
+            cigar = [
+                        (cigartools.CIGAR_OP_M, qlen),
+                    ]
+            aln = ['H1', ctg_id, 0, 0, qstrand, qstart, qend, qlen, tstrand, tstart, tend, tlen, 254, None]
+
+            # Target coordinates where to clip.
+            clippoints = {  0:  'H1-start',
+                            4:  '1',
+                            5:  '2',
+                            15: '3',
+                            24:   'H1-end',
+                            }
+
+            # Empty tree.
+            bubble_tree = intervaltree.IntervalTree([])
+
+            inputs = haplotig, aln, cigar, clippoints, bubble_tree
+
+            ### Expected results.
+            expected = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((0, 0), (4, 4), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = " ", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((4, 4), (5, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "is a dummy", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((5, 5), (15, 15), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1 ),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " sequence", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((15, 15), (24, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+            }
+            return inputs, expected
+
+        def test2(ctg_id):
+            """
+            Simple test case with a bubble filtering region specified.
+            """
+            ### Inputs.
+            # Shorthands.
+            seq = 'This is a dummy sequence'
+            path = [[ctg_id, '000000001:B', '000000002:B', '000000002', '0', str(len(seq)), '1986', '99.95']]
+
+            # Make a haplotig.
+            haplotig = Haplotig(name = 'H1', phase = (ctg_id, '0', '0'), seq = seq, path = path, edges = [], labels = {}, cstart = -1, cend = -1)
+
+            # Alignment of the haplotigs to the target sequence.
+            qstrand, qstart, qend, qlen = 0, 0, len(haplotig.seq), len(haplotig.seq)
+            tstrand, tstart, tend, tlen = 0, 0, len(haplotig.seq), 1000
+            cigar = [
+                        (cigartools.CIGAR_OP_M, qlen),
+                    ]
+            aln = ['H1', ctg_id, 0, 0, qstrand, qstart, qend, qlen, tstrand, tstart, tend, tlen, 254, None]
+
+            # Target coordinates where to clip.
+            clippoints = {  0:  'H1-start',
+                            4:  '1',
+                            5:  '2',
+                            15: '3',
+                            24:   'H1-end',
+                            }
+
+            # Make a tree with 1 filtering region.
+            bubble_tree = intervaltree.IntervalTree([intervaltree.Interval(4, 9, None)])
+
+            inputs = haplotig, aln, cigar, clippoints, bubble_tree
+
+            ### Expected results.
+            expected = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((0, 0), (4, 4), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = " sequence", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((15, 15), (24, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+            }
+            return inputs, expected
+
+        def test3(ctg_id):
+            """
+            Test case where the haplotig is not aligned at base 0 of the reference.
+            """
+            ### Inputs.
+            # Shorthands.
+            seq = 'This is a dummy sequence'
+            path = [[ctg_id, '000000001:B', '000000002:B', '000000002', '0', str(len(seq)), '1986', '99.95']]
+
+            # Make a haplotig.
+            haplotig = Haplotig(name = 'H1', phase = (ctg_id, '0', '0'), seq = seq, path = path, edges = [], labels = {}, cstart = -1, cend = -1)
+
+            # Alignment of the haplotigs to the target sequence.
+            qstrand, qstart, qend, qlen = 0, 0, len(haplotig.seq), len(haplotig.seq)
+            tstrand, tstart, tend, tlen = 0, 99, 123, 1000
+            cigar = [
+                        (cigartools.CIGAR_OP_M, qlen),
+                    ]
+            aln = ['H1', ctg_id, 0, 0, qstrand, qstart, qend, qlen, tstrand, tstart, tend, tlen, 254, None]
+
+            # Target coordinates where to clip.
+            clippoints = {  99:  'H1-start',
+                            103:  '1',
+                            104:  '2',
+                            114: '3',
+                            23:   'H1-end',
+                            }
+
+            # Empty tree.
+            bubble_tree = intervaltree.IntervalTree([])
+
+            inputs = haplotig, aln, cigar, clippoints, bubble_tree
+
+            ### Expected results.
+            expected = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((99, 0), (103, 4), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = " ", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((103, 4), (104, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "is a dummy", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((104, 5), (114, 15), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " sequence", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((114, 15), (123, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+            }
+            return inputs, expected
+
+        def test4(ctg_id):
+            """
+            Test the coordinates when an alignment is not all matches but has indels too.
+            """
+            ### Inputs.
+            # Shorthands.
+            seq = 'This is a dummy sequence'
+            path = [[ctg_id, '000000001:B', '000000002:B', '000000002', '0', str(len(seq)), '1986', '99.95']]
+
+            # Make a haplotig.
+            haplotig = Haplotig(name = 'H1', phase = (ctg_id, '0', '0'), seq = seq, path = path, edges = [], labels = {}, cstart = -1, cend = -1)
+
+            # Alignment of the haplotigs to the target sequence.
+            qstrand, qstart, qend, qlen = 0, 0, len(haplotig.seq), len(haplotig.seq)
+            tstrand, tstart, tend, tlen = 0, 50, 79, 1000
+            cigar = [
+                        (cigartools.CIGAR_OP_M, 7),         # target: 0-7:  "This is"       query: 0-7:     "This is"
+                        (cigartools.CIGAR_OP_D, 4),         # target: 7-12: " also"         query: 7-7:     ""
+                        (cigartools.CIGAR_OP_M, 8),         # target: 12-20: " a dummy"     query: 7-15:    " a dummy"
+                        (cigartools.CIGAR_OP_I, 1),         # target: 20-20: ""             query: 15-16:   " "
+                        (cigartools.CIGAR_OP_M, 9),         # target: 20-29: "sequence"     query: 16-24:   "sequence"
+                    ]
+            aln = ['H1', ctg_id, 0, 0, qstrand, qstart, qend, qlen, tstrand, tstart, tend, tlen, 254, None]
+
+            # Target coordinates where to clip.
+            clippoints = {  50:  'H1-start',
+                            55:  '1',
+                            59:  '2',
+                            65: '3',
+                            79:   'H1-end',
+                            }
+
+            # Empty tree.
+            bubble_tree = intervaltree.IntervalTree([])
+
+            inputs = haplotig, aln, cigar, clippoints, bubble_tree
+
+            ### Expected results.
+            expected = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = " a d", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((59, 7), (65, 11), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = "ummy sequence", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((65, 11), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+            }
+            return inputs, expected
+        def test5(ctg_id):
+            """
+            A sort-of-degenerate test case.
+            One of the clipped regions should be completely covered by a deletion event,
+            which means that the query sequence is 0.
+
+            However the unit under test should output all regions between all clippoints,
+            as that is the expected behavior. The 0-length fragments should be filtered
+            out by an additional filtering method.
+
+            While this is not technically a degenerate case, it is an edge case:
+                - The fragment with query length 0 could indicate a structural variant at the location,
+                  which is not present in the other haplotype / p_ctg.
+                - The edge case is related to how this exact region got demarcated. If the structural variant
+                  was captured by one haplotig covering the SV in one phase fully, and second haplotig covering it
+                  in the oposite phase fully, then these coordinates should never be determined. The edge case
+                  can happen in more fragmented assemblies of haplotigs, which could indicate a more complex
+                  SV/repeat region. In this case, the single 0-length fragment might actually be used to produce a
+                  0-length haplotig sequence in the output. At the moment, it sounds the most reasonable to filter out
+                  these short haplotig fragments and leave the regions collapsed.
+            An example for such a case occured here: https://github.com/PacificBiosciences/pbbioconda/issues/21
+            Alignments of 1-hasm contigs in this case:
+                ['000153F-HAP000862F-000153F.1000001.0', '000153F', -52476, 91.14728396200313, 0, 1017, 109447, 109447, 0, 30345, 174428, 190213, 254, <pysam.libcalignedsegment.AlignedSegment object at 0x2b3ef96207a0>]
+                ['000153F-HAP001039F-000153F.1000001.0', '000153F', -1996, 98.78281020558003, 0, 6577, 93745, 93745, 1, 0, 87285, 190213, 254, <pysam.libcalignedsegment.AlignedSegment object at 0x2b3ef9620738>]
+                ['000153F-HAP001459F-000153F.1000001.1', '000153F', -14299, 92.02443709792709, 0, 0, 89536, 89592, 1, 35986, 126482, 190213, 254, <pysam.libcalignedsegment.AlignedSegment object at 0x2b3ef9620808>]
+                ['000153F-HAP005802F-000153F.1000001.1', '000153F', -1064, 98.2740021574973, 0, 12, 32457, 32457, 1, 96469, 128981, 190213, 254, <pysam.libcalignedsegment.AlignedSegment object at 0x2b3ef960ddb8>]
+                ['000153F-HAP001155F-000153F.1000001.1', '000153F', -715, 99.33368372865839, 0, 0, 58981, 88092, 0, 131265, 190213, 190213, 254, <pysam.libcalignedsegment.AlignedSegment object at 0x2b3ef960db48>]
+                ['000153F-HAP004116F-000153F.1000001.1', '000153F', -2704, 96.60714683786976, 0, 0, 44859, 48766, 0, 120079, 164744, 190213, 254, <pysam.libcalignedsegment.AlignedSegment object at 0x2b3ef960dd50>]
+            So, multiple 1-hasm contigs were generated for the same set phase of reads, and they overlap the same regions after alignment. This is strange,
+            and indicates repetitive regions, or artifacts.
+            The primary contig had no a_ctg. The list of clippoints is then compiled from the alignment start/end coordinates. This is from the chunk_000153F/uow-000153F/prototype.log:
+                DEBUG:  clip_point: (0, ['000153F-HAP001039F-000153F.1000001.0_start'])
+                DEBUG:  clip_point: (30345, ['000153F-HAP000862F-000153F.1000001.0_start'])
+                DEBUG:  clip_point: (35986, ['000153F-HAP001459F-000153F.1000001.1_start'])
+                DEBUG:  clip_point: (87285, ['000153F-HAP001039F-000153F.1000001.0_end'])
+                DEBUG:  clip_point: (96469, ['000153F-HAP005802F-000153F.1000001.1_start'])
+                DEBUG:  clip_point: (120079, ['000153F-HAP004116F-000153F.1000001.1_start'])
+                DEBUG:  clip_point: (126482, ['000153F-HAP001459F-000153F.1000001.1_end'])
+                DEBUG:  clip_point: (128981, ['000153F-HAP005802F-000153F.1000001.1_end'])
+                DEBUG:  clip_point: (131265, ['000153F-HAP001155F-000153F.1000001.1_start'])
+                DEBUG:  clip_point: (164744, ['000153F-HAP004116F-000153F.1000001.1_end'])
+                DEBUG:  clip_point: (174428, ['000153F-HAP000862F-000153F.1000001.0_end'])
+                DEBUG:  clip_point: (190213, ['000153F-HAP001155F-000153F.1000001.1_end'])
+            Finally, this resulted in 000153F-HAP000862F-000153F.1000001.0 having a region of query span 0:
+                INFO: pos_of_interest for q_name: 000153F-HAP000862F-000153F.1000001.0
+                ...
+                INFO: ((87285, 32944), (96469, 32944), '000153F-HAP000862F-000153F.1000001.0', 109447, '000153F', 190213, ('000153F', 1000001, 0))
+                ...
+            """
+            ### Inputs.
+            # Shorthands.
+            seq = 'This is a dummy sequence'
+            path = [[ctg_id, '000000001:B', '000000002:B', '000000002', '0', str(len(seq)), '1986', '99.95']]
+
+            # Make a haplotig.
+            haplotig = Haplotig(name = 'H1', phase = (ctg_id, '0', '0'), seq = seq, path = path, edges = [], labels = {}, cstart = -1, cend = -1)
+
+            # Alignment of the haplotigs to the target sequence.
+            qstrand, qstart, qend, qlen = 0, 0, len(haplotig.seq), len(haplotig.seq)
+            tstrand, tstart, tend, tlen = 0, 50, 79, 1000
+            cigar = [
+                        (cigartools.CIGAR_OP_M, 7),         # target: 0-7:  "This is"       query: 0-7:     "This is"
+                        (cigartools.CIGAR_OP_D, 4),         # target: 7-12: " also"         query: 7-7:     ""
+                        (cigartools.CIGAR_OP_M, 8),         # target: 12-20: " a dummy"     query: 7-15:    " a dummy"
+                        (cigartools.CIGAR_OP_I, 1),         # target: 20-20: ""             query: 15-16:   " "
+                        (cigartools.CIGAR_OP_M, 9),         # target: 20-29: "sequence"     query: 16-24:   "sequence"
+                    ]
+            aln = ['H1', ctg_id, 0, 0, qstrand, qstart, qend, qlen, tstrand, tstart, tend, tlen, 254, None]
+
+            # Target coordinates where to clip.
+            clippoints = {  50:  'H1-start',
+                            55:  '1',
+                            59:  '2',
+                            61:  '3',
+                            79:   'H1-end',
+                            }
+
+            # Empty tree.
+            bubble_tree = intervaltree.IntervalTree([])
+
+            inputs = haplotig, aln, cigar, clippoints, bubble_tree
+
+            ### Expected results.
+            expected = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = haplotig.path, edges = [],
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+            }
+            return inputs, expected
+
+        # Pack test points.
+        tests = [ test1(ctg_id), test2(ctg_id), test3(ctg_id), test4(ctg_id), test5(ctg_id)]
+
+        return tests
+
+    # Make the test inputs and expected outputs.
+    tests = create_test()
+
+    # result = mod.fragment_haplotigs(in_haplotig_dict, aln_dict, clippoints, bubble_tree, mock_fp_proto_log)
+    for test_args in tests:
+        # Unpack a set of test arguments.
+        inputs, expected = test_args
+        haplotig, aln, cigar, clippoints, bubble_tree = inputs
+
+        # Run unit under test.
+        result = mod.fragment_single_haplotig(haplotig, aln, cigar, clippoints, bubble_tree, mock_fp_proto_log)
+
+        # Evaluate.
+        assert set(result.keys()) == set(expected.keys())
+
+        for key, result_htig in result.iteritems():
+            assert result_htig.__dict__ == expected[key].__dict__, key
+
+def test_filter_haplotigs_by_len():
+    def create_test():
+        def test1(ctg_id):
+            """
+            Empty test case.
+            """
+            ### Inputs.
+            qlen = 100
+            tlen = 1000
+            haplotigs = {
+            }
+
+            min_query_span = 1
+            min_target_span = 1
+
+            inputs = haplotigs, min_query_span, min_target_span
+
+            ### Expected results.
+            expected = {
+            }
+
+            return inputs, expected
+
+        def test2(ctg_id):
+            """
+            Normal test case.
+            Nothing should be filtered.
+            """
+            ### Inputs.
+            qlen = 100
+            tlen = 1000
+            haplotigs = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = [], edges = [],
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "", path = [], edges = [],
+                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+            }
+
+            min_query_span = 0
+            min_target_span = 0
+
+            inputs = haplotigs, min_query_span, min_target_span
+
+            ### Expected results.
+            expected = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = [], edges = [],
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "", path = [], edges = [],
+                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+            }
+
+            return inputs, expected
+
+        def test3(ctg_id):
+            """
+            Normal test case.
+            Testing query filtering.
+            Same test as before, but with min_target_span = 1, so that one input
+            gets filtered.
+            """
+            ### Inputs.
+            qlen = 100
+            tlen = 1000
+            haplotigs = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = [], edges = [],
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "", path = [], edges = [],
+                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+            }
+
+            min_query_span = 1
+            min_target_span = 0
+
+            inputs = haplotigs, min_query_span, min_target_span
+
+            ### Expected results.
+            expected = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = [], edges = [],
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+            }
+
+            return inputs, expected
+
+        def test4(ctg_id):
+            """
+            Normal test case.
+            Testing target filtering.
+            Same test as before, but with min_target_span = 1, so that one input
+            gets filtered.
+            """
+            ### Inputs.
+            qlen = 100
+            tlen = 1000
+            haplotigs = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = [], edges = [],
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "", path = [], edges = [],
+                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+            }
+
+            min_query_span = 0
+            min_target_span = 5
+
+            inputs = haplotigs, min_query_span, min_target_span
+
+            ### Expected results.
+            expected = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+            }
+
+            return inputs, expected
+
+        def test5(ctg_id):
+            """
+            Normal test case.
+            Testing both query and target filtering.
+            Same test as before, but with min_target_span = 1, so that one input
+            gets filtered.
+            """
+            ### Inputs.
+            qlen = 100
+            tlen = 1000
+            haplotigs = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = [], edges = [],
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "", path = [], edges = [],
+                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+            }
+
+            min_query_span = 6
+            min_target_span = 5
+
+            inputs = haplotigs, min_query_span, min_target_span
+
+            ### Expected results.
+            expected = {
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+            }
+
+            return inputs, expected
+
+        def test6(ctg_id):
+            """
+            Normal test case.
+            Same test as before, but with min query and target spans set high enough to
+            filter the entire input.
+            """
+            ### Inputs.
+            qlen = 100
+            tlen = 1000
+            haplotigs = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = [], edges = [],
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "", path = [], edges = [],
+                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
+            }
+
+            min_query_span = 1000
+            min_target_span = 1000
+
+            inputs = haplotigs, min_query_span, min_target_span
+
+            ### Expected results.
+            expected = {
+            }
+
+            return inputs, expected
+
+        # Pack test points.
+        ctg_id = '000000F'
+        tests = [ test1(ctg_id), test2(ctg_id), test3(ctg_id), test4(ctg_id), test5(ctg_id), test6(ctg_id)]
+
+        return tests
+
+    # Make the test inputs and expected outputs.
+    tests = create_test()
+
+    # result = mod.fragment_haplotigs(in_haplotig_dict, aln_dict, clippoints, bubble_tree, mock_fp_proto_log)
+    for test_id, test_args in enumerate(tests):
+        # Unpack a set of test arguments.
+        inputs, expected = test_args
+        in_haplotigs, min_query_span, min_target_span = inputs
+
+        # Run unit under test.
+        result = mod.filter_haplotigs_by_len(in_haplotigs, min_query_span, min_target_span, mock_fp_proto_log)
+
+        # Evaluate.
+        msg = 'test_id = {}'.format(test_id)
+        assert set(result.keys()) == set(expected.keys()), msg
+
+        for key, result_htig in result.iteritems():
+            msg = 'test_id = {}, key = {}'.format(test_id, key)
+            assert result_htig.__dict__ == expected[key].__dict__, msg

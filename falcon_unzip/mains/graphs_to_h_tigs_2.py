@@ -55,7 +55,7 @@ tstrand, tstart, tend, tlen = aln[8:12]
 ### The main method for processing a single ctg_id. ###
 #######################################################
 def run_generate_haplotigs_for_ctg(input_):
-    ctg_id, proto_dir, out_dir, base_dir, allow_multiple_primaries = input_
+    ctg_id, proto_dir, out_dir, base_dir, allow_multiple_primaries, min_query_span, min_target_span = input_
     LOG.info('Entering generate_haplotigs_for_ctg(ctg_id={!r}, out_dir={!r}, base_dir={!r}'.format(
         ctg_id, out_dir, base_dir))
     mkdir(out_dir)
@@ -70,8 +70,17 @@ def run_generate_haplotigs_for_ctg(input_):
     hdlr.setLevel(logging.DEBUG) # Set to INFO someday?
 
     try:
-        unzip_dir = os.path.join(base_dir, '3-unzip')
-        return generate_haplotigs_for_ctg(ctg_id, allow_multiple_primaries, out_dir, unzip_dir, proto_dir, logger)
+        global all_haplotigs_for_ctg
+        global p_ctg_seqs
+        global sg_edges
+        global p_ctg_tiling_paths
+
+        p_ctg_seq = p_ctg_seqs[ctg_id]
+        p_ctg_tiling_path = p_ctg_tiling_paths[ctg_id]
+        snp_haplotigs = all_haplotigs_for_ctg.get(ctg_id, {})
+        return generate_haplotigs_for_ctg(ctg_id, p_ctg_seq, p_ctg_tiling_path, sg_edges,
+                                            snp_haplotigs, allow_multiple_primaries,
+                                            out_dir, proto_dir, min_query_span, min_target_span, logger)
     except Exception:
         LOG.exception('Failure in generate_haplotigs_for_ctg({!r})'.format(input_))
         raise
@@ -83,13 +92,30 @@ def run_generate_haplotigs_for_ctg(input_):
         # Each thread accumulates some portion of the old loggers in disuse.
         # This will not cause any problems, as there is never a O(n) logger search.
 
-def generate_haplotigs_for_ctg(ctg_id, allow_multiple_primaries, out_dir, unzip_dir, proto_dir, logger):
-    # proto_dir is specific to this ctg_id.
+def generate_haplotigs_for_ctg(ctg_id, p_ctg_seq, p_ctg_tiling_path, sg_edges,
+                                snp_haplotigs, allow_multiple_primaries, out_dir,
+                                proto_dir, min_query_span, min_target_span, logger):
+    """
+    ctg_id              - string
+    p_ctg_seq           - string, primary contig from 2-asm-falcon/p_ctg.fa
+    p_ctg_tiling_path   - List of tiling path edges from 2-asm-falcon/p_ctg_tiling_path for this particular ctg_id.
+    sg_edges            - List of all SG edges for this particular contig, from 3-unzip/1-hasm/sg_edges_list. Needs
+                          to contain reverse edges too (the main reason this is needed).
+    snp_haplotigs       - Dict of: snp_haplotigs[htig.name] = Haplotig(...), loaded from 3-unzip/1-hasm/p_ctg.fa,
+                          and marked with the correct phase.
+    allow_multiple_primaries    - True or False. Will raise if False and there are multiple graph
+                                  components in the haplotig graph.
+    out_dir             - Path to dir where output files will be written.
+    proto_dir           - Folder from the phasing stage for the corresponding contig used for input,
+                          i.e. 3-unzip/0-phasing/{ctg_id}/proto.
+                          Files needed from this folder are: `minced.fasta`,
+                          `phase_relation_graph.gexf`, `ref.fa` and `regions.json`.
 
-    global all_haplotigs_for_ctg
-    global p_ctg_seqs
-    global sg_edges
-    global p_ctg_tiling_paths
+    To reproduce a run, the input data which is not available in proto dir can now be loaded from:
+        os.path.join(out_dir, 'repro.input.snp_haplotigs.json')
+        os.path.join(out_dir, 'repro.input.p_ctg_tiling_path.json')
+        os.path.join(out_dir, 'repro.input.sg_edges')
+    """
 
     fp_proto_log = logger.info
 
@@ -98,17 +124,38 @@ def generate_haplotigs_for_ctg(ctg_id, allow_multiple_primaries, out_dir, unzip_
     fp_proto_log('Started processing contig: "{}".'.format(ctg_id))
 
     #########################################################
+    # First, write out some data needed for reproducibility.
+    # These are extracted in define_globals from larger files.
+    # In case an outside user runs into a crash, we can't
+    # really ask them to share gigabytes of
+    # 3-unzip/1-hasm/* of data.
+    # The snp_haplotigs already contain: sequence, path and
+    # phase of each haplotig constructed in 3-unzip/1-hasm.
+    # Unfortunately, not writing the sg_edges, because
+    # for larger datasets it could have ~100MB of data, and
+    # if there are thousands of chunks to process, it would
+    # bloat the output directories by a significant amount.
+    # However, symlinking it will help for packaging.
+    #########################################################
+    fp_proto_log('Writing snp_haplotigs for reproducibility.\n')
+    fn_repro_input_snp_haplotigs = os.path.join(out_dir, 'repro.input.snp_haplotigs.json')
+    snp_haplotigs_dict = {key: val.__dict__ for key, val in snp_haplotigs.iteritems()}
+    with open(fn_repro_input_snp_haplotigs, 'w') as fp_out_repro:
+        fp_out_repro.write(json.dumps(snp_haplotigs_dict))
+
+    fp_proto_log('Writing p_ctg_tiling_path for reproducibility.\n')
+    fn_repro_input_p_ctg_tiling_path = os.path.join(out_dir, 'repro.input.p_ctg_tiling_path.json')
+    with open(fn_repro_input_p_ctg_tiling_path, 'w') as fp_out_repro:
+        fp_out_repro.write(json.dumps(p_ctg_tiling_path.dump_as_split_lines()))
+        # fp_out_repro.write(json.dumps(p_ctg_tiling_path))
+
+    fn_repro_input_sg_edges = os.path.join(out_dir, 'repro.input.sg_edges')
+    if not os.path.exists(fn_repro_input_sg_edges):
+        os.symlink('../../../1-hasm/sg_edges_list', fn_repro_input_sg_edges)
+
+    #########################################################
     # Load and prepare data.
     #########################################################
-    fp_proto_log('Fetching the p_ctg_seq.')
-    p_ctg_seq = p_ctg_seqs[ctg_id]
-
-    fp_proto_log('Fetching the p_ctg_tiling_path.')
-    p_ctg_tiling_path = p_ctg_tiling_paths[ctg_id]
-
-    # Path to the directory with the output of the main_augment_pb.py.
-    #proto_dir = os.path.join(unzip_dir, '0-phasing', ctg_id, 'proto')
-
     # Load the linear sequences for alignment.
     minced_ctg_path = os.path.join(proto_dir, 'minced.fasta')
 
@@ -153,10 +200,6 @@ def generate_haplotigs_for_ctg(ctg_id, allow_multiple_primaries, out_dir, unzip_
         for htig_name, htig in region_htigs.iteritems():
             htig['seq'] = minced_ctg_seqs[htig_name]
 
-    # Get all the haplotig objects corresponding to this contig only.
-    fp_proto_log('Getting snp_haplotigs.')
-    snp_haplotigs = all_haplotigs_for_ctg.get(ctg_id, {})
-
     #########################################################
 
     #########################################################
@@ -184,7 +227,6 @@ def generate_haplotigs_for_ctg(ctg_id, allow_multiple_primaries, out_dir, unzip_
     #########################################################
     num_threads = 16
     mapping_out_prefix = os.path.join(out_dir, 'aln_snp_hasm_ctg')
-    mapping_ref = os.path.join(unzip_dir, 'reads', ctg_id, 'ref.fa')
     sam_path = mapping_out_prefix + '.sam'
 
     def excomm(cmd):
@@ -192,14 +234,23 @@ def generate_haplotigs_for_ctg(ctg_id, allow_multiple_primaries, out_dir, unzip_
 
     if len(snp_haplotigs.keys()) > 0:
         # BLASR crashes on empty files, so address that.
+        p_ctg_fn = os.path.join(proto_dir, 'ref.fa')
         blasr_params = '--minMatch 15 --maxMatch 25 --advanceHalf --advanceExactMatches 10 --bestn 1 --nproc {} --noSplitSubreads'.format(num_threads)
         excomm('blasr {} {} {} --sam --out {}.tmp.sam'.format(
-                blasr_params, aln_snp_hasm_ctg_path, mapping_ref, mapping_out_prefix))
+                blasr_params, aln_snp_hasm_ctg_path, p_ctg_fn, mapping_out_prefix))
         excomm('samtools sort {pre}.tmp.sam -o {pre}.sam'.format(
                 pre=mapping_out_prefix))
         excomm('rm -f {pre}.tmp.sam'.format(
                 pre=mapping_out_prefix))
-    aln_dict = load_and_hash_sam(sam_path, fp_proto_log)
+
+    fp_proto_log('Loading the alignments.')
+
+    aln_dict = load_and_hash_sam(sam_path)
+
+    # Debug verbose.
+    fp_proto_log('Loaded alignments:')
+    for qname, aln in aln_dict.iteritems():
+        fp_proto_log(str(aln))
 
     #########################################################
     # Filter out overlapping haplotigs for each phasing block.
@@ -212,11 +263,17 @@ def generate_haplotigs_for_ctg(ctg_id, allow_multiple_primaries, out_dir, unzip_
     # Edges need to be looked up from the sg_edges_list for the rev_cmp.
     reorient_haplotigs(filtered_snp_haplotigs, aln_dict, sg_edges, fp_proto_log)
 
+    # Construct interval trees for non-linear regions.
+    bubble_tree = make_bubble_interval_tree(all_regions, fp_proto_log)
+
     # Find all of the locations where the haplotigs need to be broken.
-    clippoints, bubble_tree = collect_clippoints(all_regions, filtered_snp_haplotigs, aln_dict, fp_proto_log)
+    clippoints = collect_clippoints(all_regions, filtered_snp_haplotigs, aln_dict, fp_proto_log)
 
     # Fragment the haplotigs on all clippoints.
     fragmented_snp_haplotigs = fragment_haplotigs(filtered_snp_haplotigs, aln_dict, clippoints, bubble_tree, fp_proto_log)
+
+    # Filter very short haplotig fragments.
+    fragmented_snp_haplotigs = filter_haplotigs_by_len(fragmented_snp_haplotigs, min_query_span, min_target_span, fp_proto_log)
 
     # Take the fragmented haplotigs, and extract only diploid pairs as regions.
     diploid_region_list = create_diploid_regions(fragmented_snp_haplotigs, fp_proto_log)
@@ -261,7 +318,7 @@ def generate_haplotigs_for_ctg(ctg_id, allow_multiple_primaries, out_dir, unzip_
 
     logger.debug('Fragmented haplotigs:')
     for hname, htig in fragmented_snp_haplotigs.iteritems():
-        logger.debug('  - name = {}, phase = {}, path = {}'.format(htig.name, htig.phase, htig.path))
+        logger.debug('  - name = {}, phase = {}, path = {}, len(seq) = {}'.format(htig.name, htig.phase, htig.path, len(htig.seq)))
 
     logger.debug('Verbose the generated diploid regions:')
     for region_id in xrange(len(final_all_regions)):
@@ -361,7 +418,7 @@ def load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase):
         path = hpath.dump_as_split_lines()
         seq = hasm_p_ctg_seqs[hctg] # The seq should contain the first read (be `proper`).
 
-        new_haplotig = Haplotig(name = h_tig_name, phase = complete_phase, seq = seq, path = path, edges = [])
+        new_haplotig = Haplotig(name = h_tig_name, phase = complete_phase, seq = seq, path = path, edges = [], labels = {}, cstart = -1, cend = -1)
 
         # The name relation dicts.
         htig_name_to_original_pctg[h_tig_name] = hctg
@@ -380,7 +437,7 @@ def load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase):
 
     return haplotigs_for_ctg, htig_name_to_original_pctg
 
-def load_and_hash_sam(sam_path, fp_proto_log):
+def load_and_hash_sam(sam_path):
     """
     Loads the SAM file, converts it to the M4 format, and
     builds a dict of aln_dict[qname] = aln_m4.
@@ -389,7 +446,6 @@ def load_and_hash_sam(sam_path, fp_proto_log):
     aln_dict = {}
     if not os.path.exists(sam_path):
         return aln_dict
-    fp_proto_log('Loading the alignments.')
     m4 = load_aln(sam_path)
     m4 = sorted(m4, key = lambda x: x[0].split('-')[-1])    # Not required, but simplifies manual debugging.
     for aln in m4:
@@ -462,26 +518,40 @@ def reorient_haplotigs(snp_haplotigs, aln_dict, sg_edges, fp_proto_log):
             # for line in haplotig.path:
             #     fp_proto_log('  {}'.format(line))
 
-def collect_clippoints(all_regions, snp_haplotigs, aln_dict, fp_proto_log):
+def make_bubble_interval_tree(all_regions, fp_proto_log):
     """
-    Creates a dict of all positions where haplotig alignments should be broken.
-    This includes:
-        - Beginning and ending of bubble regions.
-        - Beginning and ending of other haplotigs (e.g. if haplotig for (000000F, 3000001, 0) is longer than (000000F, 3000001, 1).
+    Creates an interval tree lookup of all non-linear regions, provided
+    via the `all_regions` list.
     """
-    clippoints = {}
-
     # Add the coordinates of the bubble regions.
     bubble_intervals = []
     for region in all_regions:
         region_type, first_edge, last_edge, pos_start, pos_end, region_htigs = region
         if region_type != 'linear':
-            clippoints[pos_start] = [region_type + '_start']
-            clippoints[pos_end] = [region_type + '_end']
             bubble_intervals.append(intervaltree.Interval(pos_start, pos_end, region))
     bubble_tree = intervaltree.IntervalTree(bubble_intervals)
+    return bubble_tree
 
-    for qname, haplotig in snp_haplotigs.iteritems():
+def collect_clippoints(all_regions, snp_haplotig_headers, aln_dict, fp_proto_log):
+    """
+    Creates a dict of all positions where haplotig alignments should be broken.
+    This includes:
+        - Beginning and ending of all non-linear regions.
+        - Beginning and ending of other aligned haplotigs from the aln_dict
+          (e.g. if haplotig for (000000F, 3000001, 0) is longer than (000000F, 3000001, 1).
+          Only alignments for haplotigs listed in snp_haplotig_headers are taken
+          into account.
+    """
+    clippoints = {}
+
+    # Add the coordinates of the bubble regions.
+    for region in all_regions:
+        region_type, first_edge, last_edge, pos_start, pos_end, region_htigs = region
+        if region_type != 'linear':
+            clippoints[pos_start] = [region_type + '_start']
+            clippoints[pos_end] = [region_type + '_end']
+
+    for qname in snp_haplotig_headers:
         if qname not in aln_dict:
             continue
         aln = aln_dict[qname]
@@ -490,7 +560,7 @@ def collect_clippoints(all_regions, snp_haplotigs, aln_dict, fp_proto_log):
         clippoints[tstart] = [qname + '_start']
         clippoints[tend] = [qname + '_end']
 
-    return clippoints, bubble_tree
+    return clippoints
 
 def fragment_haplotigs(in_haplotigs, aln_dict, clippoints, bubble_tree, fp_proto_log):
     filtered_haplotigs = {}
@@ -499,12 +569,13 @@ def fragment_haplotigs(in_haplotigs, aln_dict, clippoints, bubble_tree, fp_proto
         if qname not in aln_dict:
             continue
         aln = aln_dict[qname]
-        new_haplotigs = fragment_single_haplotig(haplotig, aln, clippoints, bubble_tree, fp_proto_log)
+        sam = aln[13]
+        new_haplotigs = fragment_single_haplotig(haplotig, aln, sam.cigar, clippoints, bubble_tree, fp_proto_log)
         filtered_haplotigs.update(new_haplotigs)
 
     return filtered_haplotigs
 
-def fragment_single_haplotig(haplotig, aln, clippoints, bubble_tree, fp_proto_log):
+def fragment_single_haplotig(haplotig, aln, cigar, clippoints, bubble_tree, fp_proto_log):
     """
     This method takes a haplotig and a list of coordinates, and breaks
     the haplotig based on the CIGAR string alignment.
@@ -514,9 +585,8 @@ def fragment_single_haplotig(haplotig, aln, clippoints, bubble_tree, fp_proto_lo
     q_name, t_name = aln[0], aln[1]
     q_orient, q_start, q_end, q_len = aln[4], aln[5], aln[6], aln[7]
     t_orient, t_start, t_end, t_len = aln[8], aln[9], aln[10], aln[11]
-    sam = aln[13]
 
-    aln_array = cigartools.cigar_to_aln_array(sam.cigar)
+    aln_array = cigartools.cigar_to_aln_array(cigar)
     positions = cigartools.find_positions(aln_array, t_start)
 
     # For each aligned position, check if it's in the clippoints.
@@ -563,15 +633,32 @@ def fragment_single_haplotig(haplotig, aln, clippoints, bubble_tree, fp_proto_lo
         new_seq = haplotig.seq[qstart:qend]
         new_path, new_start_coord, new_end_coord = tp.get_subpath(qstart, qend)
         # new_path = [e.split_line for e in new_path] # Convert the tiling path back to a list of split values.
-        new_haplotig = Haplotig(name = new_name, phase = haplotig.phase, seq = new_seq, path = new_path, edges = [])
-        # Encode additional attributes.
-        new_haplotig.labels['region_of_interest'] = region_of_interest
-        new_haplotig.labels['start_in_path'] = new_start_coord
-        new_haplotig.labels['end_in_path'] = new_end_coord
+        new_haplotig = Haplotig(name = new_name, phase = haplotig.phase, seq = new_seq,
+                                path = new_path, edges = [],
+                                labels = {'region_of_interest': region_of_interest}, cstart = -1, cend = -1)
 
         ret_haplotigs[new_name] = new_haplotig
 
     return ret_haplotigs
+
+def filter_haplotigs_by_len(haplotigs_dict, min_query_span, min_target_span, fp_proto_log):
+    filtered = {}
+    for htig_name, htig in haplotigs_dict.iteritems():
+        region_of_interest = htig.labels['region_of_interest']
+        start, end, q_name, q_len, t_name, t_len, q_phase = region_of_interest
+
+        fp_proto_log('[filter_haplotigs_by_len] Testing: htig_name = {}, region_of_interest = {}'.format(htig_name, str(region_of_interest)))
+
+        if (end[0] - start[0]) < min_target_span:
+            fp_proto_log('  Target span is < {}. Skipping.'.format(min_target_span))
+            continue
+        elif (end[1] - start[1]) < min_query_span:
+            fp_proto_log('  Query span is < {}. Skipping.'.format(min_query_span))
+            continue
+        fp_proto_log('  Passed.')
+        filtered[htig_name] = htig
+
+    return filtered
 
 def create_diploid_regions(fragmented_snp_haplotigs, fp_proto_log):
     """
@@ -689,11 +776,7 @@ def make_linear_region(ctg_id, pos_start, pos_end, p_ctg_seq, p_ctg_tiling_path,
     last_edge = new_path[-1]
 
     fp_proto_log('Forming the haplotig.')
-    new_haplotig = Haplotig(name = htig_name, phase = complete_phase, seq = new_seq, path = new_path, edges = [])
-    new_haplotig.labels['start_in_path'] = new_start_coord
-    new_haplotig.labels['end_in_path'] = new_end_coord
-    new_haplotig.cstart = pos_start
-    new_haplotig.cend = pos_end
+    new_haplotig = Haplotig(name = htig_name, phase = complete_phase, seq = new_seq, path = new_path, edges = [], labels = {}, cstart = pos_start, cend = pos_end)
 
     region_htigs = {htig_name: new_haplotig.__dict__}
     new_region = (region_type, first_edge, last_edge, pos_start, pos_end, region_htigs)
@@ -1272,6 +1355,14 @@ def get_rid2proto_dir(gath_fn):
             arbitrary_key, result[arbitrary_key]))
     return result
 
+def load_sg_edges(sg_edges_list_fn):
+    sg_edges = {}
+    with io.open_progress(sg_edges_list_fn, 'r') as fp:
+        for line in fp:
+            sl = line.strip().split()
+            sg_edges[(sl[0], sl[1])] = sl
+    return sg_edges
+
 def define_globals(args):
     # make life easier for now. will refactor it out if possible
     global all_rid_to_phase
@@ -1338,12 +1429,8 @@ def define_globals(args):
 
     # Load all sg_edges_list so that haplotig paths can be reversed if needed.
     LOG.info('Loading sg_edges_list.')
-    sg_edges = {}
     sg_edges_list_fn = os.path.join(fc_hasm_path, 'sg_edges_list')
-    with io.open_progress(sg_edges_list_fn, 'r') as fp:
-        for line in fp:
-            sl = line.strip().split()
-            sg_edges[(sl[0], sl[1])] = sl
+    sg_edges = load_sg_edges(sg_edges_list_fn)
     LOG.info('Done loading sg_edges_list.')
 
 def cmd_apply(args):
@@ -1369,6 +1456,9 @@ def cmd_apply(args):
     sub_args.fasta = fixpath(uow['input']['fasta_fn'])
     sub_args.rid_phase_map = fixpath(uow['input']['rid_phase_map'])
 
+    min_query_span = args.min_query_span
+    min_target_span = args.min_target_span
+
     define_globals(sub_args)
 
     #LOG.info('Creating the exe list for: {}'.format(str(ctg_id_list)))
@@ -1380,7 +1470,7 @@ def cmd_apply(args):
         out_dir = os.path.join('.', 'uow-{}'.format(ctg_id))
         base_dir = sub_args.base_dir
 
-        exe_list.append((ctg_id, proto_dir, out_dir, base_dir, False))
+        exe_list.append((ctg_id, proto_dir, out_dir, base_dir, False, min_query_span, min_target_span))
 
     LOG.info('Running {} units of work.'.format(len(exe_list)))
 
@@ -1570,6 +1660,12 @@ def parse_args(argv):
     parser_apply.add_argument(
         '--results-fn', required=True,
         help='Output. JSON list of results, one record per unit-of-work.')
+    parser_apply.add_argument(
+        '--min-query-span', type=int, default=100, required=False,
+        help='Minimum span of a haplotig fragment in query coordinates to retain it (the 3-unzip/1-hasm/p_ctg.fa after fragmentation.')
+    parser_apply.add_argument(
+        '--min-target-span', type=int, default=100, required=False,
+        help='Minimum span of a haplotig fragment in target coordinates (2-asm-falcon/p_ctg.fa contig) to retain it.')
     parser_apply.set_defaults(func=cmd_apply)
 
     parser_combine.add_argument(

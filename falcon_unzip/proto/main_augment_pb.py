@@ -219,12 +219,9 @@ def construct_new_bubble_region(ctg_id, path_type, region_id, p_path, a_paths, p
     for key in bubble_branches:
         region_phase_block_id = str((region_id + 1) * 1000000)
         new_phase = (ctg_id, region_phase_block_id, phase_id)
-        path_htig = haplotig.Haplotig(key, phase = new_phase)
-        path_htig.seq = ''
-        path_htig.path = [edge.get_split_line() for edge in a_paths[key].edges]
-        path_htig.edges = []
-        path_htig.cstart = pos_start
-        path_htig.cend = pos_end
+        path_htig = haplotig.Haplotig(key, phase = new_phase, seq = '', edges = [],
+                                        path = [edge.get_split_line() for edge in a_paths[key].edges],
+                                        labels = {}, cstart = pos_start, cend = pos_end)
         bubble_a_paths[key] = path_htig.__dict__
         phase_id += 1
 
@@ -233,12 +230,9 @@ def construct_new_bubble_region(ctg_id, path_type, region_id, p_path, a_paths, p
     path_base_name = '%s_%s_%d_base' % (ctg_id, path_type, region_id)
     region_phase_block_id = str((region_id + 1) * 1000000)
     new_phase = (ctg_id, region_phase_block_id, phase_id)
-    path_htig = haplotig.Haplotig(path_base_name, phase = new_phase)
-    path_htig.seq = ''
-    path_htig.path = [edge.get_split_line() for edge in p_path.edges[path_start:path_end]]
-    path_htig.edges = []
-    path_htig.cstart = pos_start
-    path_htig.cend = pos_end
+    path_htig = haplotig.Haplotig(path_base_name, phase = new_phase, seq = '', edges = [],
+                                        path = [edge.get_split_line() for edge in p_path.edges[path_start:path_end]],
+                                        labels = {}, cstart = pos_start, cend = pos_end)
     bubble_a_paths[path_base_name] = path_htig.__dict__
 
     # bubble_a_paths[path_base_name] = [edge.split_line for edge in p_path.edges[bubble_start:bubble_end]]
@@ -317,12 +311,10 @@ def delineate_regions(ctg_id, p_path, a_paths, a_placement):
 
                 # linear_paths = {path_base_name: [edge.split_line for edge in p_path.edges[linear_start:linear_end]]}
 
-                path_htig = haplotig.Haplotig(path_base_name, phase = (ctg_id, -1, 0))
-                path_htig.seq = ''
-                path_htig.path = [edge.get_split_line() for edge in p_path.edges[linear_start:linear_end]]
-                path_htig.edges = []
-                path_htig.cstart = pos_start
-                path_htig.cend = pos_end
+                path_htig = haplotig.Haplotig(path_base_name, phase = (ctg_id, -1, 0), seq = '', edges = [],
+                                                path = [edge.get_split_line() for edge in p_path.edges[linear_start:linear_end]],
+                                                labels = {}, cstart = pos_start, cend = pos_end)
+
                 linear_paths = {path_base_name: path_htig.__dict__}
 
                 new_region = (path_type, linear_start, linear_end, pos_start, pos_end, linear_paths)
@@ -424,12 +416,10 @@ def delineate_regions(ctg_id, p_path, a_paths, a_placement):
         pos_start = 0 if linear_start == 0 else p_path.coords[p_path.edges[linear_start - 1].w]
         pos_end = p_path.coords[p_path.edges[linear_end - 1].w]
 
-        path_htig = haplotig.Haplotig(path_base_name, phase = (ctg_id, -1, 0))
-        path_htig.seq = ''
-        path_htig.path = [edge.get_split_line() for edge in p_path.edges[linear_start:linear_end]]
-        path_htig.edges = []
-        path_htig.cstart = pos_start
-        path_htig.cend = pos_end
+        path_htig = haplotig.Haplotig(path_base_name, phase = (ctg_id, -1, 0), seq = '', edges = [],
+                                        path = [edge.get_split_line() for edge in p_path.edges[linear_start:linear_end]],
+                                        labels = {}, cstart = pos_start, cend = pos_end)
+
         linear_paths = {path_base_name: path_htig.__dict__}
 
         new_region = (path_type, linear_start, linear_end, pos_start, pos_end, linear_paths)
