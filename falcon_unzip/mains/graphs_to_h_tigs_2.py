@@ -418,7 +418,7 @@ def load_haplotigs(hasm_falcon_path, all_flat_rid_to_phase):
         path = hpath.dump_as_split_lines()
         seq = hasm_p_ctg_seqs[hctg] # The seq should contain the first read (be `proper`).
 
-        new_haplotig = Haplotig(name = h_tig_name, phase = complete_phase, seq = seq, path = path, edges = [])
+        new_haplotig = Haplotig(name = h_tig_name, phase = complete_phase, seq = seq, path = path, edges = [], labels = {}, cstart = -1, cend = -1)
 
         # The name relation dicts.
         htig_name_to_original_pctg[h_tig_name] = hctg
@@ -633,11 +633,9 @@ def fragment_single_haplotig(haplotig, aln, cigar, clippoints, bubble_tree, fp_p
         new_seq = haplotig.seq[qstart:qend]
         new_path, new_start_coord, new_end_coord = tp.get_subpath(qstart, qend)
         # new_path = [e.split_line for e in new_path] # Convert the tiling path back to a list of split values.
-        new_haplotig = Haplotig(name = new_name, phase = haplotig.phase, seq = new_seq, path = new_path, edges = [])
-        # Encode additional attributes.
-        new_haplotig.labels['region_of_interest'] = region_of_interest
-        # new_haplotig.labels['start_in_path'] = new_start_coord
-        # new_haplotig.labels['end_in_path'] = new_end_coord
+        new_haplotig = Haplotig(name = new_name, phase = haplotig.phase, seq = new_seq,
+                                path = new_path, edges = [],
+                                labels = {'region_of_interest': region_of_interest}, cstart = -1, cend = -1)
 
         ret_haplotigs[new_name] = new_haplotig
 
@@ -778,11 +776,7 @@ def make_linear_region(ctg_id, pos_start, pos_end, p_ctg_seq, p_ctg_tiling_path,
     last_edge = new_path[-1]
 
     fp_proto_log('Forming the haplotig.')
-    new_haplotig = Haplotig(name = htig_name, phase = complete_phase, seq = new_seq, path = new_path, edges = [])
-    # new_haplotig.labels['start_in_path'] = new_start_coord
-    # new_haplotig.labels['end_in_path'] = new_end_coord
-    new_haplotig.cstart = pos_start
-    new_haplotig.cend = pos_end
+    new_haplotig = Haplotig(name = htig_name, phase = complete_phase, seq = new_seq, path = new_path, edges = [], labels = {}, cstart = pos_start, cend = pos_end)
 
     region_htigs = {htig_name: new_haplotig.__dict__}
     new_region = (region_type, first_edge, last_edge, pos_start, pos_end, region_htigs)

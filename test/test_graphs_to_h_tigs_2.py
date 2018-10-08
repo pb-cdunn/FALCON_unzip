@@ -31,9 +31,7 @@ def make_dummy_linear_region(ctg_id, seq, pos_start, pos_end, name_):
 
     complete_phase = (ctg_id, '-1', '0')
     path = [[ctg_id, '000000001:B', '000000002:B', '000000002', '4', '10', '1986', '99.95']]
-    new_haplotig = Haplotig(name = htig_name, phase = complete_phase, seq = seq, path = path, edges = [])
-    new_haplotig.cstart = pos_start
-    new_haplotig.cend = pos_end
+    new_haplotig = Haplotig(name = htig_name, phase = complete_phase, seq = seq, path = path, edges = [], labels = {}, cstart = pos_start, cend = pos_end)
 
     new_region_htigs = {htig_name: new_haplotig.__dict__}
 
@@ -49,22 +47,12 @@ def make_dummy_diploid_region(ctg_id, seq1, seq2, pos_start, pos_end, phasing_bl
     htig_name_1 = '%s_diploid_%d:%d_phase0' % (ctg_id, pos_start, pos_end) if name_ == None else '%s-phase0' % (name_)
     complete_phase = (ctg_id, str(phasing_block), '0')
     path_1 = [[ctg_id, '000000003:B', '000000004:B', '000000004', '30', '6', '1986', '99.99']]
-    new_haplotig_1 = Haplotig(name = htig_name_1, phase = complete_phase, seq = seq1, path = path_1, edges = [])
-    # "Collapsed-start/end" are required to correctly determine placement coordinates.
-    # All haplotigs from the same bubble have the same cstart and cend coordinates
-    # (this is the coordinate on the collapsed primary contig (2-asm-falcon/p_ctg).
-    new_haplotig_1.cstart = pos_start
-    new_haplotig_1.cend = pos_end
+    new_haplotig_1 = Haplotig(name = htig_name_1, phase = complete_phase, seq = seq1, path = path_1, edges = [], labels = {}, cstart = pos_start, cend = pos_end)
 
     htig_name_2 = '%s_diploid_%d:%d_phase1' % (ctg_id, pos_start, pos_end) if name_ == None else '%s-phase1' % (name_)
     path_2 = [[ctg_id, '000000005:B', '000000006:B', '000000006', '8', '6', '2019', '100.00']]
     complete_phase = (ctg_id, str(phasing_block), '1')
-    new_haplotig_2 = Haplotig(name = htig_name_2, phase = complete_phase, seq = seq2, path = path_2, edges = [])
-    # "Collapsed-start/end" are required to correctly determine placement coordinates.
-    # All haplotigs from the same bubble have the same cstart and cend coordinates
-    # (this is the coordinate on the collapsed primary contig (2-asm-falcon/p_ctg).
-    new_haplotig_2.cstart = pos_start
-    new_haplotig_2.cend = pos_end
+    new_haplotig_2 = Haplotig(name = htig_name_2, phase = complete_phase, seq = seq2, path = path_2, edges = [], labels = {}, cstart = pos_start, cend = pos_end)
 
     new_region_htigs = {htig_name_1: new_haplotig_1.__dict__, htig_name_2: new_haplotig_2.__dict__}
 
@@ -1893,7 +1881,7 @@ def test_fragment_single_haplotig_1():
             path = [[ctg_id, '000000001:B', '000000002:B', '000000002', '0', str(len(seq)), '1986', '99.95']]
 
             # Make a haplotig.
-            haplotig = Haplotig(name = 'H1', phase = (ctg_id, '0', '0'), seq = seq, path = path, edges = [])
+            haplotig = Haplotig(name = 'H1', phase = (ctg_id, '0', '0'), seq = seq, path = path, edges = [], labels = {}, cstart = -1, cend = -1)
 
             # Alignment of the haplotigs to the target sequence.
             qstrand, qstart, qend, qlen = 0, 0, len(haplotig.seq), len(haplotig.seq)
@@ -1919,13 +1907,13 @@ def test_fragment_single_haplotig_1():
             ### Expected results.
             expected = {
                     'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This", path = haplotig.path, edges = [],
-                                    labels = {'region_of_interest': ((0, 0), (4, 4), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((0, 0), (4, 4), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = " ", path = haplotig.path, edges = [],
-                                    labels = {'region_of_interest': ((4, 4), (5, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((4, 4), (5, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "is a dummy", path = haplotig.path, edges = [],
-                                    labels = {'region_of_interest': ((5, 5), (15, 15), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))} ),
+                                    labels = {'region_of_interest': ((5, 5), (15, 15), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1 ),
                     'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " sequence", path = haplotig.path, edges = [],
-                                    labels = {'region_of_interest': ((15, 15), (24, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((15, 15), (24, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
             }
             return inputs, expected
 
@@ -1939,7 +1927,7 @@ def test_fragment_single_haplotig_1():
             path = [[ctg_id, '000000001:B', '000000002:B', '000000002', '0', str(len(seq)), '1986', '99.95']]
 
             # Make a haplotig.
-            haplotig = Haplotig(name = 'H1', phase = (ctg_id, '0', '0'), seq = seq, path = path, edges = [])
+            haplotig = Haplotig(name = 'H1', phase = (ctg_id, '0', '0'), seq = seq, path = path, edges = [], labels = {}, cstart = -1, cend = -1)
 
             # Alignment of the haplotigs to the target sequence.
             qstrand, qstart, qend, qlen = 0, 0, len(haplotig.seq), len(haplotig.seq)
@@ -1965,9 +1953,9 @@ def test_fragment_single_haplotig_1():
             ### Expected results.
             expected = {
                     'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This", path = haplotig.path, edges = [],
-                                    labels = {'region_of_interest': ((0, 0), (4, 4), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((0, 0), (4, 4), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = " sequence", path = haplotig.path, edges = [],
-                                    labels = {'region_of_interest': ((15, 15), (24, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((15, 15), (24, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
             }
             return inputs, expected
 
@@ -1981,7 +1969,7 @@ def test_fragment_single_haplotig_1():
             path = [[ctg_id, '000000001:B', '000000002:B', '000000002', '0', str(len(seq)), '1986', '99.95']]
 
             # Make a haplotig.
-            haplotig = Haplotig(name = 'H1', phase = (ctg_id, '0', '0'), seq = seq, path = path, edges = [])
+            haplotig = Haplotig(name = 'H1', phase = (ctg_id, '0', '0'), seq = seq, path = path, edges = [], labels = {}, cstart = -1, cend = -1)
 
             # Alignment of the haplotigs to the target sequence.
             qstrand, qstart, qend, qlen = 0, 0, len(haplotig.seq), len(haplotig.seq)
@@ -2007,13 +1995,13 @@ def test_fragment_single_haplotig_1():
             ### Expected results.
             expected = {
                     'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This", path = haplotig.path, edges = [],
-                                    labels = {'region_of_interest': ((99, 0), (103, 4), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((99, 0), (103, 4), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = " ", path = haplotig.path, edges = [],
-                                    labels = {'region_of_interest': ((103, 4), (104, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((103, 4), (104, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "is a dummy", path = haplotig.path, edges = [],
-                                    labels = {'region_of_interest': ((104, 5), (114, 15), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))} ),
+                                    labels = {'region_of_interest': ((104, 5), (114, 15), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " sequence", path = haplotig.path, edges = [],
-                                    labels = {'region_of_interest': ((114, 15), (123, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((114, 15), (123, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
             }
             return inputs, expected
 
@@ -2027,7 +2015,7 @@ def test_fragment_single_haplotig_1():
             path = [[ctg_id, '000000001:B', '000000002:B', '000000002', '0', str(len(seq)), '1986', '99.95']]
 
             # Make a haplotig.
-            haplotig = Haplotig(name = 'H1', phase = (ctg_id, '0', '0'), seq = seq, path = path, edges = [])
+            haplotig = Haplotig(name = 'H1', phase = (ctg_id, '0', '0'), seq = seq, path = path, edges = [], labels = {}, cstart = -1, cend = -1)
 
             # Alignment of the haplotigs to the target sequence.
             qstrand, qstart, qend, qlen = 0, 0, len(haplotig.seq), len(haplotig.seq)
@@ -2057,13 +2045,13 @@ def test_fragment_single_haplotig_1():
             ### Expected results.
             expected = {
                     'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = haplotig.path, edges = [],
-                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = haplotig.path, edges = [],
-                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = " a d", path = haplotig.path, edges = [],
-                                    labels = {'region_of_interest': ((59, 7), (65, 11), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))} ),
+                                    labels = {'region_of_interest': ((59, 7), (65, 11), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = "ummy sequence", path = haplotig.path, edges = [],
-                                    labels = {'region_of_interest': ((65, 11), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((65, 11), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
             }
             return inputs, expected
         def test5(ctg_id):
@@ -2121,7 +2109,7 @@ def test_fragment_single_haplotig_1():
             path = [[ctg_id, '000000001:B', '000000002:B', '000000002', '0', str(len(seq)), '1986', '99.95']]
 
             # Make a haplotig.
-            haplotig = Haplotig(name = 'H1', phase = (ctg_id, '0', '0'), seq = seq, path = path, edges = [])
+            haplotig = Haplotig(name = 'H1', phase = (ctg_id, '0', '0'), seq = seq, path = path, edges = [], labels = {}, cstart = -1, cend = -1)
 
             # Alignment of the haplotigs to the target sequence.
             qstrand, qstart, qend, qlen = 0, 0, len(haplotig.seq), len(haplotig.seq)
@@ -2151,13 +2139,13 @@ def test_fragment_single_haplotig_1():
             ### Expected results.
             expected = {
                     'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = haplotig.path, edges = [],
-                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = haplotig.path, edges = [],
-                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "", path = haplotig.path, edges = [],
-                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = haplotig.path, edges = [],
-                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
             }
             return inputs, expected
 
@@ -2217,13 +2205,13 @@ def test_filter_haplotigs_by_len():
             tlen = 1000
             haplotigs = {
                     'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
-                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = [], edges = [],
-                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "", path = [], edges = [],
-                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
-                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
             }
 
             min_query_span = 0
@@ -2234,13 +2222,13 @@ def test_filter_haplotigs_by_len():
             ### Expected results.
             expected = {
                     'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
-                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = [], edges = [],
-                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "", path = [], edges = [],
-                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
-                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
             }
 
             return inputs, expected
@@ -2257,13 +2245,13 @@ def test_filter_haplotigs_by_len():
             tlen = 1000
             haplotigs = {
                     'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
-                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = [], edges = [],
-                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "", path = [], edges = [],
-                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
-                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
             }
 
             min_query_span = 1
@@ -2274,11 +2262,11 @@ def test_filter_haplotigs_by_len():
             ### Expected results.
             expected = {
                     'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
-                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = [], edges = [],
-                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
-                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
             }
 
             return inputs, expected
@@ -2295,13 +2283,13 @@ def test_filter_haplotigs_by_len():
             tlen = 1000
             haplotigs = {
                     'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
-                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = [], edges = [],
-                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "", path = [], edges = [],
-                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
-                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
             }
 
             min_query_span = 0
@@ -2312,9 +2300,9 @@ def test_filter_haplotigs_by_len():
             ### Expected results.
             expected = {
                     'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
-                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
-                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
             }
 
             return inputs, expected
@@ -2331,13 +2319,13 @@ def test_filter_haplotigs_by_len():
             tlen = 1000
             haplotigs = {
                     'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
-                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = [], edges = [],
-                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "", path = [], edges = [],
-                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
-                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
             }
 
             min_query_span = 6
@@ -2348,7 +2336,7 @@ def test_filter_haplotigs_by_len():
             ### Expected results.
             expected = {
                     'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
-                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
             }
 
             return inputs, expected
@@ -2364,13 +2352,13 @@ def test_filter_haplotigs_by_len():
             tlen = 1000
             haplotigs = {
                     'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
-                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = [], edges = [],
-                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "", path = [], edges = [],
-                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
                     'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
-                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}, cstart = -1, cend = -1),
             }
 
             min_query_span = 1000
