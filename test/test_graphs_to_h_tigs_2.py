@@ -18,15 +18,15 @@ The haplotig_graph nodes are defined as:
 ### Utility methods ###
 #######################
 def mock_fp_proto_log(line):
-    sys.stderr.write(line + '\n')
     pass
 
-def make_dummy_linear_region(ctg_id, seq, pos_start, pos_end):
+def make_dummy_linear_region(ctg_id, seq, pos_start, pos_end, name_=None):
     region_type = 'linear'
     first_edge = None
     last_edge = None
 
-    htig_name = '%s_linear2_%d:%d_base' % (ctg_id, pos_start, pos_end)
+    htig_name = '%s_linear2_%d:%d_base' % (ctg_id, pos_start, pos_end) if name_ == None else name_
+
     complete_phase = (ctg_id, '-1', '0')
     path = [[ctg_id, '000000001:B', '000000002:B', '000000002', '4', '10', '1986', '99.95']]
     new_haplotig = Haplotig(name = htig_name, phase = complete_phase, seq = seq, path = path, edges = [])
@@ -39,12 +39,12 @@ def make_dummy_linear_region(ctg_id, seq, pos_start, pos_end):
 
     return new_region, htig_name
 
-def make_dummy_diploid_region(ctg_id, seq1, seq2, pos_start, pos_end, phasing_block):
+def make_dummy_diploid_region(ctg_id, seq1, seq2, pos_start, pos_end, phasing_block, name_=None):
     region_type = 'diploid'
     first_edge = None
     last_edge = None
 
-    htig_name_1 = '%s_diploid_%d:%d_phase0' % (ctg_id, pos_start, pos_end)
+    htig_name_1 = '%s_diploid_%d:%d_phase0' % (ctg_id, pos_start, pos_end) if name_ == None else '%s-phase0' % (name_)
     complete_phase = (ctg_id, str(phasing_block), '0')
     path_1 = [[ctg_id, '000000003:B', '000000004:B', '000000004', '30', '6', '1986', '99.99']]
     new_haplotig_1 = Haplotig(name = htig_name_1, phase = complete_phase, seq = seq1, path = path_1, edges = [])
@@ -54,7 +54,7 @@ def make_dummy_diploid_region(ctg_id, seq1, seq2, pos_start, pos_end, phasing_bl
     new_haplotig_1.cstart = pos_start
     new_haplotig_1.cend = pos_end
 
-    htig_name_2 = '%s_diploid_%d:%d_phase1' % (ctg_id, pos_start, pos_end)
+    htig_name_2 = '%s_diploid_%d:%d_phase1' % (ctg_id, pos_start, pos_end) if name_ == None else '%s-phase1' % (name_)
     path_2 = [[ctg_id, '000000005:B', '000000006:B', '000000006', '8', '6', '2019', '100.00']]
     complete_phase = (ctg_id, str(phasing_block), '1')
     new_haplotig_2 = Haplotig(name = htig_name_2, phase = complete_phase, seq = seq2, path = path_2, edges = [])
@@ -88,9 +88,9 @@ def evaluate_update_haplotig_graph(test_haplotig_graph, expected_nodes, expected
     for e in test_haplotig_graph.edges():
         assert e in expected_edge_set
 
-def evaluate_extract_and_write_all_ctg(tmpdir, expected):
+def evaluate_write_unzipped(tmpdir, expected):
     # Check the number of generated files.
-    assert len(tmpdir.listdir()) == 7
+    assert len(tmpdir.listdir()) == len(expected.keys())
 
     # Compare generated files with expectations.
     fns = {os.path.basename(str(val)):str(val) for val in tmpdir.listdir()}
@@ -98,8 +98,43 @@ def evaluate_extract_and_write_all_ctg(tmpdir, expected):
         # Check if the file actually exists.
         assert fn in fns
         # Load the data and compare.
-        result_val = open(fns[fn], 'r').read()
-        assert result_val == expected_val, fn
+        assert open(fns[fn], 'r').read() == expected_val, fn
+
+
+
+REGION_TYPE_LINEAR = 'linear'
+REGION_TYPE_DIPLOID = 'diploid'
+
+def make_dummy_haplotig_graph(ctg_id, region_desc):
+    ret_seqs = {}
+    ret_headers = {}
+    ret_edges = {}
+    regions = []
+    region_start = 0
+    region_span = 1000
+
+    # Do the dirty work of making the regions.
+    for type_, name_, phasing_block, seqs in region_desc:
+        if type_ == REGION_TYPE_LINEAR:
+            region, header = make_dummy_linear_region(ctg_id, seqs[0], region_start, region_start + region_span, name_=name_)
+            ret_seqs[name_] = seqs[0]
+            ret_edges[name_] = [ctg_id + ' ' + ' '.join(edge[1:3]) + ' N H -1 0 -1 0' for edge in region[5][name_]['path']]
+            ret_headers[name_] = (header)
+            regions.append(region)
+        elif type_ == REGION_TYPE_DIPLOID:
+            region, header_1, header_2 = make_dummy_diploid_region(ctg_id, seqs[0], seqs[1], region_start, region_start + region_span, phasing_block, name_=name_)
+            ret_seqs[header_1] = seqs[0]
+            ret_seqs[header_2] = seqs[1]
+            ret_edges[header_1] = [ctg_id + ' ' + ' '.join(edge[1:3]) + ' N H {pb} 0 {pb} 0'.format(pb=phasing_block) for edge in region[5][header_1]['path']]
+            ret_edges[header_2] = [ctg_id + ' ' + ' '.join(edge[1:3]) + ' N H {pb} 1 {pb} 1'.format(pb=phasing_block) for edge in region[5][header_2]['path']]
+            ret_headers[name_] = (header_1, header_2)
+            regions.append(region)
+        region_start += region_span
+
+    # Convert regions to graph.
+    haplotig_graph = mod.regions_to_haplotig_graph(ctg_id, regions, mock_fp_proto_log)
+
+    return haplotig_graph, ret_seqs, ret_headers, ret_edges
 
 #######################
 
@@ -647,7 +682,408 @@ def test_update_haplotig_graph_6():
     # Evaluate.
     evaluate_update_haplotig_graph(updated_haplotig_graph, expected_node_set, expected_edge_set)
 
-def test_extract_and_write_all_ctg_1(tmpdir):
+def test_construct_ctg_seq_1():
+    """
+    Test on empty input.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        ### Inputs.
+        haplotig_graph, region_seqs, region_headers, region_edges = make_dummy_haplotig_graph(ctg_id, [])
+
+        node_path = []
+
+        ### Expected results.
+        # source_node, sink_node = make_source_and_sink_nodes(ctg_id)
+        ctg_seq = ''
+        ctg_edges = []
+        node_start_coords = {
+                          }
+        node_end_coords = {
+                          }
+        expected = (ctg_seq, ctg_edges, node_start_coords, node_end_coords)
+
+        return ctg_id, haplotig_graph, node_path, expected
+
+    # Get inputs and outputs.
+    ctg_id, haplotig_graph, node_path, expected = create_test()
+
+    # Run the unit under test.
+    result = mod.construct_ctg_seq(haplotig_graph, ctg_id, node_path)
+
+    # Evaluate.
+    assert result == expected
+
+def test_construct_ctg_seq_2():
+    """
+    Test on non-empty graph, but empty node path.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        ### Inputs.
+        region_description = [
+                            (REGION_TYPE_LINEAR, 'L1', -1, ['ACTG']),
+                             ]
+        haplotig_graph, region_seqs, region_headers, region_edges = make_dummy_haplotig_graph(ctg_id, region_description)
+
+        node_path = []
+
+        ### Expected results.
+        ctg_seq = ''
+        ctg_edges = []
+        node_start_coords = {
+                          }
+        node_end_coords = {
+                          }
+        expected = (ctg_seq, ctg_edges, node_start_coords, node_end_coords)
+
+        return ctg_id, haplotig_graph, node_path, expected
+
+    # Get inputs and outputs.
+    ctg_id, haplotig_graph, node_path, expected = create_test()
+
+    # Run the unit under test.
+    result = mod.construct_ctg_seq(haplotig_graph, ctg_id, node_path)
+
+    # Evaluate.
+    assert result == expected
+
+def test_construct_ctg_seq_3():
+    """
+    Test on a simple linear graph with 1 node. The path contains the same 1 node.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        ### Inputs.
+        region_description = [
+                            (REGION_TYPE_LINEAR, 'L1', -1, ['ACTG']),
+                             ]
+        haplotig_graph, region_seqs, region_headers, region_edges = make_dummy_haplotig_graph(ctg_id, region_description)
+
+        node_path = ['L1']
+
+        ### Expected results.
+        ctg_seq = region_seqs['L1']
+        ctg_edges = region_edges['L1']
+        node_start_coords = {
+                            'L1': 0,
+                          }
+        node_end_coords = {
+                            'L1': len(region_seqs['L1']),
+                          }
+        expected = (ctg_seq, ctg_edges, node_start_coords, node_end_coords)
+
+        return ctg_id, haplotig_graph, node_path, expected
+
+    # Get inputs and outputs.
+    ctg_id, haplotig_graph, node_path, expected = create_test()
+
+    # Run the unit under test.
+    result = mod.construct_ctg_seq(haplotig_graph, ctg_id, node_path)
+
+    # Evaluate.
+    assert result == expected
+
+def test_construct_ctg_seq_4():
+    """
+    This tests for a degenerate case where a node in the node path does not exist.
+    Test on a simple linear graph with 1 node.
+    This test should raise.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        ### Inputs.
+        region_description = [
+                            (REGION_TYPE_LINEAR, 'L1', -1, ['ACTG']),
+                             ]
+        haplotig_graph, region_seqs, region_headers, region_edges = make_dummy_haplotig_graph(ctg_id, region_description)
+
+        node_path = ['L1', 'L2']
+
+        ### Expected values don't matter because this should raise.
+        expected = ()
+
+        return ctg_id, haplotig_graph, node_path, expected
+
+    # Get inputs and outputs.
+    ctg_id, haplotig_graph, node_path, expected = create_test()
+
+    # Run the unit under test.
+    with pytest.raises(Exception, match=r'Error while attempting to extract contig sequence. Node .* does not exist in haplotig graph.'):
+        result = mod.construct_ctg_seq(haplotig_graph, ctg_id, node_path)
+
+def test_construct_ctg_seq_5():
+    """
+    This tests for a degenerate case where the edge in node path does not exist.
+    Three linear regions are created.
+    This test should raise.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        ### Inputs.
+        region_description = [
+                            (REGION_TYPE_LINEAR, 'L1', -1, ['ACTG']),
+                            (REGION_TYPE_LINEAR, 'L2', -1, ['ACTG']),
+                            (REGION_TYPE_LINEAR, 'L3', -1, ['ACTG']),
+                             ]
+        haplotig_graph, region_seqs, region_headers, region_edges = make_dummy_haplotig_graph(ctg_id, region_description)
+
+        node_path = ['L1', 'L3']
+
+        ### Expected values don't matter because this should raise.
+        expected = ()
+
+        return ctg_id, haplotig_graph, node_path, expected
+
+    # Get inputs and outputs.
+    ctg_id, haplotig_graph, node_path, expected = create_test()
+
+    # Run the unit under test.
+    with pytest.raises(Exception, match=r'Error while attempting to extract contig sequence. Edge .* does not exist in haplotig graph.'):
+        result = mod.construct_ctg_seq(haplotig_graph, ctg_id, node_path)
+
+def test_construct_ctg_seq_6():
+    """
+    Valid test case. Extract a sequence from a path down a linear graph.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        ### Inputs.
+        region_description = [
+                            (REGION_TYPE_LINEAR, 'L1', -1, ['ACTG']),
+                            (REGION_TYPE_LINEAR, 'L2', -1, ['TTT']),
+                            (REGION_TYPE_LINEAR, 'L3', -1, ['GGG']),
+                             ]
+        haplotig_graph, region_seqs, region_headers, region_edges = make_dummy_haplotig_graph(ctg_id, region_description)
+
+        node_path = ['L1', 'L2', 'L3']
+
+        ### Expected results.
+        ctg_seq = region_seqs['L1'] + region_seqs['L2'] + region_seqs['L3']
+        ctg_edges = region_edges['L1'] + region_edges['L2'] + region_edges['L3']
+        node_start_coords = {
+                            'L1': 0,
+                            'L2': len(region_seqs['L1']),
+                            'L3': len(region_seqs['L1']) + len(region_seqs['L2']),
+                          }
+        node_end_coords = {
+                            'L1': len(region_seqs['L1']),
+                            'L2': len(region_seqs['L1']) + len(region_seqs['L2']),
+                            'L3': len(region_seqs['L1']) + len(region_seqs['L2']) + len(region_seqs['L3']),
+                          }
+        expected = (ctg_seq, ctg_edges, node_start_coords, node_end_coords)
+
+        return ctg_id, haplotig_graph, node_path, expected
+
+    # Get inputs and outputs.
+    ctg_id, haplotig_graph, node_path, expected = create_test()
+
+    # Run the unit under test.
+    result = mod.construct_ctg_seq(haplotig_graph, ctg_id, node_path)
+
+    # Evaluate.
+    assert result == expected
+
+def test_construct_ctg_seq_7():
+    """
+    Test extracting a path through a complicated graph with bubbles.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        ### Inputs.
+        region_description = [
+                            (REGION_TYPE_LINEAR, 'L1', -1, ['ACTG']),
+                            (REGION_TYPE_DIPLOID, 'D1', 0, ['AAAAA', 'AA']),
+                            (REGION_TYPE_LINEAR, 'L2', -1, ['TTT']),
+                            (REGION_TYPE_DIPLOID, 'D2', 1, ['CC', 'CCCCC']),
+                            (REGION_TYPE_DIPLOID, 'D3', 2, ['TGTG', 'TG']),
+                            (REGION_TYPE_LINEAR, 'L3', -1, ['GGG']),
+                             ]
+        haplotig_graph, region_seqs, region_headers, region_edges = make_dummy_haplotig_graph(ctg_id, region_description)
+
+        node_path = ['L1', 'D1-phase0', 'L2', 'D2-phase1', 'D3-phase1', 'L3']
+
+        ### Expected results.
+        ctg_seq = region_seqs['L1'] + region_seqs['D1-phase0'] + region_seqs['L2'] + region_seqs['D2-phase1'] + region_seqs['D3-phase1'] + region_seqs['L3']
+        ctg_edges = region_edges['L1'] + region_edges['D1-phase0'] + region_edges['L2'] + region_edges['D2-phase1'] + region_edges['D3-phase1'] + region_edges['L3']
+        node_start_coords = {
+                            'L1': 0,
+                            'D1-phase0': len(region_seqs['L1']),
+                            'L2': len(region_seqs['L1']) + len(region_seqs['D1-phase0']),
+                            'D2-phase1': len(region_seqs['L1']) + len(region_seqs['D1-phase0']) + len(region_seqs['L2']),
+                            'D3-phase1': len(region_seqs['L1']) + len(region_seqs['D1-phase0']) + len(region_seqs['L2']) + len(region_seqs['D2-phase1']),
+                            'L3': len(region_seqs['L1']) + len(region_seqs['D1-phase0']) + len(region_seqs['L2']) + len(region_seqs['D2-phase1']) + len(region_seqs['D3-phase1']),
+                          }
+        node_end_coords = {
+                            'L1': len(region_seqs['L1']),
+                            'D1-phase0': len(region_seqs['L1']) + len(region_seqs['D1-phase0']),
+                            'L2': len(region_seqs['L1']) + len(region_seqs['D1-phase0']) + len(region_seqs['L2']),
+                            'D2-phase1': len(region_seqs['L1']) + len(region_seqs['D1-phase0']) + len(region_seqs['L2']) + len(region_seqs['D2-phase1']),
+                            'D3-phase1': len(region_seqs['L1']) + len(region_seqs['D1-phase0']) + len(region_seqs['L2']) + len(region_seqs['D2-phase1']) + len(region_seqs['D3-phase1']),
+                            'L3': len(region_seqs['L1']) + len(region_seqs['D1-phase0']) + len(region_seqs['L2']) + len(region_seqs['D2-phase1']) + len(region_seqs['D3-phase1']) + len(region_seqs['L3']),
+                          }
+        expected = (ctg_seq, ctg_edges, node_start_coords, node_end_coords)
+
+        return ctg_id, haplotig_graph, node_path, expected
+
+    # Get inputs and outputs.
+    ctg_id, haplotig_graph, node_path, expected = create_test()
+
+    # Run the unit under test.
+    result = mod.construct_ctg_seq(haplotig_graph, ctg_id, node_path)
+
+    # Evaluate.
+    assert result == expected
+
+def test_find_haplotig_placement_1():
+    """
+    Test several normal use cases.
+    """
+
+    def create_test():
+        p_ctg_id = '000000F'
+
+        ### Inputs.
+        # Create a haplotig graph.
+        region_description = [
+                            (REGION_TYPE_DIPLOID, 'D0', 0, ['AAAAA', 'AA']),
+                            (REGION_TYPE_LINEAR, 'L1', -1, ['ACTG']),
+                            (REGION_TYPE_DIPLOID, 'D1', 1, ['AAAAA', 'AA']),
+                            (REGION_TYPE_LINEAR, 'L2', -1, ['TTT']),
+                            (REGION_TYPE_DIPLOID, 'D2', 2, ['CC', 'CCCCC']),
+                            (REGION_TYPE_DIPLOID, 'D3', 3, ['TGTG', 'TG']),
+                            (REGION_TYPE_LINEAR, 'L3', -1, ['GGG']),
+                            (REGION_TYPE_DIPLOID, 'D4', 4, ['AAAAA', 'AA']),
+                             ]
+        hg, region_seqs, region_headers, region_edges = make_dummy_haplotig_graph(p_ctg_id, region_description)
+
+        # Create the primary contig and coord lookups.
+        p_node_path = ['D0-phase0', 'L1', 'D1-phase0', 'L2', 'D2-phase1', 'D3-phase1', 'L3', 'D4-phase0']
+        p_ctg_seq, p_ctg_edges, p_starts, p_ends = mod.construct_ctg_seq(hg, p_ctg_id, p_node_path)
+        p_len = len(p_ctg_seq)
+        p_set = set(p_node_path)
+
+        inputs = {
+                    # Normal, valid inputs.
+                    '000000F_001': (hg, p_ctg_id, p_len, p_set, p_starts, p_ends, '000000F_001', len(region_seqs['D1-phase1']), ['D1-phase1']),
+                    '000000F_002': (hg, p_ctg_id, p_len, p_set, p_starts, p_ends, '000000F_002', len(region_seqs['D2-phase0']), ['D2-phase0']),
+                    '000000F_003': (hg, p_ctg_id, p_len, p_set, p_starts, p_ends, '000000F_003', len(region_seqs['D3-phase0']), ['D3-phase0']),
+                    # Empty haplotig node path.
+                    '000000F_004': (hg, p_ctg_id, p_len, p_set, p_starts, p_ends, '000000F_004', 123, []),
+                    # Check the dangling front. E.g. if the front was fully phased, then the beginning of the haplotig aligns at the start of primary.
+                    '000000F_005': (hg, p_ctg_id, p_len, p_set, p_starts, p_ends, '000000F_005', len(region_seqs['D0-phase1']), ['D0-phase1']),
+                    # Check the dangling back. E.g. if the end of a contig was fully phased, then the end of the haplotig aligns at the end of primary.
+                    '000000F_006': (hg, p_ctg_id, p_len, p_set, p_starts, p_ends, '000000F_006', len(region_seqs['D4-phase1']), ['D4-phase1']),
+                    # Check empty input.
+                    '000000F_007': (nx.DiGraph(), p_ctg_id, 0, [], {}, {}, '000000F_007', 0, []),
+                }
+
+        ### Expected results.
+        expected = {
+                    # Normal, valid inputs.
+                    '000000F_001': ('000000F_001', 2, 0, 2, '+', p_ctg_id, p_len, 9, 14, 5, 5, 60),
+                    '000000F_002': ('000000F_002', 2, 0, 2, '+', p_ctg_id, p_len, 17, 22, 5, 5, 60),
+                    '000000F_003': ('000000F_003', 4, 0, 4, '+', p_ctg_id, p_len, 22, 24, 2, 2, 60),
+                    # Empty haplotig node path.
+                    '000000F_004': None,
+                    # Check the dangling front. E.g. if the front was fully phased, then the beginning of the haplotig aligns at the start of primary.
+                    '000000F_005': ('000000F_005', 2, 0, 2, '+', p_ctg_id, p_len, 0, 5, 5, 5, 60),
+                    # Check the dangling back. E.g. if the end of a contig was fully phased, then the end of the haplotig aligns at the end of primary.
+                    '000000F_006': ('000000F_006', 2, 0, 2, '+', p_ctg_id, p_len, 27, 32, 5, 5, 60),
+                    # Check empty input.
+                    '000000F_007': None,
+                    }
+
+        return inputs, expected
+
+    # Get inputs and outputs.
+    inputs, expected = create_test()
+
+    # Test multiple haplotigs.
+    for h_ctg_id, vals in inputs.iteritems():
+        # Run the unit under test.
+        result = mod.find_haplotig_placement(*vals)
+
+        # Evaluate.
+        assert result == expected[h_ctg_id], h_ctg_id
+
+def test_find_haplotig_placement_2():
+    """
+    Degenerate cases.
+    We test if all p_ctg_nodes have start or end coordinates. Check if the function raises.
+    Also, check if an exception will be raised if p_ctg_nodes aren't present in the haplotig_graph.
+    """
+
+    def create_test():
+        p_ctg_id = '000000F'
+
+        ### Inputs.
+        # Create a haplotig graph.
+        region_description = [
+                            (REGION_TYPE_DIPLOID, 'D0', 0, ['AAAAA', 'AA']),
+                            (REGION_TYPE_LINEAR, 'L1', -1, ['ACTG']),
+                            (REGION_TYPE_DIPLOID, 'D1', 1, ['AAAAA', 'AA']),
+                            (REGION_TYPE_LINEAR, 'L2', -1, ['TTT']),
+                            (REGION_TYPE_DIPLOID, 'D2', 2, ['CC', 'CCCCC']),
+                            (REGION_TYPE_DIPLOID, 'D3', 3, ['TGTG', 'TG']),
+                            (REGION_TYPE_LINEAR, 'L3', -1, ['GGG']),
+                            (REGION_TYPE_DIPLOID, 'D4', 4, ['AAAAA', 'AA']),
+                             ]
+        hg, region_seqs, region_headers, region_edges = make_dummy_haplotig_graph(p_ctg_id, region_description)
+
+        # Create the primary contig and coord lookups.
+        p_node_path = ['D0-phase0', 'L1', 'D1-phase0', 'L2', 'D2-phase1', 'D3-phase1', 'L3', 'D4-phase0']
+        p_ctg_seq, p_ctg_edges, p_starts, p_ends = mod.construct_ctg_seq(hg, p_ctg_id, p_node_path)
+        p_len = len(p_ctg_seq)
+        p_set = set(p_node_path)
+
+        p_node_path_reduced = p_node_path[:-1]
+        p_node_path_expanded = p_node_path + ['nonexistent-node']
+        p_starts_missing = {key: p_starts[key] for key in p_node_path[:-1]}
+        p_ends_missing = {key: p_ends[key] for key in p_node_path[:-1]}
+
+        # Each of the following should raise.
+        inputs = {
+                    '000000F_001': (hg, p_ctg_id, p_len, p_node_path_expanded, p_starts, p_ends, '000000F_001', len(region_seqs['D1-phase1']), ['D1-phase1']),
+                    '000000F_002': (hg, p_ctg_id, p_len, p_node_path_reduced, p_starts, p_ends, '000000F_002', len(region_seqs['D1-phase1']), ['D1-phase1']),
+                    '000000F_003': (hg, p_ctg_id, p_len, p_node_path, p_starts_missing, p_ends, '000000F_003', len(region_seqs['D1-phase1']), ['D1-phase1']),
+                    '000000F_004': (hg, p_ctg_id, p_len, p_node_path, p_starts, p_ends_missing, '000000F_004', len(region_seqs['D1-phase1']), ['D1-phase1']),
+                }
+
+        ### Expected results.
+        expected = {
+                    '000000F_001': r'Not all primary contig nodes can be found in the haplotig graph.*',
+                    '000000F_002': r'The p_node_set and p_node_start_coords contain different keys.*',
+                    '000000F_003': r'The p_node_set and p_node_start_coords contain different keys.*',
+                    '000000F_004': r'The p_node_set and p_node_end_coords contain different keys.*',
+                    }
+
+        return inputs, expected
+
+    # Get inputs and outputs.
+    inputs, expected = create_test()
+
+    # Test multiple haplotigs.
+    for h_ctg_id, vals in inputs.iteritems():
+        # Run the unit under test.
+        with pytest.raises(Exception, match=expected[h_ctg_id]):
+            result = mod.find_haplotig_placement(*vals)
+
+def test_extract_unzipped_ctgs_1():
     """
     A test case of only one linear region without any additional haplotigs.
     """
@@ -665,17 +1101,15 @@ def test_extract_and_write_all_ctg_1(tmpdir):
         haplotig_graph = mod.regions_to_haplotig_graph(ctg_id, regions, mock_fp_proto_log)
 
         # Expected results.
-        p_ctg_fasta = '>{ctg_id}\n{seq}\n'.format(ctg_id=ctg_id, seq=region_1_seq)
-        p_ctg_edges = '\n'.join([' '.join(edge[0:3]) + ' N H -1 0 -1 0' for edge in region_1[5][region_1_name]['path']]) + '\n'
+        p_ctg_edges = [' '.join(edge[0:3]) + ' N H -1 0 -1 0' for edge in region_1[5][region_1_name]['path']]
 
-        expected = {}
-        expected['p_ctg.{ctg_id}.fa'.format(ctg_id=ctg_id)] = p_ctg_fasta
-        expected['p_ctg_edges.{ctg_id}'.format(ctg_id=ctg_id)] = p_ctg_edges
-        expected['h_ctg.{ctg_id}.fa'.format(ctg_id=ctg_id)] = ''
-        expected['h_ctg_edges.{ctg_id}'.format(ctg_id=ctg_id)] = ''
-        expected['h_ctg.{ctg_id}.paf'.format(ctg_id=ctg_id)] = ''
-        # expected['regions.fasta'] = '>{header}\n{seq}\n'.format(header=region_1_name, seq=region_1_seq)
-        # expected['regions.paf'] = regions_paf
+        exp_all_p_seqs = {ctg_id: region_1_seq}
+        exp_all_p_edges = {ctg_id: p_ctg_edges}
+        exp_all_h_seqs = {}
+        exp_all_h_edges = {}
+        exp_all_h_paf = {}
+
+        expected = (exp_all_p_seqs, exp_all_p_edges, exp_all_h_seqs, exp_all_h_edges, exp_all_h_paf)
 
         return haplotig_graph, expected
 
@@ -686,12 +1120,12 @@ def test_extract_and_write_all_ctg_1(tmpdir):
     haplotig_graph, expected = create_test(ctg_id)
 
     # Run unit under test.
-    mod.extract_and_write_all_ctg(ctg_id, haplotig_graph, str(tmpdir), allow_multiple_primaries, mock_fp_proto_log)
+    results = mod.extract_unzipped_ctgs(ctg_id, haplotig_graph, allow_multiple_primaries, mock_fp_proto_log)
 
     # Evaluate.
-    evaluate_extract_and_write_all_ctg(tmpdir, expected)
+    assert results == expected
 
-def test_extract_and_write_all_ctg_2(tmpdir):
+def test_extract_unzipped_ctgs_2():
     """
     A test case of only one *diploid* region.
     This test should successfully generate one primary and one fully phased haplotig.
@@ -712,27 +1146,23 @@ def test_extract_and_write_all_ctg_2(tmpdir):
 
         # Expected results.
         expected = {}
-        # Expected results.
-        ctg_seq = region_1_seq_1
-        p_ctg_fasta = '>{ctg_id}\n{seq}\n'.format(ctg_id=ctg_id, seq=ctg_seq)
-        p_ctg_edges = '\n'.join([' '.join(edge[0:3]) + ' N H 0 0 0 0' for edge in region_1[5][region_1_name_1]['path']]) + '\n'
+        p_ctg_seq = region_1_seq_1
+        p_ctg_edges = [' '.join(edge[0:3]) + ' N H 0 0 0 0' for edge in region_1[5][region_1_name_1]['path']]
 
         h_ctg_id = '{ctg_id}_001'.format(ctg_id=ctg_id)
         h_ctg_seq = region_1_seq_2
-        h_ctg_fasta = ''
-        h_ctg_paf = ''
-        h_ctg_fasta += '>{ctg_id}\n{seq}\n'.format(ctg_id=h_ctg_id, seq=h_ctg_seq)
-        h_ctg_paf += '{h_ctg_id}\t{qlen}\t{qstart}\t{qend}\t+\t{ctg_id}\t{tlen}\t{tstart}\t{tend}\t{tspan}\t{tspan}\t{mapq}\n'.format(
-                        h_ctg_id=h_ctg_id, qlen=len(h_ctg_seq), qstart=0, qend=len(h_ctg_seq),
-                        ctg_id=ctg_id, tlen=len(ctg_seq), tstart=0, tend=len(ctg_seq), tspan=len(ctg_seq), mapq=60)
-        h_ctg_edges = '\n'.join([h_ctg_id + ' ' + ' '.join(edge[1:3]) + ' N H 0 1 0 1' for edge in region_1[5][region_1_name_2]['path']]) + '\n'
+        h_ctg_paf = (h_ctg_id, len(h_ctg_seq), 0, len(h_ctg_seq),
+                        '+', ctg_id, len(p_ctg_seq), 0, len(p_ctg_seq), len(p_ctg_seq), len(p_ctg_seq), 60)
 
-        expected = {}
-        expected['p_ctg.{ctg_id}.fa'.format(ctg_id=ctg_id)] = p_ctg_fasta
-        expected['p_ctg_edges.{ctg_id}'.format(ctg_id=ctg_id)] = p_ctg_edges
-        expected['h_ctg.{ctg_id}.fa'.format(ctg_id=ctg_id)] = h_ctg_fasta
-        expected['h_ctg_edges.{ctg_id}'.format(ctg_id=ctg_id)] = h_ctg_edges
-        expected['h_ctg.{ctg_id}.paf'.format(ctg_id=ctg_id)] = h_ctg_paf
+        h_ctg_edges = [h_ctg_id + ' ' + ' '.join(edge[1:3]) + ' N H 0 1 0 1' for edge in region_1[5][region_1_name_2]['path']]
+
+        exp_all_p_seqs = {ctg_id: p_ctg_seq}
+        exp_all_p_edges = {ctg_id: p_ctg_edges}
+        exp_all_h_seqs = {h_ctg_id: h_ctg_seq}
+        exp_all_h_edges = {h_ctg_id: h_ctg_edges}
+        exp_all_h_paf = {h_ctg_id: h_ctg_paf}
+
+        expected = (exp_all_p_seqs, exp_all_p_edges, exp_all_h_seqs, exp_all_h_edges, exp_all_h_paf)
 
         return haplotig_graph, expected
 
@@ -743,12 +1173,12 @@ def test_extract_and_write_all_ctg_2(tmpdir):
     haplotig_graph, expected = create_test(ctg_id)
 
     # Run unit under test.
-    mod.extract_and_write_all_ctg(ctg_id, haplotig_graph, str(tmpdir), allow_multiple_primaries, mock_fp_proto_log)
+    results = mod.extract_unzipped_ctgs(ctg_id, haplotig_graph, allow_multiple_primaries, mock_fp_proto_log)
 
     # Evaluate.
-    evaluate_extract_and_write_all_ctg(tmpdir, expected)
+    assert results == expected
 
-def test_extract_and_write_all_ctg_3(tmpdir):
+def test_extract_unzipped_ctgs_3():
     """
     A degenerate case which should throw.
     This test case should not occur in practice,
@@ -790,9 +1220,9 @@ def test_extract_and_write_all_ctg_3(tmpdir):
 
     # Run unit under test.
     with pytest.raises(Exception, match=r'Skipping additional subgraphs of the primary contig.*'):
-        mod.extract_and_write_all_ctg(ctg_id, haplotig_graph, str(tmpdir), allow_multiple_primaries, mock_fp_proto_log)
+        results = mod.extract_unzipped_ctgs(ctg_id, haplotig_graph, allow_multiple_primaries, mock_fp_proto_log)
 
-def test_extract_and_write_all_ctg_4(tmpdir):
+def test_extract_unzipped_ctgs_4():
     """
     A degenerate case which should throw.
     This test should allow multiple primary componets to be extracted from the same graph.
@@ -817,23 +1247,17 @@ def test_extract_and_write_all_ctg_4(tmpdir):
         haplotig_graph = nx.compose(haplotig_graph_1, haplotig_graph_2)
 
         # Expected results.
-        expected = {}
-        # Expected results.
-        p_ctg_fasta =   '>{ctg_id}p01\n{seq}\n'.format(ctg_id=ctg_id, seq=region_2_seq) + \
-                        '>{ctg_id}p02\n{seq}\n'.format(ctg_id=ctg_id, seq=region_1_seq)
-        p_ctg_edges =   '\n'.join(['{ctg_id}p01 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H -1 0 -1 0' for edge in haplotig_graph.node[region_2_name]['htig']['path']]) + '\n' + \
-                        '\n'.join(['{ctg_id}p02 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H -1 0 -1 0' for edge in haplotig_graph.node[region_1_name]['htig']['path']]) + '\n'
+        exp_all_p_seqs = {  '{}p01'.format(ctg_id): region_2_seq,
+                            '{}p02'.format(ctg_id): region_1_seq
+                         }
+        exp_all_p_edges = { '{}p01'.format(ctg_id): ['{ctg_id}p01 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H -1 0 -1 0' for edge in haplotig_graph.node[region_2_name]['htig']['path']],
+                            '{}p02'.format(ctg_id): ['{ctg_id}p02 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H -1 0 -1 0' for edge in haplotig_graph.node[region_1_name]['htig']['path']]
+                         }
+        exp_all_h_seqs = {}
+        exp_all_h_edges = {}
+        exp_all_h_paf = {}
 
-        h_ctg_fasta =   ''
-        h_ctg_edges =   ''
-        h_ctg_paf = ''
-
-        expected = {}
-        expected['p_ctg.{ctg_id}.fa'.format(ctg_id=ctg_id)] = p_ctg_fasta
-        expected['p_ctg_edges.{ctg_id}'.format(ctg_id=ctg_id)] = p_ctg_edges
-        expected['h_ctg.{ctg_id}.fa'.format(ctg_id=ctg_id)] = h_ctg_fasta
-        expected['h_ctg_edges.{ctg_id}'.format(ctg_id=ctg_id)] = h_ctg_edges
-        expected['h_ctg.{ctg_id}.paf'.format(ctg_id=ctg_id)] = h_ctg_paf
+        expected = (exp_all_p_seqs, exp_all_p_edges, exp_all_h_seqs, exp_all_h_edges, exp_all_h_paf)
 
         return haplotig_graph, expected
 
@@ -845,16 +1269,16 @@ def test_extract_and_write_all_ctg_4(tmpdir):
     # Run unit under test. Test for failure, because there are multiple components.
     allow_multiple_primaries = False
     with pytest.raises(Exception, match=r'Skipping additional subgraphs of the primary contig.*'):
-        mod.extract_and_write_all_ctg(ctg_id, haplotig_graph, str(tmpdir), allow_multiple_primaries, mock_fp_proto_log)
+        results = mod.extract_unzipped_ctgs(ctg_id, haplotig_graph, allow_multiple_primaries, mock_fp_proto_log)
 
     # Run unit under test. Allow multiple components, and test if it will actually generate valid output.
     allow_multiple_primaries = True
-    mod.extract_and_write_all_ctg(ctg_id, haplotig_graph, str(tmpdir), allow_multiple_primaries, mock_fp_proto_log)
+    results = mod.extract_unzipped_ctgs(ctg_id, haplotig_graph, allow_multiple_primaries, mock_fp_proto_log)
 
     # Evaluate.
-    evaluate_extract_and_write_all_ctg(tmpdir, expected)
+    assert results == expected
 
-def test_extract_and_write_all_ctg_5(tmpdir):
+def test_extract_unzipped_ctgs_5(tmpdir):
     """
     A degenerate case which should throw.
     This test should allow multiple primary componets to be extracted from the same graph.
@@ -880,28 +1304,27 @@ def test_extract_and_write_all_ctg_5(tmpdir):
         haplotig_graph = nx.compose(haplotig_graph_1, haplotig_graph_2)
 
         # Expected results.
-        expected = {}
-        # Expected results.
-        # The order in which primaries are listed is abritrary and depends on NetworkX.
-        # The selection of path through diploid bubbles is arbitrary and depends on NetworkX.
-        p_ctg_fasta =   '>{ctg_id}p01\n{seq}\n'.format(ctg_id=ctg_id, seq=region_2_seq_2) + \
-                        '>{ctg_id}p02\n{seq}\n'.format(ctg_id=ctg_id, seq=region_1_seq)
-        p_ctg_edges =   '\n'.join(['{ctg_id}p01 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H 1 1 1 1' for edge in haplotig_graph.node[region_2_name_2]['htig']['path']]) + '\n' + \
-                        '\n'.join(['{ctg_id}p02 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H -1 0 -1 0' for edge in haplotig_graph.node[region_1_name]['htig']['path']]) + '\n'
+        exp_all_p_seqs = {  '{}p01'.format(ctg_id): region_2_seq_2,
+                            '{}p02'.format(ctg_id): region_1_seq
+                         }
+        exp_all_p_edges = { '{}p01'.format(ctg_id): ['{ctg_id}p01 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H 1 1 1 1' for edge in haplotig_graph.node[region_2_name_2]['htig']['path']],
+                            '{}p02'.format(ctg_id): ['{ctg_id}p02 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H -1 0 -1 0' for edge in haplotig_graph.node[region_1_name]['htig']['path']],
+                         }
+        exp_all_h_seqs = {  '{}p01_001'.format(ctg_id): region_2_seq_1
+                         }
+        exp_all_h_edges = { '{}p01_001'.format(ctg_id): ['{ctg_id}p01_001 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H 1 0 1 0' for edge in haplotig_graph.node[region_2_name_1]['htig']['path']]
+                          }
+        exp_all_h_paf = {}
 
-        h_ctg_fasta =   '>{ctg_id}p01_001\n{seq}\n'.format(ctg_id=ctg_id, seq=region_2_seq_1)
-        h_ctg_edges =   '\n'.join(['{ctg_id}p01_001 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H 1 0 1 0' for edge in haplotig_graph.node[region_2_name_1]['htig']['path']]) + '\n'
-        h_ctg_paf =     '{ctg_id}p01_001\t{qlen}\t{qstart}\t{qend}\t+\t{ctg_id}p01\t{tlen}\t{tstart}\t{tend}\t{tspan}\t{tspan}\t{mapq}\n'.format(
-                        ctg_id=ctg_id,
-                        qlen=len(region_2_seq_1), qstart=0, qend=len(region_2_seq_1),
-                        tlen=len(region_2_seq_2), tstart=0, tend=len(region_2_seq_2), tspan=len(region_2_seq_2), mapq=60)
+        # Make the placement PAF, which is a bit more messy because of all columns.
+        h_tig_id = '{}p01_001'.format(ctg_id)
+        p_tig_id = h_tig_id.split('_')[0]
+        exp_all_h_paf[h_tig_id] = \
+                    (h_tig_id, len(exp_all_h_seqs[h_tig_id]), 0, len(exp_all_h_seqs[h_tig_id]),             # Query coordinates
+                        '+', p_tig_id, len(exp_all_p_seqs[p_tig_id]), 0, len(exp_all_p_seqs[p_tig_id]),     # Ref coordinates.
+                        len(exp_all_p_seqs[p_tig_id]), len(exp_all_p_seqs[p_tig_id]), 60)                   # Spans.
 
-        expected = {}
-        expected['p_ctg.{ctg_id}.fa'.format(ctg_id=ctg_id)] = p_ctg_fasta
-        expected['p_ctg_edges.{ctg_id}'.format(ctg_id=ctg_id)] = p_ctg_edges
-        expected['h_ctg.{ctg_id}.fa'.format(ctg_id=ctg_id)] = h_ctg_fasta
-        expected['h_ctg_edges.{ctg_id}'.format(ctg_id=ctg_id)] = h_ctg_edges
-        expected['h_ctg.{ctg_id}.paf'.format(ctg_id=ctg_id)] = h_ctg_paf
+        expected = (exp_all_p_seqs, exp_all_p_edges, exp_all_h_seqs, exp_all_h_edges, exp_all_h_paf)
 
         return haplotig_graph, expected
 
@@ -913,11 +1336,491 @@ def test_extract_and_write_all_ctg_5(tmpdir):
     # Run unit under test. Test for failure, because there are multiple components.
     allow_multiple_primaries = False
     with pytest.raises(Exception, match=r'Skipping additional subgraphs of the primary contig.*'):
-        mod.extract_and_write_all_ctg(ctg_id, haplotig_graph, str(tmpdir), allow_multiple_primaries, mock_fp_proto_log)
+        results = mod.extract_unzipped_ctgs(ctg_id, haplotig_graph, allow_multiple_primaries, mock_fp_proto_log)
 
     # Run unit under test. Allow multiple components, and test if it will actually generate valid output.
     allow_multiple_primaries = True
-    mod.extract_and_write_all_ctg(ctg_id, haplotig_graph, str(tmpdir), allow_multiple_primaries, mock_fp_proto_log)
+    results = mod.extract_unzipped_ctgs(ctg_id, haplotig_graph, allow_multiple_primaries, mock_fp_proto_log)
 
     # Evaluate.
-    evaluate_extract_and_write_all_ctg(tmpdir, expected)
+    assert results == expected
+
+def test_write_unzipped_1(tmpdir):
+    """
+    An empty test case.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        # Inputs.
+        p_ctg_seqs =    { }
+        p_ctg_edges =   { }
+        h_ctg_seqs =    { }
+        h_ctg_edges =   { }
+        h_ctg_paf =     { }
+
+        # Expected results.
+        expected = {}
+        expected['p_ctg.000000F.fa'] = ''
+        expected['p_ctg_edges.000000F'] = ''
+        expected['h_ctg.000000F.fa'] = ''
+        expected['h_ctg_edges.000000F'] = ''
+        expected['h_ctg.000000F.paf'] = ''
+
+        return ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected
+
+    # Make the test inputs and expected outputs.
+    ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected = create_test()
+
+    # Run unit under test.
+    mod.write_unzipped(str(tmpdir), ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, mock_fp_proto_log)
+
+    # Evaluate.
+    evaluate_write_unzipped(tmpdir, expected)
+
+def test_write_unzipped_2(tmpdir):
+    """
+    A simple test case, where only p_ctg are supposed to be written.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        # Inputs.
+        p_ctg_seqs =    {
+                            '000000F': 'ACTG',
+                        }
+        p_ctg_edges =   {
+                            '000000F': ['000000F 000000001:E 000000002:E N H -1 0 -1 0'],
+                        }
+        h_ctg_seqs =    { }
+        h_ctg_edges =   { }
+        h_ctg_paf =     { }
+
+        # Expected results.
+        expected = {}
+        expected['p_ctg.000000F.fa'] = """\
+>000000F
+ACTG
+"""
+        expected['p_ctg_edges.000000F'] = """\
+000000F 000000001:E 000000002:E N H -1 0 -1 0
+"""
+        expected['h_ctg.000000F.fa'] = """\
+"""
+        expected['h_ctg_edges.000000F'] = """\
+"""
+        expected['h_ctg.000000F.paf'] = """\
+"""
+
+        return ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected
+
+    # Make the test inputs and expected outputs.
+    ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected = create_test()
+
+    # Run unit under test.
+    mod.write_unzipped(str(tmpdir), ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, mock_fp_proto_log)
+
+    # Evaluate.
+    evaluate_write_unzipped(tmpdir, expected)
+
+def test_write_unzipped_3(tmpdir):
+    """
+    A normal test case, everything should be written.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        # Inputs.
+        p_ctg_seqs =    {
+                            '000000F': 'ACTG',
+                        }
+        p_ctg_edges =   {
+                            '000000F': ['000000F 000000001:E 000000002:E N H -1 0 -1 0'.format(ctg_id=ctg_id)],
+                        }
+        h_ctg_seqs =    {
+                            '000000F_001': 'A',
+                            '000000F_002': 'AG',
+                        }
+        h_ctg_edges =   {
+                            '000000F_001':
+                                    [   '000000F_001 000000002:E 000000003:E N H 0 0 0 0',
+                                        '000000F_001 000000003:E 000000004:E N H 0 0 0 0'
+                                    ],
+                            '000000F_002':
+                                    [   '000000F_002 000000005:E 000000006:E N H 1 0 1 0',
+                                        '000000F_002 000000006:E 000000007:E N H 1 0 1 0'
+                                    ],
+                        }
+        h_ctg_paf =     {
+                            '000000F_001': ['000000F_001\t1\t0\t1\t+\t000000F\t4\t0\t1\t1\t1\t60'],
+                            '000000F_002': ['000000F_002\t2\t0\t1\t+\t000000F\t4\t2\t3\t1\t1\t60'],
+                        }
+
+        # Expected results.
+        expected = {}
+        expected['p_ctg.000000F.fa'] = """\
+>000000F
+ACTG
+"""
+        expected['p_ctg_edges.000000F'] = """\
+000000F 000000001:E 000000002:E N H -1 0 -1 0
+"""
+        expected['h_ctg.000000F.fa'] = """\
+>000000F_001
+A
+>000000F_002
+AG
+"""
+        expected['h_ctg_edges.000000F'] = """\
+000000F_001 000000002:E 000000003:E N H 0 0 0 0
+000000F_001 000000003:E 000000004:E N H 0 0 0 0
+000000F_002 000000005:E 000000006:E N H 1 0 1 0
+000000F_002 000000006:E 000000007:E N H 1 0 1 0
+"""
+        expected['h_ctg.000000F.paf'] = """\
+000000F_001\t1\t0\t1\t+\t000000F\t4\t0\t1\t1\t1\t60
+000000F_002\t2\t0\t1\t+\t000000F\t4\t2\t3\t1\t1\t60
+"""
+
+        return ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected
+
+    # Make the test inputs and expected outputs.
+    ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected = create_test()
+
+    # Run unit under test.
+    mod.write_unzipped(str(tmpdir), ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, mock_fp_proto_log)
+
+    # Evaluate.
+    evaluate_write_unzipped(tmpdir, expected)
+
+def test_write_unzipped_4(tmpdir):
+    """
+    A degenerate case.
+    If a haplotig doesn't have sequence but the header is there, we should
+    prevent it from being output.
+    It's edges and placement should also be omitted.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        # Inputs.
+        p_ctg_seqs =    {
+                            '000000F': 'ACTG',
+                        }
+        p_ctg_edges =   {
+                            '000000F': ['000000F 000000001:E 000000002:E N H -1 0 -1 0'.format(ctg_id=ctg_id)],
+                        }
+        h_ctg_seqs =    {
+                            '000000F_001': '',
+                            '000000F_002': 'AG',
+                        }
+        h_ctg_edges =   {
+                            '000000F_001':
+                                    [   '000000F_001 000000002:E 000000003:E N H 0 0 0 0',
+                                        '000000F_001 000000003:E 000000004:E N H 0 0 0 0'
+                                    ],
+                            '000000F_002':
+                                    [   '000000F_002 000000005:E 000000006:E N H 1 0 1 0',
+                                        '000000F_002 000000006:E 000000007:E N H 1 0 1 0'
+                                    ],
+                        }
+        h_ctg_paf =     {
+                            '000000F_001': ['000000F_001\t1\t0\t1\t+\t000000F\t4\t0\t1\t1\t1\t60'],
+                            '000000F_002': ['000000F_002\t2\t0\t1\t+\t000000F\t4\t2\t3\t1\t1\t60'],
+                        }
+
+        # Expected results.
+        expected = {}
+        expected['p_ctg.000000F.fa'] = """\
+>000000F
+ACTG
+"""
+        expected['p_ctg_edges.000000F'] = """\
+000000F 000000001:E 000000002:E N H -1 0 -1 0
+"""
+        expected['h_ctg.000000F.fa'] = """\
+>000000F_002
+AG
+"""
+        expected['h_ctg_edges.000000F'] = """\
+000000F_002 000000005:E 000000006:E N H 1 0 1 0
+000000F_002 000000006:E 000000007:E N H 1 0 1 0
+"""
+        expected['h_ctg.000000F.paf'] = """\
+000000F_002\t2\t0\t1\t+\t000000F\t4\t2\t3\t1\t1\t60
+"""
+
+        return ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected
+
+    # Make the test inputs and expected outputs.
+    ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected = create_test()
+
+    # Run unit under test.
+    mod.write_unzipped(str(tmpdir), ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, mock_fp_proto_log)
+
+    # Evaluate.
+    evaluate_write_unzipped(tmpdir, expected)
+
+def test_write_unzipped_5(tmpdir):
+    """
+    A degenerate case.
+    If a primary contig doesn't have sequence but the header is there, we should
+    prevent it from being output.
+    It's edges and all haplotigs and their placements should also be omitted.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        # Inputs.
+        p_ctg_seqs =    {
+                            '000000F': '',
+                        }
+        p_ctg_edges =   {
+                            '000000F': ['000000F 000000001:E 000000002:E N H -1 0 -1 0'.format(ctg_id=ctg_id)],
+                        }
+        h_ctg_seqs =    {
+                            '000000F_001': 'A',
+                            '000000F_002': 'AG',
+                        }
+        h_ctg_edges =   {
+                            '000000F_001':
+                                    [   '000000F_001 000000002:E 000000003:E N H 0 0 0 0',
+                                        '000000F_001 000000003:E 000000004:E N H 0 0 0 0'
+                                    ],
+                            '000000F_002':
+                                    [   '000000F_002 000000005:E 000000006:E N H 1 0 1 0',
+                                        '000000F_002 000000006:E 000000007:E N H 1 0 1 0'
+                                    ],
+                        }
+        h_ctg_paf =     {
+                            '000000F_001': ['000000F_001\t1\t0\t1\t+\t000000F\t4\t0\t1\t1\t1\t60'],
+                            '000000F_002': ['000000F_002\t2\t0\t1\t+\t000000F\t4\t2\t3\t1\t1\t60'],
+                        }
+
+        # Expected results.
+        expected = {}
+        expected['p_ctg.000000F.fa'] = """\
+"""
+        expected['p_ctg_edges.000000F'] = """\
+"""
+        expected['h_ctg.000000F.fa'] = """\
+"""
+        expected['h_ctg_edges.000000F'] = """\
+"""
+        expected['h_ctg.000000F.paf'] = """\
+"""
+
+        return ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected
+
+    # Make the test inputs and expected outputs.
+    ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected = create_test()
+
+    # Run unit under test.
+    mod.write_unzipped(str(tmpdir), ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, mock_fp_proto_log)
+
+    # Evaluate.
+    evaluate_write_unzipped(tmpdir, expected)
+
+def test_write_unzipped_6(tmpdir):
+    """
+    A degenerate case.
+    If a contig doesn't have edges but the header and the sequence is there, we should
+    prevent it from being output.
+    It's edges and all haplotigs and their placements should also be omitted.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        # Inputs.
+        p_ctg_seqs =    {
+                            '000000F': 'ACTG',
+                        }
+        p_ctg_edges =   {
+                            '000000F': [],
+                        }
+        h_ctg_seqs =    {
+                            '000000F_001': 'A',
+                            '000000F_002': 'AG',
+                        }
+        h_ctg_edges =   {
+                            '000000F_001':
+                                    [   '000000F_001 000000002:E 000000003:E N H 0 0 0 0',
+                                        '000000F_001 000000003:E 000000004:E N H 0 0 0 0'
+                                    ],
+                            '000000F_002':
+                                    [   '000000F_002 000000005:E 000000006:E N H 1 0 1 0',
+                                        '000000F_002 000000006:E 000000007:E N H 1 0 1 0'
+                                    ],
+                        }
+        h_ctg_paf =     {
+                            '000000F_001': ['000000F_001\t1\t0\t1\t+\t000000F\t4\t0\t1\t1\t1\t60'],
+                            '000000F_002': ['000000F_002\t2\t0\t1\t+\t000000F\t4\t2\t3\t1\t1\t60'],
+                        }
+
+        # Expected results.
+        expected = {}
+        expected['p_ctg.000000F.fa'] = """\
+"""
+        expected['p_ctg_edges.000000F'] = """\
+"""
+        expected['h_ctg.000000F.fa'] = """\
+"""
+        expected['h_ctg_edges.000000F'] = """\
+"""
+        expected['h_ctg.000000F.paf'] = """\
+"""
+
+        return ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected
+
+    # Make the test inputs and expected outputs.
+    ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected = create_test()
+
+    # Run unit under test.
+    mod.write_unzipped(str(tmpdir), ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, mock_fp_proto_log)
+
+    # Evaluate.
+    evaluate_write_unzipped(tmpdir, expected)
+
+def test_write_unzipped_7(tmpdir):
+    """
+    A degenerate case.
+    Both haplotigs have sequence, but one doesn't have edges. Remove that haplotig
+    from output.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        # Inputs.
+        p_ctg_seqs =    {
+                            '000000F': 'ACTG',
+                        }
+        p_ctg_edges =   {
+                            '000000F': ['000000F 000000001:E 000000002:E N H -1 0 -1 0'.format(ctg_id=ctg_id)],
+                        }
+        h_ctg_seqs =    {
+                            '000000F_001': 'A',
+                            '000000F_002': 'AG',
+                        }
+        h_ctg_edges =   {
+                            '000000F_001':
+                                    [   '000000F_001 000000002:E 000000003:E N H 0 0 0 0',
+                                        '000000F_001 000000003:E 000000004:E N H 0 0 0 0'
+                                    ],
+                            '000000F_002':
+                                    [ ],
+                        }
+        h_ctg_paf =     {
+                            '000000F_001': ['000000F_001\t1\t0\t1\t+\t000000F\t4\t0\t1\t1\t1\t60'],
+                            '000000F_002': ['000000F_002\t2\t0\t1\t+\t000000F\t4\t2\t3\t1\t1\t60'],
+                        }
+
+        # Expected results.
+        expected = {}
+        expected['p_ctg.000000F.fa'] = """\
+>000000F
+ACTG
+"""
+        expected['p_ctg_edges.000000F'] = """\
+000000F 000000001:E 000000002:E N H -1 0 -1 0
+"""
+        expected['h_ctg.000000F.fa'] = """\
+>000000F_001
+A
+"""
+        expected['h_ctg_edges.000000F'] = """\
+000000F_001 000000002:E 000000003:E N H 0 0 0 0
+000000F_001 000000003:E 000000004:E N H 0 0 0 0
+"""
+        expected['h_ctg.000000F.paf'] = """\
+000000F_001\t1\t0\t1\t+\t000000F\t4\t0\t1\t1\t1\t60
+"""
+
+        return ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected
+
+    # Make the test inputs and expected outputs.
+    ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected = create_test()
+
+    # Run unit under test.
+    mod.write_unzipped(str(tmpdir), ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, mock_fp_proto_log)
+
+    # Evaluate.
+    evaluate_write_unzipped(tmpdir, expected)
+
+def test_write_unzipped_8(tmpdir):
+    """
+    A degenerate test case.
+    One haplotig is missing placement data. This should not result in the entire haplotg
+    to not be output.
+    """
+
+    def create_test():
+        ctg_id = '000000F'
+
+        # Inputs.
+        p_ctg_seqs =    {
+                            '000000F': 'ACTG',
+                        }
+        p_ctg_edges =   {
+                            '000000F': ['000000F 000000001:E 000000002:E N H -1 0 -1 0'.format(ctg_id=ctg_id)],
+                        }
+        h_ctg_seqs =    {
+                            '000000F_001': 'A',
+                            '000000F_002': 'AG',
+                        }
+        h_ctg_edges =   {
+                            '000000F_001':
+                                    [   '000000F_001 000000002:E 000000003:E N H 0 0 0 0',
+                                        '000000F_001 000000003:E 000000004:E N H 0 0 0 0'
+                                    ],
+                            '000000F_002':
+                                    [   '000000F_002 000000005:E 000000006:E N H 1 0 1 0',
+                                        '000000F_002 000000006:E 000000007:E N H 1 0 1 0'
+                                    ],
+                        }
+        h_ctg_paf =     {
+                            '000000F_001': ['000000F_001\t1\t0\t1\t+\t000000F\t4\t0\t1\t1\t1\t60'],
+                            '000000F_002': [],
+                        }
+
+        # Expected results.
+        expected = {}
+        expected['p_ctg.000000F.fa'] = """\
+>000000F
+ACTG
+"""
+        expected['p_ctg_edges.000000F'] = """\
+000000F 000000001:E 000000002:E N H -1 0 -1 0
+"""
+        expected['h_ctg.000000F.fa'] = """\
+>000000F_001
+A
+>000000F_002
+AG
+"""
+        expected['h_ctg_edges.000000F'] = """\
+000000F_001 000000002:E 000000003:E N H 0 0 0 0
+000000F_001 000000003:E 000000004:E N H 0 0 0 0
+000000F_002 000000005:E 000000006:E N H 1 0 1 0
+000000F_002 000000006:E 000000007:E N H 1 0 1 0
+"""
+        expected['h_ctg.000000F.paf'] = """\
+000000F_001\t1\t0\t1\t+\t000000F\t4\t0\t1\t1\t1\t60
+"""
+
+        return ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected
+
+    # Make the test inputs and expected outputs.
+    ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, expected = create_test()
+
+    # Run unit under test.
+    mod.write_unzipped(str(tmpdir), ctg_id, p_ctg_seqs, p_ctg_edges, h_ctg_seqs, h_ctg_edges, h_ctg_paf, mock_fp_proto_log)
+
+    # Evaluate.
+    evaluate_write_unzipped(tmpdir, expected)
