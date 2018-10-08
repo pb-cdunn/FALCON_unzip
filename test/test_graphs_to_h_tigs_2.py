@@ -2183,3 +2183,229 @@ def test_fragment_single_haplotig_1():
 
         for key, result_htig in result.iteritems():
             assert result_htig.__dict__ == expected[key].__dict__, key
+
+def test_filter_haplotigs_by_len():
+    def create_test():
+        def test1(ctg_id):
+            """
+            Empty test case.
+            """
+            ### Inputs.
+            qlen = 100
+            tlen = 1000
+            haplotigs = {
+            }
+
+            min_query_span = 1
+            min_target_span = 1
+
+            inputs = haplotigs, min_query_span, min_target_span
+
+            ### Expected results.
+            expected = {
+            }
+
+            return inputs, expected
+
+        def test2(ctg_id):
+            """
+            Normal test case.
+            Nothing should be filtered.
+            """
+            ### Inputs.
+            qlen = 100
+            tlen = 1000
+            haplotigs = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = [], edges = [],
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "", path = [], edges = [],
+                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+            }
+
+            min_query_span = 0
+            min_target_span = 0
+
+            inputs = haplotigs, min_query_span, min_target_span
+
+            ### Expected results.
+            expected = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = [], edges = [],
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "", path = [], edges = [],
+                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+            }
+
+            return inputs, expected
+
+        def test3(ctg_id):
+            """
+            Normal test case.
+            Testing query filtering.
+            Same test as before, but with min_target_span = 1, so that one input
+            gets filtered.
+            """
+            ### Inputs.
+            qlen = 100
+            tlen = 1000
+            haplotigs = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = [], edges = [],
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "", path = [], edges = [],
+                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+            }
+
+            min_query_span = 1
+            min_target_span = 0
+
+            inputs = haplotigs, min_query_span, min_target_span
+
+            ### Expected results.
+            expected = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = [], edges = [],
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+            }
+
+            return inputs, expected
+
+        def test4(ctg_id):
+            """
+            Normal test case.
+            Testing target filtering.
+            Same test as before, but with min_target_span = 1, so that one input
+            gets filtered.
+            """
+            ### Inputs.
+            qlen = 100
+            tlen = 1000
+            haplotigs = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = [], edges = [],
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "", path = [], edges = [],
+                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+            }
+
+            min_query_span = 0
+            min_target_span = 5
+
+            inputs = haplotigs, min_query_span, min_target_span
+
+            ### Expected results.
+            expected = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+            }
+
+            return inputs, expected
+
+        def test5(ctg_id):
+            """
+            Normal test case.
+            Testing both query and target filtering.
+            Same test as before, but with min_target_span = 1, so that one input
+            gets filtered.
+            """
+            ### Inputs.
+            qlen = 100
+            tlen = 1000
+            haplotigs = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = [], edges = [],
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "", path = [], edges = [],
+                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+            }
+
+            min_query_span = 6
+            min_target_span = 5
+
+            inputs = haplotigs, min_query_span, min_target_span
+
+            ### Expected results.
+            expected = {
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+            }
+
+            return inputs, expected
+
+        def test6(ctg_id):
+            """
+            Normal test case.
+            Same test as before, but with min query and target spans set high enough to
+            filter the entire input.
+            """
+            ### Inputs.
+            qlen = 100
+            tlen = 1000
+            haplotigs = {
+                    'H1-0': Haplotig(name = 'H1-0', phase = (ctg_id, '0', '0'), seq = "This ", path = [], edges = [],
+                                    labels = {'region_of_interest': ((50, 0), (55, 5), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-1': Haplotig(name = 'H1-1', phase = (ctg_id, '0', '0'), seq = "is", path = [], edges = [],
+                                    labels = {'region_of_interest': ((55, 5), (59, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-2': Haplotig(name = 'H1-2', phase = (ctg_id, '0', '0'), seq = "", path = [], edges = [],
+                                    labels = {'region_of_interest': ((59, 7), (61, 7), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+                    'H1-3': Haplotig(name = 'H1-3', phase = (ctg_id, '0', '0'), seq = " a dummy sequence", path = [], edges = [],
+                                    labels = {'region_of_interest': ((61, 7), (79, 24), 'H1', qlen, ctg_id, tlen, (ctg_id, '0', '0'))}),
+            }
+
+            min_query_span = 1000
+            min_target_span = 1000
+
+            inputs = haplotigs, min_query_span, min_target_span
+
+            ### Expected results.
+            expected = {
+            }
+
+            return inputs, expected
+
+        # Pack test points.
+        ctg_id = '000000F'
+        tests = [ test1(ctg_id), test2(ctg_id), test3(ctg_id), test4(ctg_id), test5(ctg_id), test6(ctg_id)]
+
+        return tests
+
+    # Make the test inputs and expected outputs.
+    tests = create_test()
+
+    # result = mod.fragment_haplotigs(in_haplotig_dict, aln_dict, clippoints, bubble_tree, mock_fp_proto_log)
+    for test_id, test_args in enumerate(tests):
+        # Unpack a set of test arguments.
+        inputs, expected = test_args
+        in_haplotigs, min_query_span, min_target_span = inputs
+
+        # Run unit under test.
+        result = mod.filter_haplotigs_by_len(in_haplotigs, min_query_span, min_target_span, mock_fp_proto_log)
+
+        # Evaluate.
+        msg = 'test_id = {}'.format(test_id)
+        assert set(result.keys()) == set(expected.keys()), msg
+
+        for key, result_htig in result.iteritems():
+            msg = 'test_id = {}, key = {}'.format(test_id, key)
+            assert result_htig.__dict__ == expected[key].__dict__, msg

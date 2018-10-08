@@ -55,7 +55,7 @@ tstrand, tstart, tend, tlen = aln[8:12]
 ### The main method for processing a single ctg_id. ###
 #######################################################
 def run_generate_haplotigs_for_ctg(input_):
-    ctg_id, proto_dir, out_dir, base_dir, allow_multiple_primaries = input_
+    ctg_id, proto_dir, out_dir, base_dir, allow_multiple_primaries, min_query_span, min_target_span = input_
     LOG.info('Entering generate_haplotigs_for_ctg(ctg_id={!r}, out_dir={!r}, base_dir={!r}'.format(
         ctg_id, out_dir, base_dir))
     mkdir(out_dir)
@@ -80,7 +80,7 @@ def run_generate_haplotigs_for_ctg(input_):
         snp_haplotigs = all_haplotigs_for_ctg.get(ctg_id, {})
         return generate_haplotigs_for_ctg(ctg_id, p_ctg_seq, p_ctg_tiling_path, sg_edges,
                                             snp_haplotigs, allow_multiple_primaries,
-                                            out_dir, proto_dir, logger)
+                                            out_dir, proto_dir, min_query_span, min_target_span, logger)
     except Exception:
         LOG.exception('Failure in generate_haplotigs_for_ctg({!r})'.format(input_))
         raise
@@ -93,7 +93,8 @@ def run_generate_haplotigs_for_ctg(input_):
         # This will not cause any problems, as there is never a O(n) logger search.
 
 def generate_haplotigs_for_ctg(ctg_id, p_ctg_seq, p_ctg_tiling_path, sg_edges,
-                                snp_haplotigs, allow_multiple_primaries, out_dir, proto_dir, logger):
+                                snp_haplotigs, allow_multiple_primaries, out_dir,
+                                proto_dir, min_query_span, min_target_span, logger):
     """
     ctg_id              - string
     p_ctg_seq           - string, primary contig from 2-asm-falcon/p_ctg.fa
@@ -270,6 +271,9 @@ def generate_haplotigs_for_ctg(ctg_id, p_ctg_seq, p_ctg_tiling_path, sg_edges,
 
     # Fragment the haplotigs on all clippoints.
     fragmented_snp_haplotigs = fragment_haplotigs(filtered_snp_haplotigs, aln_dict, clippoints, bubble_tree, fp_proto_log)
+
+    # Filter very short haplotig fragments.
+    fragmented_snp_haplotigs = filter_haplotigs_by_len(fragmented_snp_haplotigs, min_query_span, min_target_span, fp_proto_log)
 
     # Take the fragmented haplotigs, and extract only diploid pairs as regions.
     diploid_region_list = create_diploid_regions(fragmented_snp_haplotigs, fp_proto_log)
@@ -638,6 +642,25 @@ def fragment_single_haplotig(haplotig, aln, cigar, clippoints, bubble_tree, fp_p
         ret_haplotigs[new_name] = new_haplotig
 
     return ret_haplotigs
+
+def filter_haplotigs_by_len(haplotigs_dict, min_query_span, min_target_span, fp_proto_log):
+    filtered = {}
+    for htig_name, htig in haplotigs_dict.iteritems():
+        region_of_interest = htig.labels['region_of_interest']
+        start, end, q_name, q_len, t_name, t_len, q_phase = region_of_interest
+
+        fp_proto_log('[filter_haplotigs_by_len] Testing: htig_name = {}, region_of_interest = {}'.format(htig_name, str(region_of_interest)))
+
+        if (end[0] - start[0]) < min_target_span:
+            fp_proto_log('  Target span is < {}. Skipping.'.format(min_target_span))
+            continue
+        elif (end[1] - start[1]) < min_query_span:
+            fp_proto_log('  Query span is < {}. Skipping.'.format(min_query_span))
+            continue
+        fp_proto_log('  Passed.')
+        filtered[htig_name] = htig
+
+    return filtered
 
 def create_diploid_regions(fragmented_snp_haplotigs, fp_proto_log):
     """
@@ -1439,6 +1462,9 @@ def cmd_apply(args):
     sub_args.fasta = fixpath(uow['input']['fasta_fn'])
     sub_args.rid_phase_map = fixpath(uow['input']['rid_phase_map'])
 
+    min_query_span = args.min_query_span
+    min_target_span = args.min_target_span
+
     define_globals(sub_args)
 
     #LOG.info('Creating the exe list for: {}'.format(str(ctg_id_list)))
@@ -1450,7 +1476,7 @@ def cmd_apply(args):
         out_dir = os.path.join('.', 'uow-{}'.format(ctg_id))
         base_dir = sub_args.base_dir
 
-        exe_list.append((ctg_id, proto_dir, out_dir, base_dir, False))
+        exe_list.append((ctg_id, proto_dir, out_dir, base_dir, False, min_query_span, min_target_span))
 
     LOG.info('Running {} units of work.'.format(len(exe_list)))
 
@@ -1640,6 +1666,12 @@ def parse_args(argv):
     parser_apply.add_argument(
         '--results-fn', required=True,
         help='Output. JSON list of results, one record per unit-of-work.')
+    parser_apply.add_argument(
+        '--min-query-span', type=int, default=100, required=False,
+        help='Minimum span of a haplotig fragment in query coordinates to retain it (the 3-unzip/1-hasm/p_ctg.fa after fragmentation.')
+    parser_apply.add_argument(
+        '--min-target-span', type=int, default=100, required=False,
+        help='Minimum span of a haplotig fragment in target coordinates (2-asm-falcon/p_ctg.fa contig) to retain it.')
     parser_apply.set_defaults(func=cmd_apply)
 
     parser_combine.add_argument(
