@@ -22,7 +22,7 @@ The haplotig_graph nodes are defined as:
 def mock_fp_proto_log(line):
     pass
 
-def make_dummy_linear_region(ctg_id, seq, pos_start, pos_end, name_=None):
+def make_dummy_linear_region(ctg_id, seq, pos_start, pos_end, name_):
     region_type = 'linear'
     first_edge = None
     last_edge = None
@@ -41,7 +41,7 @@ def make_dummy_linear_region(ctg_id, seq, pos_start, pos_end, name_=None):
 
     return new_region, htig_name
 
-def make_dummy_diploid_region(ctg_id, seq1, seq2, pos_start, pos_end, phasing_block, name_=None):
+def make_dummy_diploid_region(ctg_id, seq1, seq2, pos_start, pos_end, phasing_block, name_):
     region_type = 'diploid'
     first_edge = None
     last_edge = None
@@ -183,7 +183,7 @@ def test_regions_to_haplotig_graph_2():
         ### Inputs.
         regions = []
         # Create a linear region.
-        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
+        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000, 'L1')
         regions.append(new_region)
 
         ### Expected results.
@@ -214,10 +214,10 @@ def test_regions_to_haplotig_graph_3():
         ### Inputs.
         regions = []
         # Create the first linear region.
-        new_region, region_1_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
+        new_region, region_1_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000, 'L1')
         regions.append(new_region)
         # Create the second linear region.
-        new_region, region_2_header = make_dummy_linear_region(ctg_id, 'ACTG', 1000, 2000)
+        new_region, region_2_header = make_dummy_linear_region(ctg_id, 'ACTG', 1000, 2000, 'L2')
         regions.append(new_region)
 
         ### Expected results.
@@ -253,13 +253,13 @@ def test_regions_to_haplotig_graph_4():
         ### Inputs.
         regions = []
         # Create the first linear region.
-        new_region, region_1_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
+        new_region, region_1_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000, 'L1')
         regions.append(new_region)
         # Create the diploid region.
-        new_region, region_2_header_1, region_2_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0)
+        new_region, region_2_header_1, region_2_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0, 'D1')
         regions.append(new_region)
         # Create the second linear region.
-        new_region, region_3_header = make_dummy_linear_region(ctg_id, 'ACTG', 1000, 2000)
+        new_region, region_3_header = make_dummy_linear_region(ctg_id, 'ACTG', 1000, 2000, 'L2')
         regions.append(new_region)
 
         ### Expected results.
@@ -300,19 +300,19 @@ def test_regions_to_haplotig_graph_5():
         ### Inputs.
         regions = []
         # Create the first linear region.
-        new_region, region_1_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
+        new_region, region_1_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000, 'L1')
         regions.append(new_region)
         # Create a diploid region.
-        new_region, region_2_header_1, region_2_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0)
+        new_region, region_2_header_1, region_2_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0, 'D1')
         regions.append(new_region)
         # Create a diploid region.
-        new_region, region_3_header_1, region_3_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 2000, 3000, 1)
+        new_region, region_3_header_1, region_3_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 2000, 3000, 1, 'D2')
         regions.append(new_region)
         # Create a diploid region.
-        new_region, region_4_header_1, region_4_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 3000, 4000, 2)
+        new_region, region_4_header_1, region_4_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 3000, 4000, 2, 'D3')
         regions.append(new_region)
         # Create the second linear region.
-        new_region, region_5_header = make_dummy_linear_region(ctg_id, 'ACTG', 4000, 5000)
+        new_region, region_5_header = make_dummy_linear_region(ctg_id, 'ACTG', 4000, 5000, 'L2')
         regions.append(new_region)
 
         ### Expected results.
@@ -377,7 +377,7 @@ def test_regions_to_haplotig_graph_6():
         ### Inputs.
         regions = []
         # Create a diploid region.
-        new_region, region_1_header_1, region_1_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0)
+        new_region, region_1_header_1, region_1_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0, 'D1')
         regions.append(new_region)
 
         ### Expected results.
@@ -448,7 +448,7 @@ def test_update_haplotig_graph_2():
 
         # Compile a list of regions.
         regions = []
-        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
+        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000, 'L1')
         regions.append(new_region)
 
         # Convert regions to graph.
@@ -487,13 +487,13 @@ def test_update_haplotig_graph_3():
         # Compile a list of regions.
         regions = []
         # Create the first linear region.
-        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
+        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000, 'L1')
         regions.append(new_region)
         # Create the diploid region.
-        new_region, new_header_1, new_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0)
+        new_region, new_header_1, new_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0, 'D1')
         regions.append(new_region)
         # Create the second linear region.
-        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 2000, 3000)
+        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 2000, 3000, 'L2')
         regions.append(new_region)
 
         # Convert regions to graph.
@@ -533,13 +533,13 @@ def test_update_haplotig_graph_4():
         # Compile a list of regions.
         regions = []
         # Create the first linear region.
-        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
+        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000, 'L1')
         regions.append(new_region)
         # Create the diploid region.
-        new_region, new_header_1, new_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0)
+        new_region, new_header_1, new_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0, 'D1')
         regions.append(new_region)
         # Create the second linear region.
-        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 2000, 3000)
+        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 2000, 3000, 'L2')
         regions.append(new_region)
 
         # Convert regions to graph.
@@ -581,19 +581,19 @@ def test_update_haplotig_graph_5():
         # Compile a list of regions.
         regions = []
         # Create the first linear region.
-        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
+        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000, 'L1')
         regions.append(new_region)
         # Create the diploid region.
-        dip_0_region, dip_0_header_1, dip_0_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0)
+        dip_0_region, dip_0_header_1, dip_0_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0, 'D1')
         regions.append(dip_0_region)
         # Create the diploid region.
-        dip_1_region, dip_1_header_1, dip_1_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 2000, 3000, 1)
+        dip_1_region, dip_1_header_1, dip_1_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 2000, 3000, 1, 'D2')
         regions.append(dip_1_region)
         # Create the diploid region.
-        dip_2_region, dip_2_header_1, dip_2_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 3000, 4000, 2)
+        dip_2_region, dip_2_header_1, dip_2_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 3000, 4000, 2, 'D3')
         regions.append(dip_2_region)
         # Create the second linear region.
-        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 4000, 5000)
+        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 4000, 5000, 'L2')
         regions.append(new_region)
 
         # Convert regions to graph.
@@ -646,19 +646,19 @@ def test_update_haplotig_graph_6():
         # Compile a list of regions.
         regions = []
         # Create the first linear region.
-        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000)
+        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 0, 1000, 'L1')
         regions.append(new_region)
         # Create the diploid region.
-        dip_0_region, dip_0_header_1, dip_0_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0)
+        dip_0_region, dip_0_header_1, dip_0_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 1000, 2000, 0, 'D1')
         regions.append(dip_0_region)
         # Create the diploid region.
-        dip_1_region, dip_1_header_1, dip_1_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 2000, 3000, 1)
+        dip_1_region, dip_1_header_1, dip_1_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 2000, 3000, 1, 'D2')
         regions.append(dip_1_region)
         # Create the diploid region.
-        dip_2_region, dip_2_header_1, dip_2_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 3000, 4000, 2)
+        dip_2_region, dip_2_header_1, dip_2_header_2 = make_dummy_diploid_region(ctg_id, 'ACTG', 'TT', 3000, 4000, 2, 'D3')
         regions.append(dip_2_region)
         # Create the second linear region.
-        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 4000, 5000)
+        new_region, new_region_header = make_dummy_linear_region(ctg_id, 'ACTG', 4000, 5000, 'L2')
         regions.append(new_region)
 
         # Convert regions to graph.
@@ -1101,7 +1101,7 @@ def test_extract_unzipped_ctgs_1():
 
         # Linear region. Nothing is unzipped.
         region_1_seq = 'ACTG'
-        region_1, region_1_name = make_dummy_linear_region(ctg_id, region_1_seq, 1000, 2000)
+        region_1, region_1_name = make_dummy_linear_region(ctg_id, region_1_seq, 1000, 2000, 'L1')
         regions.append(region_1)
 
         # Create a haplotig graph (NetworkX object) from the regions.
@@ -1145,7 +1145,7 @@ def test_extract_unzipped_ctgs_2():
         # Diploid region. The entire contig is unzipped.
         region_1_seq_1 = 'ACTG'
         region_1_seq_2 = 'AT'
-        region_1, region_1_name_1, region_1_name_2 = make_dummy_diploid_region(ctg_id, region_1_seq_1, region_1_seq_2, 1000, 2000, 0)
+        region_1, region_1_name_1, region_1_name_2 = make_dummy_diploid_region(ctg_id, region_1_seq_1, region_1_seq_2, 1000, 2000, 0, 'D1')
         regions.append(region_1)
 
         # Create a haplotig graph (NetworkX object) from the regions.
@@ -1200,14 +1200,14 @@ def test_extract_unzipped_ctgs_3():
         regions_1 = []
         region_1_seq_1 = 'ACTG'
         region_1_seq_2 = 'AT'
-        region_1, region_1_name_1, region_1_name_2 = make_dummy_diploid_region(ctg_id + 'p0', region_1_seq_1, region_1_seq_2, 1000, 2000, 0)
+        region_1, region_1_name_1, region_1_name_2 = make_dummy_diploid_region(ctg_id + 'p0', region_1_seq_1, region_1_seq_2, 1000, 2000, 0, 'D1')
         regions_1.append(region_1)
 
         # Another diploid region. Could be linear, or any kind.
         regions_2 = []
         region_2_seq_1 = 'ACTG'
         region_2_seq_2 = 'AT'
-        region_2, region_2_name_1, region_2_name_2 = make_dummy_diploid_region(ctg_id + 'p1', region_2_seq_1, region_2_seq_2, 4000, 5000, 0)
+        region_2, region_2_name_1, region_2_name_2 = make_dummy_diploid_region(ctg_id + 'p1', region_2_seq_1, region_2_seq_2, 4000, 5000, 0, 'D2')
         regions_2.append(region_2)
 
         # Create haplotig graphs (NetworkX object) from the regions.
@@ -1239,14 +1239,14 @@ def test_extract_unzipped_ctgs_4():
         # Linear region.
         regions = []
         region_1_seq = 'AAAA'
-        region_1, region_1_name = make_dummy_linear_region(ctg_id + 'a', region_1_seq, 1000, 2000)
+        region_1, region_1_name = make_dummy_linear_region(ctg_id + 'a', region_1_seq, 1000, 2000, 'L1')
         regions.append(region_1)
         haplotig_graph_1 = mod.regions_to_haplotig_graph(ctg_id + 'a', regions, mock_fp_proto_log)
 
         # Another separate linear region.
         regions = []
         region_2_seq = 'TTTT'
-        region_2, region_2_name = make_dummy_linear_region(ctg_id + 'b', region_2_seq, 4000, 5000)
+        region_2, region_2_name = make_dummy_linear_region(ctg_id + 'b', region_2_seq, 4000, 5000, 'L2')
         regions.append(region_2)
         haplotig_graph_2 = mod.regions_to_haplotig_graph(ctg_id + 'b', regions, mock_fp_proto_log)
 
@@ -1295,7 +1295,7 @@ def test_extract_unzipped_ctgs_5(tmpdir):
         # Linear region.
         regions = []
         region_1_seq = 'AAAA'
-        region_1, region_1_name = make_dummy_linear_region(ctg_id + 'a', region_1_seq, 1000, 2000)
+        region_1, region_1_name = make_dummy_linear_region(ctg_id + 'a', region_1_seq, 1000, 2000, 'L1')
         regions.append(region_1)
         haplotig_graph_1 = mod.regions_to_haplotig_graph(ctg_id + 'a', regions, mock_fp_proto_log)
 
@@ -1303,7 +1303,7 @@ def test_extract_unzipped_ctgs_5(tmpdir):
         regions = []
         region_2_seq_1 = 'TTTT'
         region_2_seq_2 = 'GG'
-        region_2, region_2_name_1, region_2_name_2 = make_dummy_diploid_region(ctg_id + 'b', region_2_seq_1, region_2_seq_2, 4000, 5000, 1)
+        region_2, region_2_name_1, region_2_name_2 = make_dummy_diploid_region(ctg_id + 'b', region_2_seq_1, region_2_seq_2, 4000, 5000, 1, 'D1')
         regions.append(region_2)
         haplotig_graph_2 = mod.regions_to_haplotig_graph(ctg_id + 'b', regions, mock_fp_proto_log)
 
@@ -1311,15 +1311,15 @@ def test_extract_unzipped_ctgs_5(tmpdir):
         haplotig_graph = nx.compose(haplotig_graph_1, haplotig_graph_2)
 
         # Expected results.
-        exp_all_p_seqs = {  '{}p01'.format(ctg_id): region_2_seq_2,
+        exp_all_p_seqs = {  '{}p01'.format(ctg_id): region_2_seq_1,
                             '{}p02'.format(ctg_id): region_1_seq
                          }
-        exp_all_p_edges = { '{}p01'.format(ctg_id): ['{ctg_id}p01 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H 1 1 1 1' for edge in haplotig_graph.node[region_2_name_2]['htig']['path']],
+        exp_all_p_edges = { '{}p01'.format(ctg_id): ['{ctg_id}p01 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H 1 0 1 0' for edge in haplotig_graph.node[region_2_name_1]['htig']['path']],
                             '{}p02'.format(ctg_id): ['{ctg_id}p02 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H -1 0 -1 0' for edge in haplotig_graph.node[region_1_name]['htig']['path']],
                          }
-        exp_all_h_seqs = {  '{}p01_001'.format(ctg_id): region_2_seq_1
+        exp_all_h_seqs = {  '{}p01_001'.format(ctg_id): region_2_seq_2
                          }
-        exp_all_h_edges = { '{}p01_001'.format(ctg_id): ['{ctg_id}p01_001 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H 1 0 1 0' for edge in haplotig_graph.node[region_2_name_1]['htig']['path']]
+        exp_all_h_edges = { '{}p01_001'.format(ctg_id): ['{ctg_id}p01_001 '.format(ctg_id=ctg_id) + ' '.join(edge[1:3]) + ' N H 1 1 1 1' for edge in haplotig_graph.node[region_2_name_2]['htig']['path']]
                           }
         exp_all_h_paf = {}
 
