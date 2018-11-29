@@ -14,6 +14,9 @@ import collections
 import copy
 import falcon_kit.FastaReader
 import haplotig
+import logging
+import time
+LOG = logging.getLogger() # root, to inherit from sub-loggers
 
 def load_seqs(seq_path_list):
     seqs = {}
@@ -94,7 +97,7 @@ def create_new_rid2phase(ctg_id, rid2phase, all_regions, m4, a_paths):
         # process it further.
         if found_regions:
             if len(found_regions) > 1:
-                sys.stderr.write('[Proto] Read %s has %d regions.\n' % (rid, len(found_regions)))
+                LOG.info('[Proto] Read %s has %d regions.' % (rid, len(found_regions)))
 
             # Change the ID of the phasing block, by adding a large prefix value.
             max_linear_region = find_max_linear_region(all_regions, found_regions, reference_start, reference_end)
@@ -329,8 +332,10 @@ def delineate_regions(ctg_id, p_path, a_paths, a_placement):
                 next_state = STATE_SIMPLE_BUBBLE if num_open_branches == 1 else STATE_COMPLEX_BUBBLE
 
             if w in in_edges:
-                msg = 'FATAL ERROR: Cycles in the graph? w={!r}, len(in_edges)={}'.format(w, len(in_edges))
-                raise Exception(msg)
+                msg = "Cycles in the graph? w={!r}, len(in_edges)={}. Not a fatal error - skipping this contig because it's too sketchy.".format(w, len(in_edges))
+                LOG.warning(msg)
+                all_regions = []
+                return all_regions
 
         elif current_state == STATE_SIMPLE_BUBBLE:
 
@@ -620,6 +625,9 @@ def parse_args(argv):
     return args
 
 def main(argv=sys.argv):
+    logging.Formatter.converter = time.gmtime
+    logging.basicConfig(level=logging.INFO, format='[%(levelname)s %(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+
     args = parse_args(argv)
     run(**vars(args))
 
