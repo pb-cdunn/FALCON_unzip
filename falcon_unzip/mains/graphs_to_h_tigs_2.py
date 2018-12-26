@@ -606,10 +606,14 @@ def fragment_single_haplotig(haplotig, aln, cigar, clippoints, bubble_tree, fp_p
 
     regions_of_interest = []
     if len(all_pos_of_interest) > 1:
+        if hasattr(bubble_tree, 'overlap'):
+            bubble_tree_overlap = bubble_tree.overlap # intervaltree>=3
+        else:
+            bubble_tree_overlap = bubble_tree.search # intervaltree<3
         for start, end in zip(all_pos_of_interest[:-1], all_pos_of_interest[1:]):
             fp_proto_log(' start = {}, end = {}'.format(start, end))
             tstart, tend = start[0], end[0]
-            found_intervals = bubble_tree.search(tstart, tend)
+            found_intervals = bubble_tree_overlap(tstart, tend)
             if found_intervals:
                 continue
             regions_of_interest.append((start, end, q_name, q_len, t_name, t_len, haplotig.phase))
