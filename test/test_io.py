@@ -75,3 +75,14 @@ def test_yield_bam_fn(tmpdir):
             stream.write(fofn)
         fns = list(M.yield_bam_fn(fofn_fn))
         assert fns == ['/pbi/1.subreads.bam', '/pbi/2.subreads.bam']
+
+    with tmpdir.as_cwd():
+        bad_fofn = fofn + "/foo/bar.bai"
+        fofn_fn = './foo.fn'
+        with open(fofn_fn, 'w') as stream:
+            stream.write(bad_fofn)
+        with pytest.raises(Exception) as excinfo:
+            list(M.yield_bam_fn(fofn_fn))
+        assert 'All filenames in input_bam FOFN' in str(excinfo.value)
+        assert '/foo/bar.bai' in str(excinfo.value)
+        assert '/foo.fn' in str(excinfo.value)

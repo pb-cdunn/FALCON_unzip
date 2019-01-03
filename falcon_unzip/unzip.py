@@ -70,6 +70,14 @@ def parse_config(config_fn):
             config['General'].get('max_n_open_files', 300))
 
     assert 'input_bam_fofn' in config['Unzip'], 'You must provide "input_bam_fofn" in the [Unzip] section of "{}".'.format(config_fn)
+    try:
+        # Validate early.
+        list(io.yield_bam_fn(config['Unzip']['input_bam_fofn']))
+    except Exception:
+        msg = 'Failed to validate input_bam_fofn "{}" (from "input_bam_fofn" setting in [Unzip] section of config-file "{}").'.format(
+            config['Unzip']['input_bam_fofn'], config_fn)
+        LOG.critical(msg)
+        raise
 
     cfg_unzip = config['Unzip']
     def update_from_legacy(new_key, new_section, legacy_key, default=None):
