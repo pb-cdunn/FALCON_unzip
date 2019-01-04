@@ -96,6 +96,10 @@ def yield_bam_fn(input_bam_fofn_fn):
         fn = row.strip()
         if not fn:
             continue
+        if not fn.endswith('.bam'):
+            msg = 'All filenames in input_bam FOFN ("{}") must end in ".bam". Found "{}".'.format(
+                input_bam_fofn_fn, fn)
+            raise Exception(msg)
         yield abs_fn(fn)
 
 
