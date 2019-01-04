@@ -255,13 +255,24 @@ trap 'touch {output.job_done}.exit' EXIT
 hostname
 date
 
-echo "Q='%(vc_ignore_error)s'"
+VC_IGNORE_ERROR='{params.vc_ignore_error}'
+echo "VC_IGNORE_ERROR='$VC_IGNORE_ERROR'"
+USE_BLASR='{params.use_blasr}'
+echo "USE_BLASR='$USE_BLASR'"
+
 nproc={params.pypeflow_nproc}
 samtools faidx {input.ref_fasta}
-pbalign --tmpDir=$(pwd)/tmp --nproc=$nproc --minAccuracy=0.75 --minLength=50\
+if [[ $USE_BLASR != 1 ]]; then
+  pbmm2 align --sort \
+             {input.ref_fasta} {input.read_bam} aln-{params.ctg_id}.bam
+  pbindex aln-{params.ctg_id}.bam
+else
+  pbalign --tmpDir=$(pwd)/tmp --nproc=$nproc --minAccuracy=0.75 --minLength=50\
           --minAnchorSize=12 --maxDivergence=30 --concordant --algorithm=blasr\
           --algorithmOptions=--useQuality --maxHits=1 --hitPolicy=random --seed=1\
             {input.read_bam} {input.ref_fasta} aln-{params.ctg_id}.bam
+fi
+
 #python -c 'import ConsensusCore2 as cc2; print cc2' # So quiver likely works.
 
 set +e
@@ -269,25 +280,20 @@ variantCaller --algorithm=arrow -x 5 -X 120 -q 20 -j $nproc -r {input.ref_fasta}
             -o {output.cns_fasta} -o {output.cns_fastq} --minConfidence 0 -o {output.cns_vcf}
 rc=$?
 if [[ $rc != 0 ]]; then
-    if [[ $Q != 1 ]]; then
+    if [[ $VC_IGNORE_ERROR != 1 ]]; then
         echo ERROR variantCaller failed. Maybe no reads for this block?
         exit 1
     else
         echo WARNING variantCaller failed. Maybe no reads for this block.
+        # We expect variantCaller to write files even on error, so we do not need to "touch" them.
     fi
 fi
 set -e
 
-# We expect variantCaller to write files even on error, so we do not need to "touch" them.
-#touch {output.cns_fasta}
-#touch {output.cns_fastq}
-#touch {output.cns_vcf}
 cp -f {input.ctg_type} {output.ctg_type_again}
 date
 touch {output.job_done}
 """
-
-TASK_QUIVER_RUN_SCRIPT_PBMM2 = TASK_QUIVER_RUN_SCRIPT
 
 TASK_CNS_ZCAT_SCRIPT = """\
 python -m falcon_unzip.mains.cns_zcat \
@@ -301,7 +307,7 @@ touch {output.job_done}
 """
 
 TASK_QUIVER_SPLIT_SCRIPT = """\
-python -m falcon_unzip.mains.quiver_split --p-ctg-fasta-fn={input.p_ctg_fa} --h-ctg-fasta-fn={input.h_ctg_fa} --ctg2bamfn-fn={input.ctg2bamfn} --split-fn={output.split} --bash-template-fn={output.bash_template}
+python -m falcon_unzip.mains.quiver_split --unzip-config-fn={input.unzip_config_fn} --p-ctg-fasta-fn={input.p_ctg_fa} --h-ctg-fasta-fn={input.h_ctg_fa} --ctg2bamfn-fn={input.ctg2bamfn} --split-fn={output.split} --bash-template-fn={output.bash_template}
 """
 
 TASK_SEPARATE_GATHERED_QUIVER_SCRIPT = """\
@@ -363,7 +369,7 @@ def create_tasks_read_to_contig_map(wf, rule_writer, falcon_asm_done, raw_reads_
     ))
 
 
-def run_workflow(wf, config, rule_writer):
+def run_workflow(wf, config, unzip_config_fn, rule_writer):
     default_njobs = int(config['job.defaults']['njobs'])
     wf.max_jobs = default_njobs
 
@@ -693,6 +699,7 @@ def run_workflow(wf, config, rule_writer):
                 'p_ctg_fa': './3-unzip/all_p_ctg.fa',
                 'h_ctg_fa': './3-unzip/all_h_ctg.fa',
                 'ctg2bamfn': ctg2segregated_bamfn,
+                'unzip_config_fn': unzip_config_fn,
         },
         outputs={
                 'split': quiver_all_units_fn,
@@ -707,19 +714,13 @@ def run_workflow(wf, config, rule_writer):
         ),
     ))
 
-    vc_ignore_error = '1' if config['job.step.unzip.quiver']['vc_ignore_error'] else ''
-    if False:
-        script = TASK_QUIVER_RUN_SCRIPT
-    else:
-        script = TASK_QUIVER_RUN_SCRIPT_PBMM2
-    script = script%dict(vc_ignore_error=vc_ignore_error)
     int_gathered_fn = '4-polish/cns-gather/intermediate/int.gathered.json'
     gen_parallel_tasks(
         wf, rule_writer,
         quiver_all_units_fn, int_gathered_fn,
         run_dict=dict(
             bash_template_fn=quiver_run_bash_template_fn,
-            script=script,
+            script='',
             inputs={
                 'units_of_work': './4-polish/quiver-chunks/{ctg_id}/some-units-of-work.json',
             },

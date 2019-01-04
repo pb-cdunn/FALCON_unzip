@@ -17,7 +17,7 @@ import falcon_kit.functional
 LOG = logging.getLogger(__name__)
 
 
-def unzip_all(config):
+def unzip_all(config, unzip_config_fn):
     job_defaults = config['job.defaults']
     use_tmpdir = job_defaults['use_tmpdir'] # None/False is fine.
     wf = PypeProcWatcherWorkflow(
@@ -26,7 +26,7 @@ def unzip_all(config):
     )
     with open('/dev/null', 'w') as snakemake_writer:
         rule_writer = snakemake.SnakemakeRuleWriter(snakemake_writer)
-        tasks_unzip.run_workflow(wf, config, rule_writer)
+        tasks_unzip.run_workflow(wf, config, unzip_config_fn, rule_writer)
 
 def update_config_from_sections(config, cfg):
     allowed_sections = set([
@@ -58,10 +58,14 @@ def update_defaults(config):
         cfg = config[section]
         if key not in cfg:
             cfg[key] = val
-    set_default('job.step.unzip.quiver', 'vc_ignore_error', False)
+    set_default('Unzip', 'polish_vc_ignore_error', False)
+    set_default('Unzip', 'polish_use_blasr', False)
 
     # Fix up known boolean config-values, which could be strings.
-    for section, bool_key in (('job.step.unzip.quiver', 'vc_ignore_error'),):
+    for section, bool_key in (
+            ('Unzip', 'polish_vc_ignore_error'),
+            ('Unzip', 'polish_use_blasr'),
+            ):
         cfg = config[section]
         cfg[bool_key] = falcon_kit.functional.cfg_tobool(cfg[bool_key])
 
@@ -172,4 +176,9 @@ def run(config_fn, logging_config_fn):
     update_falcon_symlinks()
     backward_compatible_dirs()
 
-    unzip_all(config)
+    # Record the Unzip section as a dict for use by various tasks.
+    unzip_config = config['Unzip']
+    unzip_config_fn = os.path.join(os.path.dirname(config_fn), 'Unzip_config.json')
+    io.serialize(unzip_config_fn, unzip_config) # Some tasks use this.
+
+    unzip_all(config, unzip_config_fn)
