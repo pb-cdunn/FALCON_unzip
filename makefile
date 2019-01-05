@@ -9,7 +9,7 @@ wheel:
 	pip wheel -v --wheel-dir=${WHEELHOUSE} --no-deps .
 	ls -larth ${WHEELHOUSE}
 install-wheel: wheel
-	pip -v install --user --no-deps --use-wheel --find-links=dist/ .
+	pip -v install --user --upgrade --no-deps --use-wheel --find-links=dist/ .
 test:
 	python -c 'import falcon_kit; print falcon_kit.falcon; import falcon_unzip'
 	py.test ${MY_TEST_FLAGS} --junit-xml=test.xml --doctest-modules falcon_unzip/ test/
