@@ -12,6 +12,7 @@ import os
 import re
 import time
 import falcon_kit.run_support
+import falcon_kit.functional
 
 LOG = logging.getLogger(__name__)
 
@@ -50,6 +51,20 @@ def update_config_from_sections(config, cfg):
         if sec not in config:
             config[sec] = dict()
 
+def update_defaults(config):
+    """Update dict with any missing defaults.
+    """
+    def set_default(section, key, val):
+        cfg = config[section]
+        if key not in cfg:
+            cfg[key] = val
+    set_default('job.step.unzip.quiver', 'vc_ignore_error', False)
+
+    # Fix up known boolean config-values, which could be strings.
+    for section, bool_key in (('job.step.unzip.quiver', 'vc_ignore_error'),):
+        cfg = config[section]
+        cfg[bool_key] = falcon_kit.functional.cfg_tobool(cfg[bool_key])
+
 def parse_cfg_file(config_fn):
     """Return as dict.
     This overlooks some ad-hoc config.
@@ -60,6 +75,7 @@ def parse_cfg_file(config_fn):
         cfg2 = falcon_kit.run_support.parse_cfg_with_sections(stream)
         update_config_from_sections(config, cfg2)
     falcon_kit.run_support.update_job_defaults_section(config)
+    update_defaults(config)
     return config
 
 def parse_config(config_fn):

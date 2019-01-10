@@ -255,6 +255,7 @@ trap 'touch {output.job_done}.exit' EXIT
 hostname
 date
 
+echo "Q='%(vc_ignore_error)s'"
 nproc={params.pypeflow_nproc}
 samtools faidx {input.ref_fasta}
 pbalign --tmpDir=$(pwd)/tmp --nproc=$nproc --minAccuracy=0.75 --minLength=50\
@@ -262,16 +263,31 @@ pbalign --tmpDir=$(pwd)/tmp --nproc=$nproc --minAccuracy=0.75 --minLength=50\
           --algorithmOptions=--useQuality --maxHits=1 --hitPolicy=random --seed=1\
             {input.read_bam} {input.ref_fasta} aln-{params.ctg_id}.bam
 #python -c 'import ConsensusCore2 as cc2; print cc2' # So quiver likely works.
-(variantCaller --algorithm=arrow -x 5 -X 120 -q 20 -j $nproc -r {input.ref_fasta} aln-{params.ctg_id}.bam\
-            -o {output.cns_fasta} -o {output.cns_fastq} --minConfidence 0 -o {output.cns_vcf}) || echo WARNING quiver failed. Maybe no reads for this block.
-touch {output.cns_fasta}
-touch {output.cns_fastq}
-touch {output.cns_vcf}
+
+set +e
+variantCaller --algorithm=arrow -x 5 -X 120 -q 20 -j $nproc -r {input.ref_fasta} aln-{params.ctg_id}.bam\
+            -o {output.cns_fasta} -o {output.cns_fastq} --minConfidence 0 -o {output.cns_vcf}
+rc=$?
+if [[ $rc != 0 ]]; then
+    if [[ $Q != 1 ]]; then
+        echo ERROR variantCaller failed. Maybe no reads for this block?
+        exit 1
+    else
+        echo WARNING variantCaller failed. Maybe no reads for this block.
+    fi
+fi
+set -e
+
+# We expect variantCaller to write files even on error, so we do not need to "touch" them.
+#touch {output.cns_fasta}
+#touch {output.cns_fastq}
+#touch {output.cns_vcf}
 cp -f {input.ctg_type} {output.ctg_type_again}
 date
 touch {output.job_done}
 """
 
+TASK_QUIVER_RUN_SCRIPT_PBMM2 = TASK_QUIVER_RUN_SCRIPT
 
 TASK_CNS_ZCAT_SCRIPT = """\
 python -m falcon_unzip.mains.cns_zcat \
@@ -691,13 +707,19 @@ def run_workflow(wf, config, rule_writer):
         ),
     ))
 
+    vc_ignore_error = '1' if config['job.step.unzip.quiver']['vc_ignore_error'] else ''
+    if False:
+        script = TASK_QUIVER_RUN_SCRIPT
+    else:
+        script = TASK_QUIVER_RUN_SCRIPT_PBMM2
+    script = script%dict(vc_ignore_error=vc_ignore_error)
     int_gathered_fn = '4-polish/cns-gather/intermediate/int.gathered.json'
     gen_parallel_tasks(
         wf, rule_writer,
         quiver_all_units_fn, int_gathered_fn,
         run_dict=dict(
             bash_template_fn=quiver_run_bash_template_fn,
-            script=TASK_QUIVER_RUN_SCRIPT,
+            script=script,
             inputs={
                 'units_of_work': './4-polish/quiver-chunks/{ctg_id}/some-units-of-work.json',
             },
