@@ -9,12 +9,18 @@ from ..tasks.unzip import TASK_QUIVER_RUN_SCRIPT
 LOG = logging.getLogger()
 
 
-def run(p_ctg_fasta_fn, h_ctg_fasta_fn, ctg2bamfn_fn, split_fn, bash_template_fn):
+def run(p_ctg_fasta_fn, h_ctg_fasta_fn, ctg2bamfn_fn, split_fn, bash_template_fn,
+        unzip_config_fn,
+    ):
     LOG.info('Splitting quiver tasks into {!r}.'.format(
         split_fn))
     with open(bash_template_fn, 'w') as stream:
         stream.write(TASK_QUIVER_RUN_SCRIPT)
     ctg2bamfn = io.deserialize(ctg2bamfn_fn)
+
+    unzip_config = io.deserialize(unzip_config_fn)
+    polish_vc_ignore_error = '1' if unzip_config['polish_vc_ignore_error'] else '0'
+    polish_use_blasr = '1' if unzip_config['polish_use_blasr'] else '0'
 
     ref_seq_data = {}
 
@@ -71,6 +77,8 @@ def run(p_ctg_fasta_fn, h_ctg_fasta_fn, ctg2bamfn_fn, split_fn, bash_template_fn
         new_job['params'] = dict(
                 ctg_id=ctg_id,
                 #ctg_type=ctg_type,
+                vc_ignore_error=polish_vc_ignore_error,
+                use_blasr=polish_use_blasr,
         )
         new_job['input'] = dict(
                 ref_fasta=ref_fasta,
@@ -104,6 +112,10 @@ def parse_args(argv):
         description=description,
         epilog=epilog,
         formatter_class=HelpF,
+    )
+    parser.add_argument(
+        '--unzip-config-fn', required=True,
+        help='Serialized [Unzip] section of config',
     )
     parser.add_argument(
         '--p-ctg-fasta-fn',
