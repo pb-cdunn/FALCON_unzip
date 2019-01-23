@@ -107,11 +107,29 @@ def partition_ctgs(read2ctg, max_n_groups):
     return groups
 
 
-def merge_and_split_alignments(input_bam_fofn_fn, read2ctg, ctg2samfn, samfn2writer):
+def get_zmw(subread_name):
+    """
+    >>> get_zmw('foo/123/0_99')
+    'foo/123'
+    """
+    n = subread_name.count('/')
+    if n == 1:
+        # Unexpected, but maybe ok.
+        return subread_name
+    if n != 2:
+        msg = 'subread "{}" should have exactly 2 "/", but has {}'.format(
+                subread_name, n)
+        raise Exception(msg)
+    pos = subread_name.rfind('/')
+    assert pos != -1
+    return subread_name[0:pos]
+
+
+def merge_and_split_alignments(input_bam_fofn_fn, zmw2ctg, ctg2samfn, samfn2writer):
     """
     For each AlignmentFile in input_bam_fofn_fn,
       for each record in that file,
-        find the ctgs from the query_name (based on read2ctg, already selected)
+        find the ctgs from the query_name (based on zmw2ctg, already selected)
         and append the record to a new samfile based on the ctg name.
     """
     def yield_record_and_ctg():
@@ -123,11 +141,13 @@ def merge_and_split_alignments(input_bam_fofn_fn, read2ctg, ctg2samfn, samfn2wri
             with AlignmentFile(fn, 'rb', check_sq=False) as samfile:
                 for r in samfile.fetch(until_eof=True):
                     seen += 1
-                    if r.query_name not in read2ctg:
+                    subread_name = r.query_name # aka "read"
+                    zmw = get_zmw(subread_name)
+                    if zmw not in zmw2ctg:
                         # print "Missing:", r.query_name
                         continue
                     used += 1
-                    ctg = read2ctg[r.query_name]
+                    ctg = zmw2ctg[subread_name]
                     yield (r, ctg)
             log(' Saw {} records. Used {}.'.format(seen, used))
 
@@ -215,6 +235,26 @@ def write_read2ctg_subsets(read2ctg, ctg2samfn):
         serialize(fn, read2ctg_subset)
 
 
+def get_zmw2ctg(read2ctg):
+    """Return map of only the 'run/zmw' to ctgs.
+
+    If 2 reads from the same zmw map to different ctgs, we
+    will warn and keep one arbitrarily.
+    """
+    result = dict()
+    skipped = set()
+    for subread_name, ctg in read2ctg.items():
+        zmw = get_zmw(subread_name)
+        if zmw in result and result[zmw] != ctg:
+            msg = 'Found dup ctg in read2ctg for zmw "{}" (subread {}); maps to "{}" and "{}"; keeping the latter.'.format(
+                zmw, subread_name, ctg, result[zmw])
+            LOG.warn(msg)
+            del result[zmw]
+            skipped.add(zmw)
+        if zmw not in skipped:
+            result[zmw] = ctg
+    return result
+
 def run(input_bam_fofn, read2ctg_fn, merged_fn, max_n_open_files):
     sam_dir = os.path.dirname(merged_fn)
     log('SAM files will go into {!r}'.format(sam_dir))
@@ -228,8 +268,9 @@ def run(input_bam_fofn, read2ctg_fn, merged_fn, max_n_open_files):
     write_read2ctg_subsets(read2ctg, ctg2samfn)
     header = get_bam_header(input_bam_fofn)
     samfn2writer = open_sam_writers(header, set(ctg2samfn.values()))
+    zmw2ctg = get_zmw2ctg(read2ctg)
     try:
-        merge_and_split_alignments(input_bam_fofn, read2ctg, ctg2samfn, samfn2writer)
+        merge_and_split_alignments(input_bam_fofn, zmw2ctg, ctg2samfn, samfn2writer)
     finally:
         log('Closing {} SAM writers'.format(len(filenames)))
         close_sam_writers(samfn2writer.values())

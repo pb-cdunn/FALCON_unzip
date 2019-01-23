@@ -75,7 +75,7 @@ import sys
 
 
 def parse_args(argv):
-    epilog = 'Typically run in ./4-polish/select_reads/'
+    epilog = 'Typically run in ./4-polish/select-reads/'
     parser = argparse.ArgumentParser(
         description='Map ctg->BAM filename.',
         epilog=epilog,
