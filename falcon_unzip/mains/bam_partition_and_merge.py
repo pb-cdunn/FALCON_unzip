@@ -107,6 +107,24 @@ def partition_ctgs(read2ctg, max_n_groups):
     return groups
 
 
+def get_zmw(subread_name):
+    """
+    >>> get_zmw('foo/123/0_99')
+    'foo/123'
+    """
+    n = subread_name.count('/')
+    if n == 1:
+        # Unexpected, but maybe ok.
+        return subread_name
+    if n != 2:
+        msg = 'subread "{}" should have exactly 2 "/", but has {}'.format(
+                subread_name, n)
+        raise Exception(msg)
+    pos = subread_name.rfind('/')
+    assert pos != -1
+    return subread_name[0:pos]
+
+
 def merge_and_split_alignments(input_bam_fofn_fn, read2ctg, ctg2samfn, samfn2writer):
     """
     For each AlignmentFile in input_bam_fofn_fn,

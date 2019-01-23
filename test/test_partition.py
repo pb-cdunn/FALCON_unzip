@@ -1,3 +1,4 @@
+import pytest
 import falcon_unzip.mains.bam_partition_and_merge as M
 import StringIO
 import collections
@@ -33,3 +34,12 @@ def test_partition_ctgs_4():
     groups3 = M.partition_ctgs(read2ctg, 3)
     groups4 = M.partition_ctgs(read2ctg, 4)
     assert groups3 == groups4
+
+
+def test_get_zmw():
+    assert M.get_zmw('foo/123/anything') == 'foo/123'
+    assert M.get_zmw('foo/123') == 'foo/123'
+    with pytest.raises(Exception) as e:
+        M.get_zmw('foo')
+    with pytest.raises(Exception) as e:
+        M.get_zmw('foo/123/anything/extra')
