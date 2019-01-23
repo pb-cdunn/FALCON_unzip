@@ -233,6 +233,23 @@ def write_read2ctg_subsets(read2ctg, ctg2samfn):
         serialize(fn, read2ctg_subset)
 
 
+def get_zmw2ctg(read2ctg):
+    """Return map of only the 'run/zmw' to ctgs.
+
+    If 2 reads from the same zmw map to different ctgs, we
+    will warn and keep one arbitrarily.
+    """
+    result = dict()
+    for subread_name, ctg in read2ctg.items():
+        zmw = get_zmw(subread_name)
+        if zmw in result and result[zmw] != ctg:
+            msg = 'Found dup ctg in read2ctg for zmw "{}" (subread {}); maps to "{}" and "{}"; keeping the latter.'.format(
+                zmw, subread_name, ctg, result[zmw])
+            LOG.warn(msg)
+        else:
+            result[zmw] = ctg
+    return result
+
 def run(input_bam_fofn, read2ctg_fn, merged_fn, max_n_open_files):
     sam_dir = os.path.dirname(merged_fn)
     log('SAM files will go into {!r}'.format(sam_dir))

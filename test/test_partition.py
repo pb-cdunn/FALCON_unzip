@@ -2,6 +2,7 @@ import pytest
 import falcon_unzip.mains.bam_partition_and_merge as M
 import StringIO
 import collections
+import logging
 import os
 
 read2ctg = {
@@ -43,3 +44,19 @@ def test_get_zmw():
         M.get_zmw('foo')
     with pytest.raises(Exception) as e:
         M.get_zmw('foo/123/anything/extra')
+
+def test_get_zmw2ctg(caplog):
+    caplog.set_level(logging.WARN)
+    read2ctg = {
+        'foo/123/0_1': 'ABC',
+        'foo/123/2_3': 'ABC',
+        'foo/123/4_5': 'DEF',
+        'bar/321/0_1': 'ABC',
+        'bar/654/0_1': 'DEF',
+    }
+    zmw2ctg = M.get_zmw2ctg(read2ctg)
+    assert zmw2ctg['foo/123'] in ('ABC', 'DEF')
+    assert zmw2ctg['bar/321'] == 'ABC'
+    assert zmw2ctg['bar/654'] == 'DEF'
+    assert 'foo/123' in caplog.text
+    assert 'bar' not in caplog.text
