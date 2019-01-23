@@ -55,7 +55,7 @@ def test_get_zmw2ctg(caplog):
         'bar/654/0_1': 'DEF',
     }
     zmw2ctg = M.get_zmw2ctg(read2ctg)
-    assert zmw2ctg['foo/123'] in ('ABC', 'DEF')
+    assert 'foo/123' not in zmw2ctg
     assert zmw2ctg['bar/321'] == 'ABC'
     assert zmw2ctg['bar/654'] == 'DEF'
     assert 'foo/123' in caplog.text

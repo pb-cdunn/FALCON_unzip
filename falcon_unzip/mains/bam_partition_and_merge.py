@@ -242,13 +242,16 @@ def get_zmw2ctg(read2ctg):
     will warn and keep one arbitrarily.
     """
     result = dict()
+    skipped = set()
     for subread_name, ctg in read2ctg.items():
         zmw = get_zmw(subread_name)
         if zmw in result and result[zmw] != ctg:
             msg = 'Found dup ctg in read2ctg for zmw "{}" (subread {}); maps to "{}" and "{}"; keeping the latter.'.format(
                 zmw, subread_name, ctg, result[zmw])
             LOG.warn(msg)
-        else:
+            del result[zmw]
+            skipped.add(zmw)
+        if zmw not in skipped:
             result[zmw] = ctg
     return result
 
