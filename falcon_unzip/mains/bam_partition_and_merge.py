@@ -125,11 +125,11 @@ def get_zmw(subread_name):
     return subread_name[0:pos]
 
 
-def merge_and_split_alignments(input_bam_fofn_fn, read2ctg, ctg2samfn, samfn2writer):
+def merge_and_split_alignments(input_bam_fofn_fn, zmw2ctg, ctg2samfn, samfn2writer):
     """
     For each AlignmentFile in input_bam_fofn_fn,
       for each record in that file,
-        find the ctgs from the query_name (based on read2ctg, already selected)
+        find the ctgs from the query_name (based on zmw2ctg, already selected)
         and append the record to a new samfile based on the ctg name.
     """
     def yield_record_and_ctg():
@@ -141,11 +141,13 @@ def merge_and_split_alignments(input_bam_fofn_fn, read2ctg, ctg2samfn, samfn2wri
             with AlignmentFile(fn, 'rb', check_sq=False) as samfile:
                 for r in samfile.fetch(until_eof=True):
                     seen += 1
-                    if r.query_name not in read2ctg:
+                    subread_name = r.query_name # aka "read"
+                    zmw = get_zmw(subread_name)
+                    if zmw not in zmw2ctg:
                         # print "Missing:", r.query_name
                         continue
                     used += 1
-                    ctg = read2ctg[r.query_name]
+                    ctg = zmw2ctg[subread_name]
                     yield (r, ctg)
             log(' Saw {} records. Used {}.'.format(seen, used))
 
@@ -263,8 +265,9 @@ def run(input_bam_fofn, read2ctg_fn, merged_fn, max_n_open_files):
     write_read2ctg_subsets(read2ctg, ctg2samfn)
     header = get_bam_header(input_bam_fofn)
     samfn2writer = open_sam_writers(header, set(ctg2samfn.values()))
+    zmw2ctg = get_zmw2ctg(read2ctg)
     try:
-        merge_and_split_alignments(input_bam_fofn, read2ctg, ctg2samfn, samfn2writer)
+        merge_and_split_alignments(input_bam_fofn, zmw2ctg, ctg2samfn, samfn2writer)
     finally:
         log('Closing {} SAM writers'.format(len(filenames)))
         close_sam_writers(samfn2writer.values())
