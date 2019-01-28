@@ -58,7 +58,10 @@ def create_new_rid2phase(ctg_id, rid2phase, all_regions, m4, a_paths):
             continue # See http://bitbucket.nanofluidics.com:7990/projects/SAT/repos/falcon_unzip_private/pull-requests/62/overview
         intervals.append(intervaltree.Interval(pos_start, pos_end, region_id))
     tree = intervaltree.IntervalTree(intervals)
-
+    if hasattr(tree, 'overlap'):
+        tree_overlap = tree.overlap # intervaltree>=3
+    else:
+        tree_overlap = tree.search # intervaltree<3
     """
     When the rid2phase is updated, we need to preserve the
     relation between the old and the new phases, so that
@@ -91,7 +94,7 @@ def create_new_rid2phase(ctg_id, rid2phase, all_regions, m4, a_paths):
         if phase_block_id == '-1':
             continue
 
-        found_regions = tree.search(reference_start, reference_end)
+        found_regions = tree_overlap(reference_start, reference_end)
 
         # If the read maps to a linear region at least partially,
         # process it further.
