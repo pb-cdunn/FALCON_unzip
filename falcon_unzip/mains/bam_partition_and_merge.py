@@ -147,7 +147,7 @@ def merge_and_split_alignments(input_bam_fofn_fn, zmw2ctg, ctg2samfn, samfn2writ
                         # print "Missing:", r.query_name
                         continue
                     used += 1
-                    ctg = zmw2ctg[subread_name]
+                    ctg = zmw2ctg[zmw]
                     yield (r, ctg)
             log(' Saw {} records. Used {}.'.format(seen, used))
 
