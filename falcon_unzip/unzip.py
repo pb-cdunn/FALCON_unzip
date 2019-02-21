@@ -156,7 +156,8 @@ def backward_compatible_dirs():
     if os.path.lexists(quiver_dn):
         if os.path.islink(quiver_dn):
             # This is fine.
-            assert os.readlink(quiver_dn) == polish_dn
+            if os.path.exists(quiver_dn):
+                assert os.readlink(quiver_dn) == polish_dn
         elif os.path.isdir(quiver_dn):
             # If 4-quiver already exists as a directory, we first move it, unless 4-polish exists.
             if os.path.lexists(polish_dn):
