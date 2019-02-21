@@ -293,7 +293,7 @@ def parse_args(argv):
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '--read2ctg-fn', type=str,
-        default='./4-polish/select_reads/read2ctg.msgpack',
+        default='./4-polish/select-reads/read2ctg.msgpack',
         help='Input msgpack from prev step.')
     parser.add_argument(
         '--merged-fn', type=str,
