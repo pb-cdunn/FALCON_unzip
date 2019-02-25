@@ -81,8 +81,10 @@ def fetch_ref_and_reads(
             row = row.strip().split()
             hit_ctg = row[1]
             hit_ctg = hit_ctg.split('-')[0]
-            if hit_ctg not in read_set and int(row[3]) == 0:
+            if int(row[3]) == 0:
                 o_id = pid_to_oid(row[0])
+                if o_id in read_set:
+                    continue
                 read_set[o_id] = hit_ctg
                 ctg_id_hits[hit_ctg] = ctg_id_hits.get(hit_ctg, 0) + 1
 
