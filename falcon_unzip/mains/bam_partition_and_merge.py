@@ -125,34 +125,49 @@ def get_zmw(subread_name):
     return subread_name[0:pos]
 
 
-def merge_and_split_alignments(input_bam_fofn_fn, zmw2ctg, ctg2samfn, samfn2writer):
-    """
+def yield_record_and_ctg(input_bam_fofn_fn, name2ctg, subread_name2name):
+    """yield (r, ctg)
+
     For each AlignmentFile in input_bam_fofn_fn,
       for each record in that file,
-        find the ctgs from the query_name (based on zmw2ctg, already selected)
-        and append the record to a new samfile based on the ctg name.
+        find the ctgs from the query_name
     """
-    def yield_record_and_ctg():
-        """yield (r, ctg)"""
-        for i, fn in enumerate(yield_bam_fn(input_bam_fofn_fn)):
-            log('BAM input #{:3d}: {!r}'.format(i, fn))
-            seen = 0
-            used = 0
-            with AlignmentFile(fn, 'rb', check_sq=False) as samfile:
-                for r in samfile.fetch(until_eof=True):
-                    seen += 1
-                    subread_name = r.query_name # aka "read"
-                    zmw = get_zmw(subread_name)
-                    if zmw not in zmw2ctg:
-                        # print "Missing:", r.query_name
-                        continue
-                    used += 1
-                    ctg = zmw2ctg[zmw]
-                    yield (r, ctg)
-            log(' Saw {} records. Used {}.'.format(seen, used))
+    log('len(name2ctg)=={}'.format(len(name2ctg)))
+    for i, fn in enumerate(yield_bam_fn(input_bam_fofn_fn)):
+        log('BAM input #{:3d}: {!r}'.format(i, fn))
+        seen = 0
+        used = 0
+        with AlignmentFile(fn, 'rb', check_sq=False) as samfile:
+            for r in samfile.fetch(until_eof=True):
+                seen += 1
+                subread_name = r.query_name # aka "read"
+                name = subread_name2name(subread_name)
+                if name not in name2ctg:
+                    # print "Missing:", r.query_name
+                    continue
+                used += 1
+                ctg = name2ctg[name]
+                yield (r, ctg)
+        log(' Saw {} records. Used {}.'.format(seen, used))
 
+def gen_pairs(input_bam_fofn_fn, read2ctg):
+    return yield_record_and_ctg(input_bam_fofn_fn, read2ctg, lambda x: x)
+
+def gen_pairs_extra(input_bam_fofn_fn, read2ctg):
+    log('Including all subreads for each mapped zmw.')
+    log('len(read2ctg)=={}'.format(len(read2ctg)))
+    zmw2ctg = get_zmw2ctg(read2ctg)
+
+    return yield_record_and_ctg(input_bam_fofn_fn, zmw2ctg, get_zmw)
+
+
+def merge_and_split_alignments(record_and_ctg_pairs, ctg2samfn, samfn2writer):
+    """
+    For each (record, ctg) pair,
+     append the record to a new samfile based on the ctg name.
+    """
     # Actually write. This can take a looooong time for many large BAMs.
-    for (r, ctg) in yield_record_and_ctg():
+    for (r, ctg) in record_and_ctg_pairs:
         samfn = ctg2samfn[ctg]
         #log(' Writing to samfn:{!r}'.format(samfn))
         writer = samfn2writer[samfn]
@@ -255,7 +270,7 @@ def get_zmw2ctg(read2ctg):
             result[zmw] = ctg
     return result
 
-def run(input_bam_fofn, read2ctg_fn, merged_fn, max_n_open_files):
+def run(extra_subreads, input_bam_fofn, read2ctg_fn, merged_fn, max_n_open_files):
     sam_dir = os.path.dirname(merged_fn)
     log('SAM files will go into {!r}'.format(sam_dir))
     mkdirs(sam_dir)
@@ -268,9 +283,13 @@ def run(input_bam_fofn, read2ctg_fn, merged_fn, max_n_open_files):
     write_read2ctg_subsets(read2ctg, ctg2samfn)
     header = get_bam_header(input_bam_fofn)
     samfn2writer = open_sam_writers(header, set(ctg2samfn.values()))
-    zmw2ctg = get_zmw2ctg(read2ctg)
     try:
-        merge_and_split_alignments(input_bam_fofn, zmw2ctg, ctg2samfn, samfn2writer)
+        if bool(int(extra_subreads)):
+            yield_func = gen_pairs_extra
+        else:
+            yield_func = gen_pairs
+        pairs = yield_func(input_bam_fofn, read2ctg)
+        merge_and_split_alignments(pairs, ctg2samfn, samfn2writer)
     finally:
         log('Closing {} SAM writers'.format(len(filenames)))
         close_sam_writers(samfn2writer.values())
@@ -302,6 +321,10 @@ def parse_args(argv):
     parser.add_argument(
         '--max-n-open-files', type=int, default=300,
         help='We write sam files several at-a-time, limited by this.')
+    parser.add_argument(
+        '--extra-subreads', type=str, default='0',
+        help='If set, then include extra subreads (all subreads from any mapped zmws).',
+    )
     parser.add_argument(
         'input_bam_fofn', type=str,
         help='File of BAM filenames. Paths are relative to dir of FOFN, not CWD.')

@@ -60,11 +60,13 @@ def update_defaults(config):
             cfg[key] = val
     set_default('Unzip', 'polish_vc_ignore_error', False)
     set_default('Unzip', 'polish_use_blasr', False)
+    set_default('Unzip', 'polish_include_zmw_all_subreads', False)
 
     # Fix up known boolean config-values, which could be strings.
     for section, bool_key in (
             ('Unzip', 'polish_vc_ignore_error'),
             ('Unzip', 'polish_use_blasr'),
+            ('Unzip', 'polish_include_zmw_all_subreads'),
             ):
         cfg = config[section]
         cfg[bool_key] = falcon_kit.functional.cfg_tobool(cfg[bool_key])
@@ -135,6 +137,8 @@ def symlink_if_missing(src, name):
         os.symlink(src, name)
     elif os.path.islink(name):
         rn = os.readlink(name)
+        if rn == src:
+            return # in case 'src' does not exist yet, but they already match
         if not os.path.samefile(src, rn):
             LOG.warning('"{}" != "{}" in {}'.format(src, rn, os.getcwd()))
 

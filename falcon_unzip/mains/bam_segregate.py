@@ -2,36 +2,80 @@ from .. import io
 from .bam_partition_and_merge import (get_zmw, get_zmw2ctg)
 import logging
 import os
-log = io.log
+
+LOG = logging.getLogger()
 
 
-def segregate_ctgs(merged_fn, zmw2ctg, ctg2samfn, samfn2writer):
-    """Walk sequentially through the merged.bam file.
+def log(*msgs):
+    LOG.info(' '.join(repr(m) for m in msgs))
+
+def yield_record_and_ctg(merged_fn, name2ctg, subread_name2name):
+    """yield (r, ctg)
+
+      for each record in the merged BAM file,
+        find the ctgs from the query_name
+    """
+    log('len(name2ctg)=={}'.format(len(name2ctg)))
+    log('BAM input: {!r}'.format(merged_fn))
+    seen = 0
+    used = 0
+    with io.AlignmentFile(merged_fn, 'rb', check_sq=False) as samfile:
+        for r in samfile.fetch(until_eof=True):
+            seen += 1
+            subread_name = r.query_name # aka "read"
+            name = subread_name2name(subread_name)
+            if name not in name2ctg:
+                # print "Missing:", r.query_name
+                continue
+            used += 1
+            ctg = name2ctg[name]
+            yield (r, ctg)
+    log(' Saw {} records. Used {}.'.format(seen, used))
+
+def gen_pairs(merged_fn, read2ctg):
+    return yield_record_and_ctg(merged_fn, read2ctg, lambda x: x)
+
+def gen_pairs_extra(merged_fn, read2ctg):
+    log('Including all subreads for each mapped zmw.')
+    log('len(read2ctg)=={}'.format(len(read2ctg)))
+    zmw2ctg = get_zmw2ctg(read2ctg)
+
+    return yield_record_and_ctg(merged_fn, zmw2ctg, get_zmw)
+
+def yield_record_and_ctg_extra(merged_fn, read2ctg):
+    """yield (r, ctg)
+
+      for each record in the merged BAM file,
+        find the ctgs from the query_name
+
+    Keep all subreads in each mapped zmw.
+    """
+    name2ctg = get_zmw2ctg(read2ctg)
+
+    log('BAM input: {!r}'.format(merged_fn))
+    seen = 0
+    used = 0
+    with io.AlignmentFile(merged_fn, 'rb', check_sq=False) as samfile:
+        for r in samfile.fetch(until_eof=True):
+            seen += 1
+            subread_name = r.query_name # aka "read"
+            name = get_zmw(subread_name)
+            if name not in name2ctg:
+                # print "Missing:", r.query_name
+                continue
+            used += 1
+            ctg = name2ctg[name]
+            yield (r, ctg)
+    log(' Saw {} records. Used {}.'.format(seen, used))
+
+
+def segregate_ctgs(record_and_ctg_pairs, ctg2samfn, samfn2writer):
+    """For each (record, ctg) pair,
     Write each read to the samfile for its contig.
     (Expensive. Lots of i/o.)
     """
-    log('Segregating reads from a merged BAM: {!r}'.format(merged_fn))
-
-    def yield_record_and_ctg():
-        """yield (r, ctg)"""
-        log('BAM input: {!r}'.format(merged_fn))
-        seen = 0
-        used = 0
-        with io.AlignmentFile(merged_fn, 'rb', check_sq=False) as samfile:
-            for r in samfile.fetch(until_eof=True):
-                seen += 1
-                subread_name = r.query_name # aka "read"
-                zmw = get_zmw(subread_name)
-                if zmw not in zmw2ctg:
-                    # print "Missing:", r.query_name
-                    continue
-                used += 1
-                ctg = zmw2ctg[zmw]
-                yield (r, ctg)
-        log(' Saw {} records. Used {}.'.format(seen, used))
-
     # Actually write.
-    for (r, ctg) in yield_record_and_ctg():
+    for (r, ctg) in record_and_ctg_pairs:
         samfn = ctg2samfn[ctg]
         #log(' Writing to samfn:{!r}'.format(samfn))
         writer = samfn2writer[samfn]
@@ -81,7 +125,7 @@ def get_ctg2samfn(zmw2ctg, basedir):
     return ctg2samfn
 
 
-def run(merged_bam_fn, segregated_bam_fns_fn):
+def run(extra_subreads, merged_bam_fn, segregated_bam_fns_fn):
     merged_fn = merged_bam_fn
     output_basedir = os.path.normpath(os.path.dirname(segregated_bam_fns_fn))
     if os.path.islink(merged_fn):
@@ -90,13 +134,18 @@ def run(merged_bam_fn, segregated_bam_fns_fn):
         merged_fn = os.path.realpath(merged_fn)
     # We have (for now) an implicit input next to each merged_fn.
     read2ctg_fn = merged_fn + '.read2ctg.msgpack'  # by convention
-    zmw2ctg = get_zmw2ctg(io.deserialize(read2ctg_fn))
-    ctg2samfn = get_ctg2samfn(zmw2ctg, output_basedir)
+    read2ctg = io.deserialize(read2ctg_fn)
+    ctg2samfn = get_ctg2samfn(read2ctg, output_basedir)
     header = get_single_bam_header(merged_fn)
     bamfns = list(set(ctg2samfn.values()))
     samfn2writer = open_sam_writers(header, bamfns)
     try:
-        segregate_ctgs(merged_fn, zmw2ctg, ctg2samfn, samfn2writer)
+        if bool(int(extra_subreads)):
+            yield_func = gen_pairs_extra
+        else:
+            yield_func = gen_pairs
+        pairs = yield_func(merged_fn, read2ctg)
+        segregate_ctgs(pairs, ctg2samfn, samfn2writer)
     finally:
         close_sam_writers(samfn2writer.values())
     io.serialize(segregated_bam_fns_fn, bamfns)
@@ -120,6 +169,10 @@ def parse_args(argv):
     parser.add_argument(
         '--merged-bam-fn', type=str,
         help='Input. A JSON list of (merged BAM, read2ctg).',
+    )
+    parser.add_argument(
+        '--extra-subreads', type=str, default='0',
+        help='If set, then include extra subreads (all subreads from any mapped zmws).',
     )
     # parser.add_argument('--max-n-open-files', type=int,
     #        default=300,

@@ -8,11 +8,14 @@ from ..tasks.unzip import TASK_SEGREGATE_RUN_SCRIPT
 LOG = logging.getLogger()
 
 
-def run(merged_fofn_fn, bash_template_fn, split_fn):
+def run(unzip_config_fn, merged_fofn_fn, bash_template_fn, split_fn):
     LOG.info('Scatting segregate-reads tasks into {!r}. Reading merged BAM names from FOFN: {!r}'.format(
         split_fn, merged_fofn_fn))
     with open(bash_template_fn, 'w') as stream:
         stream.write(TASK_SEGREGATE_RUN_SCRIPT)
+
+    unzip_config = io.deserialize(unzip_config_fn)
+    extra = '1' if unzip_config['polish_include_zmw_all_subreads'] else '0'
 
     basedir = os.path.normpath(os.path.dirname(split_fn))
     fns = list(io.yield_abspath_from_fofn(merged_fofn_fn))
@@ -32,7 +35,9 @@ def run(merged_fofn_fn, bash_template_fn, split_fn):
         job['output'] = dict(
                 segregated_bam_fns=segregated_bam_fns_fn,
         )
-        job['params'] = dict()
+        job['params'] = dict(
+                extra=extra,
+        )
         job['wildcards'] = {'segr': job_name} # This should match the wildcard used in the pattern elsewhere.
         jobs.append(job)
     io.serialize(split_fn, jobs)
@@ -49,6 +54,10 @@ def parse_args(argv):
         description=description,
         epilog=epilog,
         formatter_class=HelpF,
+    )
+    parser.add_argument(
+        '--unzip-config-fn', required=True,
+        help='Input. Serialized [Unzip] section of config.',
     )
     parser.add_argument(
         '--merged-fofn-fn',
