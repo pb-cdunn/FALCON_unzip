@@ -1,30 +1,11 @@
 from .. import io
-from pypeflow.io import cd
+from .bam_partition_and_merge import (get_zmw, get_zmw2ctg)
 import logging
 import os
-import re
-#LOG = logging.getLogger()
 log = io.log
 
-re_merged_fn = re.compile(r'([^/.]+).bam$')
 
-
-def get_ctg_from_fn(fn):
-    """
-    >>> get_ctg_from_fn('/a/b/c.bam')
-    'c'
-    >>> get_ctg_from_fn('/a/b/c12.bam')
-    'c12'
-    """
-    log(' get_ctg_from_fn({!r})'.format(fn))
-    mo = re_merged_fn.search(fn)
-    if not mo:
-        raise Exception('No ctg found in BAM filename {!r} based on regex {!r}'.format(
-            fn, re_merged_fn.pattern))
-    return mo.group(1)
-
-
-def segregate_ctgs(merged_fn, read2ctg, ctg2samfn, samfn2writer):
+def segregate_ctgs(merged_fn, zmw2ctg, ctg2samfn, samfn2writer):
     """Walk sequentially through the merged.bam file.
     Write each read to the samfile for its contig.
     (Expensive. Lots of i/o.)
@@ -33,16 +14,19 @@ def segregate_ctgs(merged_fn, read2ctg, ctg2samfn, samfn2writer):
 
     def yield_record_and_ctg():
         """yield (r, ctg)"""
+        log('BAM input: {!r}'.format(merged_fn))
         seen = 0
         used = 0
         with io.AlignmentFile(merged_fn, 'rb', check_sq=False) as samfile:
             for r in samfile.fetch(until_eof=True):
                 seen += 1
-                if r.query_name not in read2ctg:
+                subread_name = r.query_name # aka "read"
+                zmw = get_zmw(subread_name)
+                if zmw not in zmw2ctg:
                     # print "Missing:", r.query_name
                     continue
                 used += 1
-                ctg = read2ctg[r.query_name]
+                ctg = zmw2ctg[zmw]
                 yield (r, ctg)
         log(' Saw {} records. Used {}.'.format(seen, used))
 
@@ -85,12 +69,12 @@ def get_single_bam_header(fn):
         return samfile.header
 
 
-def get_ctg2samfn(read2ctg, basedir):
+def get_ctg2samfn(zmw2ctg, basedir):
     """Choose the output filename for each BAM-file,
     where each has reads for a single contig.
     """
     ctg2samfn = dict()
-    ctgs = set(read2ctg.values())
+    ctgs = set(zmw2ctg.values())
     for ctg in ctgs:
         fn = os.path.join(basedir, '..', 'segregated', ctg, '{}.bam'.format(ctg))
         ctg2samfn[ctg] = fn
@@ -106,13 +90,13 @@ def run(merged_bam_fn, segregated_bam_fns_fn):
         merged_fn = os.path.realpath(merged_fn)
     # We have (for now) an implicit input next to each merged_fn.
     read2ctg_fn = merged_fn + '.read2ctg.msgpack'  # by convention
-    read2ctg = io.deserialize(read2ctg_fn)
-    ctg2samfn = get_ctg2samfn(read2ctg, output_basedir)
+    zmw2ctg = get_zmw2ctg(io.deserialize(read2ctg_fn))
+    ctg2samfn = get_ctg2samfn(zmw2ctg, output_basedir)
     header = get_single_bam_header(merged_fn)
     bamfns = list(set(ctg2samfn.values()))
     samfn2writer = open_sam_writers(header, bamfns)
     try:
-        segregate_ctgs(merged_fn, read2ctg, ctg2samfn, samfn2writer)
+        segregate_ctgs(merged_fn, zmw2ctg, ctg2samfn, samfn2writer)
     finally:
         close_sam_writers(samfn2writer.values())
     io.serialize(segregated_bam_fns_fn, bamfns)
