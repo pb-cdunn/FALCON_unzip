@@ -135,6 +135,8 @@ def symlink_if_missing(src, name):
         os.symlink(src, name)
     elif os.path.islink(name):
         rn = os.readlink(name)
+        if rn == src:
+            return # in case 'src' does not exist yet, but they already match
         if not os.path.samefile(src, rn):
             LOG.warning('"{}" != "{}" in {}'.format(src, rn, os.getcwd()))
 
