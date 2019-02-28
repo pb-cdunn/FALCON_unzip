@@ -239,7 +239,7 @@ abs_input_read2ctg=$(readlink -f {input.read2ctg})
 cd {params.topdir}
 pwd
 #fc_select_reads_from_bam.py --max-n-open-files={params.max_n_open_files} ${{abs_input_input_bam_fofn}}
-python -m falcon_unzip.mains.bam_partition_and_merge --max-n-open-files={params.max_n_open_files} --read2ctg-fn=${{abs_input_read2ctg}} --merged-fn=${{abs_output_merged_fofn}} ${{abs_input_input_bam_fofn}}
+python -m falcon_unzip.mains.bam_partition_and_merge --extra={params.extra} --max-n-open-files={params.max_n_open_files} --read2ctg-fn=${{abs_input_read2ctg}} --merged-fn=${{abs_output_merged_fofn}} ${{abs_input_input_bam_fofn}}
 # I think this should be memory-constrained. Only 1 proc, I think.
 cd -
 ls -l {output.merged_fofn}
@@ -315,11 +315,11 @@ python -m falcon_unzip.mains.quiver_separate_gathered --gathered-fn={input.gathe
 """
 
 TASK_SEGREGATE_SPLIT_SCRIPT = """
-python -m falcon_unzip.mains.bam_segregate_split --merged-fofn-fn={input.merged_fofn} --split-fn={output.split} --bash-template-fn={output.bash_template}
+python -m falcon_unzip.mains.bam_segregate_split --unzip-config-fn={input.unzip_config_fn} --merged-fofn-fn={input.merged_fofn} --split-fn={output.split} --bash-template-fn={output.bash_template}
 """
 
 TASK_SEGREGATE_RUN_SCRIPT = """
-python -m falcon_unzip.mains.bam_segregate --merged-bam-fn={input.merged_bam_fn} --segregated-bam-fns-fn={output.segregated_bam_fns}
+python -m falcon_unzip.mains.bam_segregate --extra={params.extra} --merged-bam-fn={input.merged_bam_fn} --segregated-bam-fns-fn={output.segregated_bam_fns}
 """
 
 
@@ -393,6 +393,7 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
     LOG.info('config=\n {}'.format(config))
     Unzip_config = config['Unzip']
     fasta_fofn_fn = Unzip_config.get('input_fofn') #, './input.fofn') # from user config, usually
+    extra = str(int(Unzip_config['polish_include_zmw_all_subreads']))
 
     wf.addTask(gen_task(
             script=TASK_TRACK_READS_SCRIPT,
@@ -628,6 +629,7 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
             'merged_fofn': merged_fofn,
         },
         parameters={
+            'extra': extra,
             'max_n_open_files': config['max_n_open_files'],
         },
         rule_writer=rule_writer,
@@ -643,12 +645,14 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
         script=TASK_SEGREGATE_SPLIT_SCRIPT,
         inputs=dict(
             merged_fofn=merged_fofn,
+            unzip_config_fn=unzip_config_fn,
         ),
         outputs=dict(
             split=segr_all_units_fn,
             bash_template=segr_run_bash_template_fn,
         ),
-        parameters={},
+        parameters=dict(
+        ),
         rule_writer=rule_writer,
         dist=Dist(local=True),
     ))

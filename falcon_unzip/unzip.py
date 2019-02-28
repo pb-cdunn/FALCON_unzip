@@ -60,11 +60,13 @@ def update_defaults(config):
             cfg[key] = val
     set_default('Unzip', 'polish_vc_ignore_error', False)
     set_default('Unzip', 'polish_use_blasr', False)
+    set_default('Unzip', 'polish_include_zmw_all_subreads', False)
 
     # Fix up known boolean config-values, which could be strings.
     for section, bool_key in (
             ('Unzip', 'polish_vc_ignore_error'),
             ('Unzip', 'polish_use_blasr'),
+            ('Unzip', 'polish_include_zmw_all_subreads'),
             ):
         cfg = config[section]
         cfg[bool_key] = falcon_kit.functional.cfg_tobool(cfg[bool_key])
