@@ -1,3 +1,4 @@
+from __future__ import division
 import os
 import re
 
@@ -10,7 +11,7 @@ def run(out_stream, phased_reads, rawread_ids_fn, pread_ids_fn, pread_to_contigs
 
     def pid_to_oid(pid):
         fid = pid_to_fid[int(pid)]
-        rid = int(fid.split('/')[1]) / 10
+        rid = int(fid.split('/')[1]) // 10
         return rid_to_oid[int(rid)]
 
     rid_to_phase = {}
