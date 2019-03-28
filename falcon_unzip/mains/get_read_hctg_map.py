@@ -1,3 +1,4 @@
+from __future__ import division
 import os
 
 
@@ -40,8 +41,8 @@ def run(
                 pid2 = int(n2.split(':')[0])
                 rid1 = pread_did_to_rid[pid1].split('/')[1]
                 rid2 = pread_did_to_rid[pid2].split('/')[1]
-                rid1 = int(int(rid1) / 10)
-                rid2 = int(int(rid2) / 10)
+                rid1 = int(int(rid1) // 10)
+                rid2 = int(int(rid2) // 10)
                 oid1 = rid_to_oid[rid1]
                 oid2 = rid_to_oid[rid2]
                 k1 = (pid1, rid1, oid1)

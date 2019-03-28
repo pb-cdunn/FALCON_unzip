@@ -464,7 +464,9 @@ def load_and_hash_sam(sam_path):
 def create_phase_alias_map(phase_relation_graph):
     alias_to_phase_list = []
     phase_alias_map = {}
-    for subg in nx.weakly_connected_component_subgraphs(phase_relation_graph):
+    #from networkx.algorithms.components import weakly_connected_components
+    for c in nx.weakly_connected_components(phase_relation_graph):
+        subg = phase_relation_graph.subgraph(c)
         # Make all phases point to the same ID.
         num_aliases = len(alias_to_phase_list)
         for v in subg.nodes():
@@ -1171,7 +1173,8 @@ def extract_unzipped_ctgs(ctg_id, haplotig_graph, allow_multiple_primaries, fp_p
 
     num_prim_ctg = 0
 
-    for sub_hg_id, sub_hg in enumerate(nx.weakly_connected_component_subgraphs(haplotig_graph)):
+    for sub_hg_id, c in enumerate(nx.weakly_connected_components(haplotig_graph)):
+        sub_hg = haplotig_graph.subgraph(c)
         if (not allow_multiple_primaries) and sub_hg_id > 0:
             msg = 'Skipping additional subgraphs of the primary contig: {ctg_id}. The graph has multiple primary components.'.format(ctg_id=ctg_id)
             raise Exception(msg)

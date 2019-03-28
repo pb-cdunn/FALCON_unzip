@@ -100,7 +100,8 @@ def write_diploid_groups(diploid_groups, out_path, fp_proto_log):
 
 def extract_weakly_unphased_haplotig_paths(graph, weight_param='weight'):
     best_paths = []
-    for sub_hg in nx.weakly_connected_component_subgraphs(graph):
+    for c in nx.weakly_connected_components(graph):
+        sub_hg = graph.subgraph(c)
         best_path = extract_unphased_haplotig_paths(sub_hg)
         best_paths.append(best_path)
     return best_paths

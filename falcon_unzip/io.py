@@ -4,7 +4,6 @@ from falcon_kit.io import (
         rm, touch, filesize, exists_and_not_empty,
         yield_abspath_from_fofn, cd,
 )
-import commands
 import json
 import logging
 import msgpack
