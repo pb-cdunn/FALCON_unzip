@@ -32,7 +32,7 @@ def test_eng():
 def test_validate_config(tmpdir, monkeypatch):
     #which_cmd = M.capture('which which').strip()
     cmds = [
-        'blasr', 'samtools', 'pbalign', 'variantCaller',
+        'blasr', 'samtools', 'pbalign', 'gcpp',
         'minimap2',
         'nucmer', 'show-coords',
         'fc_rr_hctg_track2.exe',
