@@ -276,16 +276,16 @@ fi
 #python -c 'import ConsensusCore2 as cc2; print cc2' # So quiver likely works.
 
 set +e
-variantCaller --algorithm=arrow -x 5 -X 120 -q 20 -j $nproc -r {input.ref_fasta} aln-{params.ctg_id}.bam\
+gcpp --algorithm=arrow -x 5 -X 120 -q 20 -j $nproc -r {input.ref_fasta} aln-{params.ctg_id}.bam\
             -o {output.cns_fasta} -o {output.cns_fastq} --minConfidence 0 -o {output.cns_vcf}
 rc=$?
 if [[ $rc != 0 ]]; then
     if [[ $VC_IGNORE_ERROR != 1 ]]; then
-        echo ERROR variantCaller failed. Maybe no reads for this block?
+        echo ERROR gcpp failed. Maybe no reads for this block?
         exit 1
     else
-        echo WARNING variantCaller failed. Maybe no reads for this block.
-        # We expect variantCaller to write files even on error, so we do not need to "touch" them.
+        echo WARNING gcpp failed. Maybe no reads for this block.
+        # We expect gcpp to write files even on error, so we do not need to "touch" them.
     fi
 fi
 set -e
