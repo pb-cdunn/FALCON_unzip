@@ -4,7 +4,7 @@ from falcon_kit.FastaReader import FastaReader
 from pypeflow.simple_pwatcher_bridge import (
     PypeProcWatcherWorkflow,
 )
-from .tasks import unzip as tasks_unzip
+from .tasks import unzip as tasks_unzip, ccs as tasks_ccs
 from . import io
 import glob
 import logging
@@ -27,6 +27,17 @@ def unzip_all(config, unzip_config_fn):
     with open('/dev/null', 'w') as snakemake_writer:
         rule_writer = snakemake.SnakemakeRuleWriter(snakemake_writer)
         tasks_unzip.run_workflow(wf, config, unzip_config_fn, rule_writer)
+
+def ccs_all(config, unzip_config_fn):
+    job_defaults = config['job.defaults']
+    use_tmpdir = job_defaults['use_tmpdir'] # None/False is fine.
+    wf = PypeProcWatcherWorkflow(
+        job_defaults=job_defaults,
+        use_tmpdir=use_tmpdir,
+    )
+    with open('/dev/null', 'w') as snakemake_writer:
+        rule_writer = snakemake.SnakemakeRuleWriter(snakemake_writer)
+        tasks_ccs.run_workflow(wf, config, unzip_config_fn, rule_writer)
 
 def update_config_from_sections(config, cfg):
     allowed_sections = set([
@@ -91,16 +102,6 @@ def parse_config(config_fn):
     config.setdefault('max_n_open_files',
             config['General'].get('max_n_open_files', 300))
 
-    assert 'input_bam_fofn' in config['Unzip'], 'You must provide "input_bam_fofn" in the [Unzip] section of "{}".'.format(config_fn)
-    try:
-        # Validate early.
-        list(io.yield_bam_fn(config['Unzip']['input_bam_fofn']))
-    except Exception:
-        msg = 'Failed to validate input_bam_fofn "{}" (from "input_bam_fofn" setting in [Unzip] section of config-file "{}").'.format(
-            config['Unzip']['input_bam_fofn'], config_fn)
-        LOG.critical(msg)
-        raise
-
     cfg_unzip = config['Unzip']
     def update_from_legacy(new_key, new_section, legacy_key, default=None):
         config.setdefault(new_section, {})
@@ -131,6 +132,17 @@ def parse_config(config_fn):
     io.validate_config(config)
     return config
 
+def validate_input_bam_fofn(config, config_fn):
+    assert 'input_bam_fofn' in config['Unzip'], 'You must provide "input_bam_fofn" in the [Unzip] section of "{}".'.format(config_fn)
+    try:
+        # Validate early.
+        list(io.yield_bam_fn(config['Unzip']['input_bam_fofn']))
+    except Exception:
+        msg = 'Failed to validate input_bam_fofn "{}" (from "input_bam_fofn" setting in [Unzip] section of config-file "{}").'.format(
+            config['Unzip']['input_bam_fofn'], config_fn)
+        LOG.critical(msg)
+        raise
+
 def symlink_if_missing(src, name):
     if not os.path.lexists(name):
         LOG.info(' ln -s {} {}'.format(src, name))
@@ -152,38 +164,20 @@ def update_falcon_symlinks():
         symlink_if_missing('las-gather', 'las-merge-combine')
     LOG.info('Falcon directories up-to-date.')
 
-def backward_compatible_dirs():
-    # We will symlink the new 4-polish
-    # directory from the old 4-quiver name.
-    quiver_dn = '4-quiver'
-    polish_dn = '4-polish'
-    if os.path.lexists(quiver_dn):
-        if os.path.islink(quiver_dn):
-            # This is fine.
-            if os.path.exists(quiver_dn):
-                assert os.readlink(quiver_dn) == polish_dn
-        elif os.path.isdir(quiver_dn):
-            # If 4-quiver already exists as a directory, we first move it, unless 4-polish exists.
-            if os.path.lexists(polish_dn):
-                msg = 'Both {} and {} exist already.'.format(quiver_dn, polish_dn)
-                raise Exception(msg)
-            os.rename(quiver_dn, polish_dn)
-        else:
-            msg = '{} is a file, not a directory or symlink.'.format(quiver_dn)
-            raise Exception(msg)
-    symlink_if_missing(polish_dn, quiver_dn)
-
-def run(config_fn, logging_config_fn):
+def run(target, config_fn, logging_config_fn):
     global LOG
     LOG = support.setup_logger(logging_config_fn)
 
     config = parse_config(config_fn)
     update_falcon_symlinks()
-    backward_compatible_dirs()
 
     # Record the Unzip section as a dict for use by various tasks.
     unzip_config = config['Unzip']
     unzip_config_fn = os.path.join(os.path.dirname(config_fn), 'Unzip_config.json')
     io.serialize(unzip_config_fn, unzip_config) # Some tasks use this.
 
-    unzip_all(config, unzip_config_fn)
+    if target == 'ccs':
+        ccs_all(config, unzip_config_fn)
+    else:
+        validate_input_bam_fofn(config, config_fn)
+        unzip_all(config, unzip_config_fn)
