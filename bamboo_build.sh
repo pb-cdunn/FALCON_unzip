@@ -2,8 +2,6 @@
 source bamboo_setup.sh
 set -vex
 
-python setup.py -v bdist_wheel
-
 WHEELHOUSE="/mnt/software/p/python/wheelhouse/develop/"
 pip install -v --user --no-index --find-links=${WHEELHOUSE} pytest networkx pysam msgpack pylint future intervaltree pypeflow falcon_kit
 
