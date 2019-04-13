@@ -1,3 +1,5 @@
+"""--target=clr
+"""
 from __future__ import absolute_import
 from falcon_kit.pype import Dist
 from falcon_kit import pype_tasks
