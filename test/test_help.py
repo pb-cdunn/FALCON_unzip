@@ -24,3 +24,15 @@ def test(mod):
     with pytest.raises(SystemExit) as excinfo:
         module.main(['prog', '--help'])
     assert 0 == excinfo.value.code
+
+def test_start_unzip():
+    from falcon_unzip.mains.start_unzip import parse_args
+
+    args = parse_args(['foo', 'foo.cfg'])
+    assert args.target == 'clr'  # default
+
+    args = parse_args(['foo', '--target=clr', 'foo.cfg'])
+    assert args.target == 'clr'  # default
+
+    args = parse_args(['foo', '--target=ccs', 'foo.cfg'])
+    assert args.target == 'ccs'  # default

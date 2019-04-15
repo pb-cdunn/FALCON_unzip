@@ -76,6 +76,7 @@ def validate_config(config):
         syscall('which ' + cmd)
     syscall('nucmer --version')
     syscall('minimap2 --version')
+    syscall('racon --version')
     capture('show-coords -h')
 
     samtools_output = capture('samtools', nocheck=True)
