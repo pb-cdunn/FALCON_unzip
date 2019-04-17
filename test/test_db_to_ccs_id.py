@@ -9,7 +9,10 @@ def test_help():
         pass
 
 def test_main_1(request):
-    print("dir:", request.fspath.dirname)
+
+#    os.path.join(helpers.get_test_data_dir(), 'gfa-1')
+#    print("dir:", request.fspath.dirname)
+
     argv = ['prog',
             '--lookup'      , 'falcon_unzip/test_data/0-phasing/readname_lookup.txt',
             '--rid-to-phase', 'falcon_unzip/test_data/0-phasing/rid_to_phase.tmp',
