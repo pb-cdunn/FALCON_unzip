@@ -5,7 +5,6 @@ import argparse
 import logging
 import os
 import sys
-import csv
 
 def run(lookup, rid_to_phase, rid_to_ctg, output, ctg):
     """Convert a CCS read name to a DazDB ID. Also add in unphased reads at the end."""
@@ -15,7 +14,7 @@ def run(lookup, rid_to_phase, rid_to_ctg, output, ctg):
             lc = line.strip().split("\t")
             nameLookup[lc[1]] = lc[0]
 
-    out = open(output, 'w+')
+    out = open(output, 'w')
 
     seen = {}
 
@@ -25,8 +24,7 @@ def run(lookup, rid_to_phase, rid_to_ctg, output, ctg):
     with open(rid_to_phase, 'r') as mf:
         for line in mf:
             lc = line.strip().split(" ")
-            newId = nameLookup[lc[0]]
-            out.write("%s %s %s %s\n" % (newId, lc[1], lc[2], lc[3]))
+            out.write("%s %s %s %s\n" % (nameLookup[lc[0]], lc[1], lc[2], lc[3]))
             seen[lc[0]] = 1
 
     with open(rid_to_ctg, 'r') as rctg:

@@ -1,8 +1,6 @@
 import falcon_unzip.mains.db_to_ccs_id as mod
 import pytest
-import helpers
 import os
-import filecmp
 
 
 def test_help():
@@ -10,6 +8,11 @@ def test_help():
         mod.main(['prog', '--help'])
     except SystemExit:
         pass
+
+def filecheck(got_fn, expected_fn):
+    got = open(got_fn).read()
+    expected = open(expected_fn).read()
+    assert got == expected
 
 def test_main_1(request, tmpdir):
     out_fn = str(tmpdir.join('test_db_to_ccs_id_res.txt'))
@@ -25,4 +28,4 @@ def test_main_1(request, tmpdir):
 
     mod.main(argv)
 
-    assert filecmp.cmp(td('rid_to_phase'), out_fn)
+    filecheck(td('rid_to_phase'), out_fn)
