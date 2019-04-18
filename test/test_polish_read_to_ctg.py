@@ -25,7 +25,7 @@ def test_main_1(request, tmpdir):
             '--lookup-fn'      , td1('readname_lookup.txt'),
             '--rid-to-phase-fn', td2('rid_to_phase.all'),
             '--edges-fn'       , td2('combined_edges.txt'),
-            '--out-read-to-ctg', out_fn
+            '--out-read-to-ctg-fn', out_fn
             ]
 
     mod.main(argv)
