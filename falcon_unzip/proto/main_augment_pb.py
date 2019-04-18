@@ -629,7 +629,7 @@ def parse_args(argv):
 
 def main(argv=sys.argv):
     logging.Formatter.converter = time.gmtime
-    logging.basicConfig(level=logging.INFO, format='[%(levelname)s %(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    logging.basicConfig(level=logging.INFO, format='[%(levelname)s %(process)d %(threadName)s %(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
     args = parse_args(argv)
     run(**vars(args))

@@ -8,7 +8,7 @@ import os
 import sys
 from collections import defaultdict
 
-def run(lookup_fn, edges_fn, rid_to_phase_fn, out_read_to_ctg):
+def run(lookup_fn, edges_fn, rid_to_phase_fn, out_read_to_ctg_fn):
     nameLookup = {}
     with open(lookup_fn, 'r') as lf:
         for line in lf:
@@ -35,7 +35,7 @@ def run(lookup_fn, edges_fn, rid_to_phase_fn, out_read_to_ctg):
             phaseblock2ctg[k][lc[0]] = 1
 
 
-    of = open(out_read_to_ctg, "w")
+    of = open(out_read_to_ctg_fn, "w")
 
     of.write("#ccs_id ctg phase_block\n")
     with open(rid_to_phase_fn, 'r') as rctg:
@@ -75,7 +75,7 @@ Write read_to_ctgs as
         help='RID to phase file'
     )
     parser.add_argument(
-        '--out-read-to-ctg',
+        '--out-read-to-ctg-fn',
         required=True,
         help='Final read assignment for phased reads'
     )
