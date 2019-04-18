@@ -51,13 +51,6 @@ def get_phased_reads(phased_reads_fn, q_id_map_fn, vmap_fn, p_variant_fn, ctg_id
                     print >> out_f, r, ctg_id, p, 0, vl.get((p, 0), 0), vl.get((p, 1), 0), rid_map[r]
                 elif vl.get((p, 1), 0) - vl.get((p, 0), 0) > 1:
                     print >> out_f, r, ctg_id, p, 1, vl.get((p, 0), 0), vl.get((p, 1), 0), rid_map[r]
-    # We were unable to avoid running this particular function in a new directory,
-    # so we move the old one out of the way to catch any problems in the workflow graph.
-    # TODO: DELETE SOON. (In a couple weeks.)
-    old_phased_reads_fn = os.path.join(
-        os.path.dirname(phased_reads_fn), '..', 'phased_reads')
-    if os.path.exists(old_phased_reads_fn):
-        os.rename(old_phased_reads_fn, old_phased_reads_fn + '.bak')
 
 
 ######
