@@ -204,7 +204,7 @@ TASK_PREAMBLE = """
 
 
 
-def run_workflow(wf, config, unzip_config_fn, rule_writer):
+def run_workflow(wf, config, unzip_config_fn):
     default_njobs = int(config['job.defaults']['njobs'])
     wf.max_jobs = default_njobs
 
@@ -424,7 +424,7 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
     """
     gathered_g2h_fn = './3-unzip/2-htigs/gathered/gathered.json'
     gen_parallel_tasks(
-        wf, rule_writer,
+        wf,
         g2h_all_units_fn, gathered_g2h_fn,
         run_dict=dict(
             bash_template_fn=dummy_fn,

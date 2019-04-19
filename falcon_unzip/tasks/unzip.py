@@ -333,7 +333,7 @@ python -m falcon_unzip.mains.bam_segregate --extra={params.extra} --merged-bam-f
 """
 
 
-def create_tasks_read_to_contig_map(wf, rule_writer, falcon_asm_done, raw_reads_db, preads_db, rawread_ids_fn, pread_ids_fn, read_to_contig_map_file, parameters):
+def create_tasks_read_to_contig_map(wf, falcon_asm_done, raw_reads_db, preads_db, rawread_ids_fn, pread_ids_fn, read_to_contig_map_file, parameters):
 
     wf.addTask(gen_task(
         script=pype_tasks.TASK_DUMP_RAWREAD_IDS_SCRIPT,
@@ -343,7 +343,6 @@ def create_tasks_read_to_contig_map(wf, rule_writer, falcon_asm_done, raw_reads_
         outputs={'rawread_id_file': rawread_ids_fn,
         },
         parameters=parameters,
-        rule_writer=rule_writer,
         dist=Dist(local=True), # TODO: Is this ok to run locally?
     ))
 
@@ -355,7 +354,6 @@ def create_tasks_read_to_contig_map(wf, rule_writer, falcon_asm_done, raw_reads_
         outputs={'pread_id_file': pread_ids_fn,
         },
         parameters=parameters,
-        rule_writer=rule_writer,
         dist=Dist(local=True), # TODO: Is this ok to run locally?
     ))
 
@@ -374,12 +372,11 @@ def create_tasks_read_to_contig_map(wf, rule_writer, falcon_asm_done, raw_reads_
         inputs=inputs,
         outputs={'read_to_contig_map': read_to_contig_map_file},
         parameters=parameters,
-        rule_writer=rule_writer,
         dist=Dist(local=True), # TODO: Is this ok to run locally?
     ))
 
 
-def run_workflow(wf, config, unzip_config_fn, rule_writer):
+def run_workflow(wf, config, unzip_config_fn):
     default_njobs = int(config['job.defaults']['njobs'])
     wf.max_jobs = default_njobs
 
@@ -394,7 +391,7 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
     rawread_ids_fn = '3-unzip/reads/dump_rawread_ids/rawread_ids'
     pread_ids_fn = '3-unzip/reads/dump_pread_ids/pread_ids'
     # This has lots of inputs from falcon stages 0, 1, and 2.
-    create_tasks_read_to_contig_map(wf, rule_writer, falcon_asm_done_fn, raw_reads_db_fn, preads_db_fn, rawread_ids_fn, pread_ids_fn, read_to_contig_map_fn, {})
+    create_tasks_read_to_contig_map(wf, falcon_asm_done_fn, raw_reads_db_fn, preads_db_fn, rawread_ids_fn, pread_ids_fn, read_to_contig_map_fn, {})
 
     ctg_list_fn = './3-unzip/reads/ctg_list'
     rawread_to_contigs_fn = './3-unzip/reads/rawread_to_contigs'
@@ -423,7 +420,6 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
                 'pread_to_contigs': pread_to_contigs_fn,
             },
             parameters={},
-            rule_writer=rule_writer,
             dist=Dist(
                 #NPROC=4, # no longer hard-coded
                 job_dict=config['job.step.unzip.track_reads'],
@@ -447,14 +443,13 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
             bash_template=phasing_run_bash_template_fn,
         ),
         parameters={},
-        rule_writer=rule_writer,
         dist=Dist(local=True),
     ))
 
     gathered_rid_to_phase_fn = './3-unzip/0-phasing/gathered-rid-to-phase/gathered.json'
 
     gen_parallel_tasks(
-        wf, rule_writer,
+        wf,
         phasing_all_units_fn, gathered_rid_to_phase_fn,
         run_dict=dict(
             bash_template_fn=phasing_run_bash_template_fn,
@@ -479,7 +474,6 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
         outputs={'rid_to_phase_all': concatenated_rid_to_phase_fn,
         },
         parameters={},
-        rule_writer=rule_writer,
         dist=Dist(local=True),
     ))
 
@@ -498,7 +492,6 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
                 'p_ctg': hasm_p_ctg_fn,
             },
             parameters={},
-            rule_writer=rule_writer,
             dist=Dist(NPROC=1, job_dict=config['job.step.unzip.hasm']),
     ))
 
@@ -519,7 +512,6 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
                 'bash_template': dummy_fn,
             },
             parameters={},
-            rule_writer=rule_writer,
             dist=Dist(NPROC=1, job_dict=config['job.step.unzip.hasm']),
     ))
     TASK_GTOH_APPLY_UNITS_OF_WORK = """\
@@ -529,7 +521,7 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
     """
     gathered_g2h_fn = './3-unzip/2-htigs/gathered/gathered.json'
     gen_parallel_tasks(
-        wf, rule_writer,
+        wf,
         g2h_all_units_fn, gathered_g2h_fn,
         run_dict=dict(
             bash_template_fn=dummy_fn,
@@ -564,7 +556,6 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
                 'h_ctg_fa': './3-unzip/all_h_ctg.fa',
             },
             parameters={},
-            rule_writer=rule_writer,
             dist=Dist(
                 NPROC=1,
                 job_dict=config['job.step.unzip.hasm'],
@@ -599,7 +590,6 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
             'rawread_to_contigs': track_reads_rr2c,
         },
         parameters={},
-        rule_writer=rule_writer,
         dist=Dist(NPROC=12, # guesstimate
             job_dict=config['job.step.unzip.track_reads'],
             use_tmpdir=False,
@@ -618,7 +608,6 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
             'read2ctg': read2ctg,
         },
         parameters={},
-        rule_writer=rule_writer,
         dist=Dist(NPROC=4, MB=16, # actually NPROC=1, but our qsub jobs rarely report mem needs
             job_dict=config['job.step.unzip.track_reads'],
             use_tmpdir=False,
@@ -642,7 +631,6 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
             'extra': extra,
             'max_n_open_files': config['max_n_open_files'],
         },
-        rule_writer=rule_writer,
         dist=Dist(NPROC=4, MB=16, # actually NPROC=1, but our qsub jobs rarely report mem needs
             job_dict=config['job.step.unzip.track_reads'],
             use_tmpdir=False, # until we ensure the output uses non-tmpdir paths
@@ -663,7 +651,6 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
         ),
         parameters=dict(
         ),
-        rule_writer=rule_writer,
         dist=Dist(local=True),
     ))
 
@@ -671,7 +658,7 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
     # (If this were not done in Python, it could probably be in serial.)
     gathered_fn = './4-polish/segregate-gathered/segregated-bam.json'
     gen_parallel_tasks(
-        wf, rule_writer,
+        wf,
         segr_all_units_fn, gathered_fn,
         run_dict=dict(
             bash_template_fn=segr_run_bash_template_fn,
@@ -701,7 +688,6 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
             'ctg2segregated_bamfn': ctg2segregated_bamfn,
         },
         parameters={},
-        rule_writer=rule_writer,
         dist=Dist(local=True),
     ))
 
@@ -720,7 +706,6 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
                 'bash_template': quiver_run_bash_template_fn,
         },
         parameters={},
-        rule_writer=rule_writer,
         #dist=Dist(local=True),
         # lots of fasta parsing, so must not run locally
         dist=Dist(NPROC=1,
@@ -730,7 +715,7 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
 
     int_gathered_fn = '4-polish/cns-gather/intermediate/int.gathered.json'
     gen_parallel_tasks(
-        wf, rule_writer,
+        wf,
         quiver_all_units_fn, int_gathered_fn,
         run_dict=dict(
             bash_template_fn=quiver_run_bash_template_fn,
@@ -756,7 +741,6 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
             'separated': gathered_quiver,
         },
         parameters={},
-        rule_writer=rule_writer,
         dist=Dist(local=True),
     ))
 
@@ -772,7 +756,6 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
             'cns_h_ctg_fastq': '4-polish/cns-output/cns_h_ctg.fastq',
             'job_done': '4-polish/cns-output/job_done',
         },
-        rule_writer=rule_writer,
         dist=Dist(NPROC=1),
     ))
 
