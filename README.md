@@ -21,11 +21,10 @@ fc_quiver.py fc_unzip.cfg
 ```
 
 ## Example config
+
 These are the available settings:
 ```ini
 [General]
-#job_type = SGE
-#job_type = local
 #use_tmpdir = /scratch
 pwatcher_type = blocking
 job_type = string
@@ -40,12 +39,28 @@ max_n_open_files = 1000
 [Unzip]
 input_fofn= input.fofn
 input_bam_fofn= input_bam.fofn
-smrt_bin=/pbi/dept/secondary/builds/4.1.0/current_smrttools_incremental_installdir/smrtcmds/bin
-sge_phasing= -pe smp 12 -q bigmem
-sge_quiver= -pe smp 12 -q sequel-farm
-sge_track_reads= -pe smp 12 -q default
-sge_blasr_aln= -pe smp 24 -q bigmem
-sge_hasm= -pe smp 48 -q bigmem
-unzip_concurrent_jobs = 12
-quiver_concurrent_jobs = 12
+#polish_vc_ignore_error = true
+#polish_use_blasr = true
+#polish_include_zmw_all_subreads = true
+
+[job.step.unzip.track_reads]
+njobs=1
+NPROC=48
+
+[job.step.unzip.blasr_aln]
+njobs=8
+NPROC=16
+
+[job.step.unzip.phasing]
+njobs=16
+NPROC=2
+
+[job.step.unzip.hasm]
+njobs=1
+NPROC=48
+
+[job.step.unzip.quiver]
+njobs=12
+NPROC=12
 ```
+For job-distribution, see https://github.com/PacificBiosciences/pypeFLOW/wiki/Configuration

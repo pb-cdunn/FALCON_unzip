@@ -204,7 +204,7 @@ TASK_PREAMBLE = """
 
 
 
-def run_workflow(wf, config, unzip_config_fn, rule_writer):
+def run_workflow(wf, config, unzip_config_fn):
     default_njobs = int(config['job.defaults']['njobs'])
     wf.max_jobs = default_njobs
 
@@ -235,7 +235,7 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
     # For strictly local jobs, use this.
     distl = Dist(
         #job_dict=config['job.defaults'],
-        NPROC=4,
+        NPROC=1,
         local=True,
         use_tmpdir=False,
     )
@@ -253,8 +253,10 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
                 "FAI": "3-unzip/ctgs/concat.fa.fai",
             },
             parameters={},
-            dist=dist,
-            rule_writer=rule_writer,
+            dist = Dist(
+                job_dict=config['job.defaults'],
+                NPROC=1,
+            )
     ))
 
     wf.refreshTargets()
@@ -280,10 +282,10 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
                 "OBAMA": "3-unzip/mapping/reads_mapped.bam",
             },
             parameters={},
-            dist=Dist(
-                NPROC=aln_cpu,
-            ),
-            rule_writer=rule_writer,
+            dist = Dist(
+                job_dict=config['job.defaults'],
+                NPROC=aln_cpu, #TODO
+            )
     ))
 
 
@@ -298,10 +300,10 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
                 "RID_TO_CTG" : rid_to_ctg,
             },
             parameters={},
-        dist=Dist(
-            NPROC=sort_cpu,
-        ),
-        rule_writer=rule_writer,
+            dist = Dist(
+                job_dict=config['job.defaults'],
+                NPROC=sort_cpu, #TODO
+            )
     ))
 
     readname_lookup = "3-unzip/readnames/readname_lookup.txt"
@@ -315,10 +317,10 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
                 'readname_lookup'  : readname_lookup,
             },
             parameters={},
-        dist=Dist(
-            NPROC=sort_cpu,
-        ),
-        rule_writer=rule_writer,
+            dist = Dist(
+                job_dict=config['job.defaults'],
+                NPROC=sort_cpu, #TODO
+            )
     ))
 
     collected = dict()
@@ -344,8 +346,10 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
             parameters={
                 'ctg': ctg,
             },
-            dist=dist,
-            rule_writer=rule_writer,
+            dist = Dist(
+                job_dict=config['job.defaults'],
+                #NPROC=???, #TODO
+            )
         ))
 
     wf.refreshTargets()
@@ -362,8 +366,7 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
                  'gathered_rid_json' : gathered_rid_to_phase_json,
         },
         parameters={},
-        rule_writer=rule_writer,
-        dist=Dist(local=True),
+        dist=distl
     ))
 
     p_las_fofn_fn =   './1-preads_ovl/las-merge-combine/las_fofn.json'
@@ -384,8 +387,10 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
                 'p_ctg': hasm_p_ctg_fn,
             },
             parameters={},
-            rule_writer=rule_writer,
-            dist=Dist(NPROC=1, job_dict=config['job.step.unzip.hasm']),
+            dist = Dist(
+                job_dict=config['job.step.unzip.hasm'],
+                NPROC=1,
+            )
     ))
 
     g2h_all_units_fn = './3-unzip/2-htigs/split/all-units-of-work.json'
@@ -404,8 +409,10 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
                 'bash_template': dummy_fn,
             },
             parameters={},
-            rule_writer=rule_writer,
-            dist=Dist(NPROC=1, job_dict=config['job.step.unzip.hasm']),
+            dist = Dist(
+                job_dict=config['job.step.unzip.hasm'],
+                NPROC=1,
+            )
     ))
 
     wf.refreshTargets()
@@ -417,7 +424,7 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
     """
     gathered_g2h_fn = './3-unzip/2-htigs/gathered/gathered.json'
     gen_parallel_tasks(
-        wf, rule_writer,
+        wf,
         g2h_all_units_fn, gathered_g2h_fn,
         run_dict=dict(
             bash_template_fn=dummy_fn,
@@ -453,7 +460,6 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
                 'h_ctg_fa': './3-unzip/all_h_ctg.fa',
             },
             parameters={},
-            rule_writer=rule_writer,
             dist=Dist(
                 NPROC=1,
                 job_dict=config['job.step.unzip.hasm'],
@@ -485,7 +491,6 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
             "FQO"       : ofastq_fn,
         },
         parameters={},
-        rule_writer=rule_writer,
         dist=Dist(
             NPROC=1,
             job_dict=config['job.step.unzip.hasm'],
@@ -514,8 +519,7 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
             parameters={
                 'ctg': ctg,
             },
-            dist=dist,
-            rule_writer=rule_writer,
+            dist=dist
         ))
 
     wf.refreshTargets()
@@ -528,8 +532,7 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
             "UBAM": merged_unphased,
         },
         parameters={},
-        dist=dist,
-        rule_writer=rule_writer,
+        dist=dist
     ))
 
     wf.refreshTargets()
@@ -581,8 +584,7 @@ def run_workflow(wf, config, unzip_config_fn, rule_writer):
             parameters={
                 'ctg': ctg,
             },
-            dist=dist,
-            rule_writer=rule_writer,
+            dist=dist
         ))
 
     wf.refreshTargets()

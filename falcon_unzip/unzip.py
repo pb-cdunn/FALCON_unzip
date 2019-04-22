@@ -24,8 +24,7 @@ def unzip_all(config, unzip_config_fn):
         job_defaults=job_defaults,
         use_tmpdir=use_tmpdir,
     )
-    rule_writer = None
-    tasks_unzip.run_workflow(wf, config, unzip_config_fn, rule_writer)
+    tasks_unzip.run_workflow(wf, config, unzip_config_fn)
 
 def ccs_all(config, unzip_config_fn):
     job_defaults = config['job.defaults']
@@ -34,8 +33,7 @@ def ccs_all(config, unzip_config_fn):
         job_defaults=job_defaults,
         use_tmpdir=use_tmpdir,
     )
-    rule_writer = None
-    tasks_ccs.run_workflow(wf, config, unzip_config_fn, rule_writer)
+    tasks_ccs.run_workflow(wf, config, unzip_config_fn)
 
 def update_config_from_sections(config, cfg):
     allowed_sections = set([
